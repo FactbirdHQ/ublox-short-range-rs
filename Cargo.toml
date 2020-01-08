@@ -7,7 +7,7 @@ readme = "README.md"
 keywords = ["arm", "cortex-m", "ublox", "wifi", "shortrange", "bluetooth"]
 categories = ["embedded", "no-std"]
 license = "MIT OR Apache-2.0"
-# repository = "https://github.com/BlackbirdHQ/factbird-rs"
+repository = "https://github.com/BlackbirdHQ/ublox-short-range-rs"
 edition = "2018"
 
 [lib]
