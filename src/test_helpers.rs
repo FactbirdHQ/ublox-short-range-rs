@@ -20,25 +20,40 @@ macro_rules! setup_test_env {
 
   static INIT: Once = Once::new();
 
-  struct Seconds(u32);
+  #[derive(Clone, Copy)]
+  struct MilliSeconds(u32);
+
   trait U32Ext {
-    fn s(self) -> Seconds;
+    fn s(self) -> MilliSeconds;
+    fn ms(self) -> MilliSeconds;
   }
+
   impl U32Ext for u32 {
-    fn s(self) -> Seconds {
-      Seconds(self)
+    fn s(self) -> MilliSeconds {
+      MilliSeconds(self/1000)
+    }
+    fn ms(self) -> MilliSeconds {
+      MilliSeconds(self)
     }
   }
 
   struct Timer6;
   impl embedded_hal::timer::CountDown for Timer6 {
-    type Time = Seconds;
+    type Time = MilliSeconds;
     fn start<T>(&mut self, _: T)
     where
-      T: Into<Seconds>,
+      T: Into<MilliSeconds>,
     {
     }
+
     fn wait(&mut self) -> ::nb::Result<(), void::Void> {
+      Err(nb::Error::WouldBlock)
+    }
+  }
+
+  impl embedded_hal::timer::Cancel for Timer6 {
+    type Error = ();
+    fn cancel(&mut self) -> Result<(), Self::Error> {
       Ok(())
     }
   }
@@ -63,17 +78,19 @@ macro_rules! setup_test_case {
     let (wifi_cmd_p, wifi_cmd_c) = unsafe { WIFI_CMD_Q.as_mut().unwrap().split() };
     let (wifi_resp_p, wifi_resp_c) = unsafe { WIFI_RESP_Q.as_mut().unwrap().split() };
 
-    let wifi_client = at::client::ATClient::new((wifi_cmd_p, wifi_resp_c), 1000, Timer6);
+    let wifi_client = at::client::ATClient::new((wifi_cmd_p, wifi_resp_c), 1000.ms(), Timer6);
 
-    (wifi_client, (wifi_cmd_c, wifi_resp_p))
+    let ublox = UbloxClient::new(wifi_client);
+
+    (ublox, (wifi_cmd_c, wifi_resp_p))
   }};
 }
 
 macro_rules! cleanup_test_case {
   ($connection: expr, $cmd_c: expr) => {
-    let wifi_client = $connection.unwrap().disconnect();
-    let (_, mut wifi_resp_c) = wifi_client.release();
-    assert!(wifi_resp_c.dequeue().is_none());
+    // let wifi_client = $connection.unwrap().disconnect();
+    // let (_, mut wifi_resp_c) = wifi_client.release();
+    // assert!(wifi_resp_c.dequeue().is_none());
     assert!($cmd_c.dequeue().is_none());
   };
 }

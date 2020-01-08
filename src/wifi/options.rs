@@ -1,4 +1,4 @@
-use heapless::{consts, String};
+use heapless::String;
 use no_std_net::Ipv4Addr;
 
 #[allow(dead_code)]
@@ -58,8 +58,8 @@ impl HotspotOptions {
 pub struct ConnectionOptions {
     pub config_id: Option<u8>,
 
-    pub ssid: String<consts::U60>,
-    pub password: Option<String<consts::U60>>,
+    pub ssid: String<at::MaxCommandLen>,
+    pub password: Option<String<at::MaxCommandLen>>,
 
     pub ip: Option<Ipv4Addr>,
     pub subnet: Option<Ipv4Addr>,
@@ -91,12 +91,12 @@ impl ConnectionOptions {
         self
     }
 
-    pub fn ssid(mut self, ssid: String<consts::U60>) -> Self {
+    pub fn ssid(mut self, ssid: String<at::MaxCommandLen>) -> Self {
         self.ssid = ssid;
         self
     }
 
-    pub fn password(mut self, password: String<consts::U60>) -> Self {
+    pub fn password(mut self, password: String<at::MaxCommandLen>) -> Self {
         self.password = Some(password);
         self
     }

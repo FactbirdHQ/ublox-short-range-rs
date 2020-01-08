@@ -214,10 +214,10 @@ pub enum Response {
         op_mode: OPMode,
         ssid: String<at::MaxCommandLen>,
         channel: u8,
-        rssi: u16,
-        authentication_suites: Vec<u8, consts::U8>,
-        unicast_ciphers: Vec<u8, consts::U8>,
-        group_ciphers: Vec<u8, consts::U8>,
+        rssi: i16,
+        authentication_suites: u8,
+        unicast_ciphers: u8,
+        group_ciphers: u8,
     },
     STASetChannelList {
         channel_list: Vec<u8, consts::U8>,
@@ -248,6 +248,7 @@ pub enum Response {
 /// Unsolicited
 #[derive(Debug, Clone)]
 pub enum UnsolicitedResponse {
+    Startup,
     /// 5.10 Peer connected \
     /// A Bluetooth peer has been connected
     BluetoothPeerConnected {
@@ -261,4 +262,22 @@ pub enum UnsolicitedResponse {
     /// 5.11 Peer disconnected \
     /// A connection to a remote peer has been disconnected
     PeerDisconnected { peer_handle: u8 },
+    /// 7.15 Wi-Fi Link connected +UUWLE
+    /// Unsolicited response code for Wi-Fi
+    /// Wi-Fi connection established
+    WifiLinkConnected { connection_id: u8, bssid: String<at::MaxCommandLen>, channel: u8 },
+    /// 7.16 Wi-Fi Link disconnected +UUWLD
+    /// Unsolicited response code for Wi-Fi
+    /// Wi-Fi connection disconnected.
+    WifiLinkDisconnected { connection_id: u8, reason: u8 },
+    /// 10.6 Network down
+    /// Network is down
+    NetworkUp { interface_id: u8 },
+    /// 10.7 Network down
+    /// Network is down
+    NetworkDown { interface_id: u8 },
+    /// 10.8 Network error
+    /// An error has occured
+    NetworkError { interface_id: u8, error_code: u8 },
+
 }

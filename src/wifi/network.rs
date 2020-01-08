@@ -1,6 +1,6 @@
 use crate::command::*;
 use crate::error::WifiError;
-use heapless::{consts, String, Vec};
+use heapless::String;
 
 use core::convert::TryFrom;
 
@@ -10,15 +10,16 @@ pub enum WifiMode {
   AccessPoint
 }
 
+#[derive(Debug)]
 pub struct WifiNetwork {
   pub bssid: String<at::MaxCommandLen>,
   pub op_mode: OPMode,
   pub ssid: String<at::MaxCommandLen>,
   pub channel: u8,
-  pub rssi: u16,
-  pub authentication_suites: Vec<u8, consts::U8>,
-  pub unicast_ciphers: Vec<u8, consts::U8>,
-  pub group_ciphers: Vec<u8, consts::U8>,
+  pub rssi: i16,
+  pub authentication_suites: u8,
+  pub unicast_ciphers: u8,
+  pub group_ciphers: u8,
   pub mode: WifiMode
 }
 

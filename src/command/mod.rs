@@ -6,22 +6,23 @@ use heapless::{String, Vec};
 
 use at::ATCommandInterface;
 
-mod response;
 mod cmd;
+mod response;
 mod types;
 
-pub use response::{Response, UnsolicitedResponse};
 pub use cmd::Command;
+pub use response::{Response, UnsolicitedResponse};
 pub use types::*;
+
+use log::{info, warn};
 
 #[derive(Debug, Clone)]
 pub enum ResponseType {
     SingleSolicited(Response),
-    MultiSolicited(Vec<Response, heapless::consts::U4>),
+    // MultiSolicited(Vec<Response, heapless::consts::U10>),
     Unsolicited(UnsolicitedResponse),
     None,
 }
-
 
 impl ATCommandInterface<ResponseType> for Command {
     fn get_cmd(&self) -> String<at::MaxCommandLen> {
@@ -511,24 +512,91 @@ impl ATCommandInterface<ResponseType> for Command {
         // Handle list items
         let mut responses = at::utils::split_parameterized_resp(response_lines);
 
-        let response = responses.pop().unwrap();
         match *self {
             Command::AT => ResponseType::None,
-            Command::GetManufacturerId => ResponseType::SingleSolicited(Response::ManufacturerId {
-                id: String::from(response[0]),
-            }),
-            Command::STASetConfig { .. } => ResponseType::SingleSolicited(Response::STASetConfig {
-                configuration_id: response[0].parse::<u8>().unwrap(),
-                param_tag: response[1..].into(),
-            }),
-            _ => ResponseType::None,
+            Command::GetManufacturerId => {
+                let response = responses.pop().unwrap();
+                ResponseType::SingleSolicited(Response::ManufacturerId {
+                    id: String::from(response[0]),
+                })
+            }
+            // Command::STAScan { .. } => ResponseType::MultiSolicited(
+            //     responses
+            //         .iter()
+            //         .filter_map(|r| {
+            //             if r.len() < 8 {
+            //                 None
+            //             } else {
+            //                 Some(Response::STAScan {
+            //                     bssid: String::from(r[0]),
+            //                     op_mode: OPMode::Infrastructure,
+            //                     ssid: String::from(r[2]),
+            //                     channel: r[3].parse::<u8>().unwrap(),
+            //                     rssi: r[4].parse::<i16>().unwrap(),
+            //                     authentication_suites: r[5].parse::<u8>().unwrap(),
+            //                     unicast_ciphers: r[6].parse::<u8>().unwrap(),
+            //                     group_ciphers: r[7].parse::<u8>().unwrap(),
+            //                 })
+            //             }
+            //         })
+            //         .collect(),
+            // ),
+            _ => {
+                warn!("Unimplemented response for cmd {:?}", self);
+                ResponseType::None
+            }
         }
     }
 
-    fn parse_unsolicited(response_line: &str) -> ResponseType {
+    fn parse_unsolicited(response_line: &str) -> Option<ResponseType> {
         let (cmd, response) = at::utils::split_parameterized_unsolicited(response_line);
-        match cmd {
-            _ => ResponseType::None,
-        }
+        Some(match cmd {
+            "+STARTUP" => ResponseType::Unsolicited(UnsolicitedResponse::Startup),
+            "+UUWLE" => {
+                if response.len() < 3 {
+                    return None;
+                }
+                ResponseType::Unsolicited(UnsolicitedResponse::WifiLinkConnected {
+                    connection_id: response[0].parse::<u8>().unwrap(),
+                    bssid: String::from(response[1]),
+                    channel: response[2].parse::<u8>().unwrap(),
+                })
+            }
+            "+UUWLD" => {
+                if response.len() < 2 {
+                    return None;
+                }
+                ResponseType::Unsolicited(UnsolicitedResponse::WifiLinkDisconnected {
+                    connection_id: response[0].parse::<u8>().unwrap(),
+                    reason: response[1].parse::<u8>().unwrap(),
+                })
+            }
+            "+UUNU" => {
+                if response.len() < 1 {
+                    return None;
+                }
+                ResponseType::Unsolicited(UnsolicitedResponse::NetworkUp {
+                    interface_id: response[0].parse::<u8>().unwrap(),
+                })
+            }
+            "+UUND" => {
+                if response.len() < 1 {
+                    return None;
+                }
+                ResponseType::Unsolicited(UnsolicitedResponse::NetworkDown {
+                    interface_id: response[0].parse::<u8>().unwrap(),
+                })
+            }
+            "+UUNERR" => {
+                if response.len() < 2 {
+                    return None;
+                }
+                ResponseType::Unsolicited(UnsolicitedResponse::NetworkError {
+                    interface_id: response[0].parse::<u8>().unwrap(),
+                    error_code: response[1].parse::<u8>().unwrap(),
+                })
+            }
+            _ => return None,
+        })
     }
 }

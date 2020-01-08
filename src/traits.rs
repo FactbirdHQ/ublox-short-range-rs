@@ -1,4 +1,3 @@
-use super::command::*;
 use super::error::*;
 use super::wifi::{
     connection::WifiConnection,
@@ -6,15 +5,14 @@ use super::wifi::{
     options::{ConnectionOptions, HotspotOptions},
 };
 
-use at::ATInterface;
-
 use heapless::Vec;
-use embedded_hal::timer::CountDown;
+use embedded_hal::timer::{CountDown, Cancel};
 
 /// Wireless network connectivity functionality.
-pub trait WifiConnectivity<T>: ATInterface<Command, ResponseType>
+pub trait WifiConnectivity<T>
 where
-    T: CountDown
+    T: CountDown + Cancel,
+    T::Time: Copy,
 {
     /// Makes an attempt to connect to a selected wireless network with password specified.
     fn connect(
@@ -25,9 +23,10 @@ where
     fn scan(&mut self) -> Result<Vec<WifiNetwork, at::MaxResponseLines>, WifiError>;
 }
 
-pub trait WifiHotspot<T>: ATInterface<Command, ResponseType>
+pub trait WifiHotspot<T>
 where
-    T: CountDown,
+    T: CountDown + Cancel,
+    T::Time: Copy,
 {
     /// Creates wireless hotspot service for host machine.
     fn create_hotspot(

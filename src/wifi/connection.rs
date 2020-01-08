@@ -1,45 +1,39 @@
-use embedded_hal::timer::CountDown;
+use embedded_hal::timer::{CountDown, Cancel};
 
 use heapless::consts;
 
 use crate::{
     socket::{tcp::TcpSocket, Socket, SocketHandle, SocketSet},
     wifi::network::{WifiMode, WifiNetwork},
-    ATClient
+    client::UbloxClient
 };
-
-pub enum SerialMode {
-    Cmd,
-    Data,
-    ExtendedData,
-}
 
 pub struct WifiConnection<T>
 where
-    T: CountDown,
+    T: CountDown + Cancel,
+    T::Time: Copy
 {
     pub connected: bool,
-    network: WifiNetwork,
-    client: ATClient<T>,
-    serial_mode: SerialMode,
+    pub network: WifiNetwork,
+    client: UbloxClient<T>,
     sockets: SocketSet<consts::U8>,
 }
 
 impl<T> WifiConnection<T>
 where
-    T: CountDown,
+    T: CountDown + Cancel,
+    T::Time: Copy
 {
-    pub fn new(client: ATClient<T>, network: WifiNetwork) -> Self {
+    pub fn new(client: UbloxClient<T>, network: WifiNetwork) -> Self {
         WifiConnection {
             connected: true,
             client,
             network,
-            serial_mode: SerialMode::Cmd,
             sockets: SocketSet::default(),
         }
     }
 
-    pub fn disconnect(mut self) -> ATClient<T> {
+    pub fn disconnect(mut self) -> UbloxClient<T> {
         self.connected = false;
         self.sockets.prune();
         self.client

@@ -30,6 +30,8 @@ default-features = false
 [dev-dependencies]
 env_logger = "0.7.1"
 void = "1.0.2"
+linux-embedded-hal = "0.3.0"
+serial = "0.4.0"
 
 [features]
 default = ["odin_w2xx", "wifi_ap", "wifi_sta", "socket-tcp"]

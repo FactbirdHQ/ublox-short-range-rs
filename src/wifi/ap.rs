@@ -1,5 +1,5 @@
 use crate::{
-  ATClient,
+  client::UbloxClient,
   error::WifiHotspotError,
   prelude::WifiHotspot,
   command::*,
@@ -10,12 +10,13 @@ use crate::{
   },
 };
 
-use embedded_hal::timer::CountDown;
-use heapless::{String, Vec};
+use embedded_hal::timer::{CountDown, Cancel};
+use heapless::String;
 
-impl<T> WifiHotspot<T> for ATClient<T>
+impl<T> WifiHotspot<T> for UbloxClient<T>
 where
-  T: CountDown,
+  T: CountDown + Cancel,
+  T::Time: Copy,
 {
   /// Creates wireless hotspot service for host machine.
   fn create_hotspot(
@@ -29,9 +30,9 @@ where
       ssid: options.ssid,
       channel: configuration.channel.unwrap() as u8,
       rssi: 1,
-      authentication_suites: Vec::new(),
-      unicast_ciphers: Vec::new(),
-      group_ciphers: Vec::new(),
+      authentication_suites: 0,
+      unicast_ciphers: 0,
+      group_ciphers: 0,
       mode: WifiMode::AccessPoint
     };
     Ok(WifiConnection::new(self, network))
