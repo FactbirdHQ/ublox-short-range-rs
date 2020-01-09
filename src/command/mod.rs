@@ -7,21 +7,31 @@ use heapless::{String, Vec};
 use at::ATCommandInterface;
 
 mod cmd;
+// pub mod edm;
 mod response;
 mod types;
 
 pub use cmd::Command;
+// use edm::Packet;
 pub use response::{Response, UnsolicitedResponse};
 pub use types::*;
 
-use log::{info, warn};
+use log::warn;
 
 #[derive(Debug, Clone)]
 pub enum ResponseType {
     SingleSolicited(Response),
     // MultiSolicited(Vec<Response, heapless::consts::U10>),
     Unsolicited(UnsolicitedResponse),
+    // Data(Packet),
     None,
+}
+
+#[derive(Debug, Clone)]
+pub enum CommandType {
+    Cmd(Command),
+    Data,
+    // ExtendedData(Packet),
 }
 
 impl ATCommandInterface<ResponseType> for Command {
@@ -134,11 +144,11 @@ impl ATCommandInterface<ResponseType> for Command {
                 buffer
             }
             Command::ClosePeerConnection { ref peer_handle } => {
-                write!(buffer, "AT+UDCPC={}", peer_handle).unwrap();
+                write!(buffer, "AT+UDCPC={}", *peer_handle as u8).unwrap();
                 buffer
             }
             Command::GetDefaultPeer { ref peer_id } => {
-                write!(buffer, "AT+UDDRP={}", peer_id).unwrap();
+                write!(buffer, "AT+UDDRP={}", *peer_id as u8).unwrap();
                 buffer
             }
             Command::SetDefaultPeer {
@@ -236,7 +246,7 @@ impl ATCommandInterface<ResponseType> for Command {
                     write!(
                         buffer,
                         "AT+UBTUPE={},{},{}",
-                        bd_addr, *ok_cancel as u8, passkey
+                        bd_addr, *ok_cancel as u8, *passkey as u16
                     )
                     .unwrap();
                 } else {

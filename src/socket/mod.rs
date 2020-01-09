@@ -1,19 +1,18 @@
 use core::marker::PhantomData;
 
-pub mod tcp;
-mod set;
 mod meta;
 mod ref_;
 mod ring_buffer;
+mod set;
+pub mod tcp;
 
 pub(crate) use self::meta::Meta as SocketMeta;
 pub use self::ring_buffer::RingBuffer;
 
 #[cfg(feature = "socket-tcp")]
-pub use tcp::{State as TcpState,
-                    TcpSocket};
+pub use tcp::{State as TcpState, TcpSocket};
 
-pub use self::set::{Set as SocketSet, Item as SocketSetItem, Handle as SocketHandle};
+pub use self::set::{Handle as SocketHandle, Item as SocketSetItem, Set as SocketSet};
 pub use self::set::{Iter as SocketSetIter, IterMut as SocketSetIterMut};
 
 pub use self::ref_::Ref as SocketRef;
@@ -33,14 +32,17 @@ pub(crate) use self::ref_::Session as SocketSession;
 pub enum Socket {
     #[cfg(feature = "socket-raw")]
     Raw(RawSocket<'a, 'b>),
-    #[cfg(all(feature = "socket-icmp", any(feature = "proto-ipv4", feature = "proto-ipv6")))]
+    #[cfg(all(
+        feature = "socket-icmp",
+        any(feature = "proto-ipv4", feature = "proto-ipv6")
+    ))]
     Icmp(IcmpSocket<'a, 'b>),
     #[cfg(feature = "socket-udp")]
     Udp(UdpSocket<'a, 'b>),
     #[cfg(feature = "socket-tcp")]
     Tcp(TcpSocket),
     #[doc(hidden)]
-    __Nonexhaustive(PhantomData<()>)
+    __Nonexhaustive(PhantomData<()>),
 }
 
 macro_rules! dispatch_socket {
@@ -93,8 +95,7 @@ impl SocketSession for Socket {
 
 /// A conversion trait for network sockets.
 pub trait AnySocket: SocketSession + Sized {
-    fn downcast(socket_ref: SocketRef<'_, Socket>) ->
-                   Option<SocketRef<'_, Self>>;
+    fn downcast(socket_ref: SocketRef<'_, Socket>) -> Option<SocketRef<'_, Self>>;
 }
 
 /// A trait for setting a value to a known state.
@@ -107,20 +108,22 @@ pub trait Resettable {
 macro_rules! from_socket {
     ($socket:ty, $variant:ident) => {
         impl AnySocket for $socket {
-            fn downcast(ref_: SocketRef<'_, Socket>) ->
-                           Option<SocketRef<'_, Self>> {
+            fn downcast(ref_: SocketRef<'_, Socket>) -> Option<SocketRef<'_, Self>> {
                 match SocketRef::into_inner(ref_) {
                     Socket::$variant(ref mut socket) => Some(SocketRef::new(socket)),
                     _ => None,
                 }
             }
         }
-    }
+    };
 }
 
 #[cfg(feature = "socket-raw")]
 from_socket!(RawSocket, Raw);
-#[cfg(all(feature = "socket-icmp", any(feature = "proto-ipv4", feature = "proto-ipv6")))]
+#[cfg(all(
+    feature = "socket-icmp",
+    any(feature = "proto-ipv4", feature = "proto-ipv6")
+))]
 from_socket!(IcmpSocket, Icmp);
 #[cfg(feature = "socket-udp")]
 from_socket!(UdpSocket, Udp);

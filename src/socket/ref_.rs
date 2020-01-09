@@ -1,13 +1,16 @@
 use core::ops::{Deref, DerefMut};
 
+#[cfg(all(
+    feature = "socket-icmp",
+    any(feature = "proto-ipv4", feature = "proto-ipv6")
+))]
+use crate::socket::IcmpSocket;
 #[cfg(feature = "socket-raw")]
 use crate::socket::RawSocket;
-#[cfg(all(feature = "socket-icmp", any(feature = "proto-ipv4", feature = "proto-ipv6")))]
-use crate::socket::IcmpSocket;
-#[cfg(feature = "socket-udp")]
-use crate::socket::UdpSocket;
 #[cfg(feature = "socket-tcp")]
 use crate::socket::TcpSocket;
+#[cfg(feature = "socket-udp")]
+use crate::socket::UdpSocket;
 
 /// A trait for tracking a socket usage session.
 ///
@@ -21,7 +24,10 @@ pub trait Session {
 
 #[cfg(feature = "socket-raw")]
 impl<'a, 'b> Session for RawSocket<'a, 'b> {}
-#[cfg(all(feature = "socket-icmp", any(feature = "proto-ipv4", feature = "proto-ipv6")))]
+#[cfg(all(
+    feature = "socket-icmp",
+    any(feature = "proto-ipv4", feature = "proto-ipv6")
+))]
 impl<'a, 'b> Session for IcmpSocket<'a, 'b> {}
 #[cfg(feature = "socket-udp")]
 impl<'a, 'b> Session for UdpSocket<'a, 'b> {}
@@ -32,7 +38,7 @@ impl Session for TcpSocket {}
 ///
 /// Allows the network stack to efficiently determine if the socket state was changed in any way.
 pub struct Ref<'a, T: Session + 'a> {
-    socket:   &'a mut T,
+    socket: &'a mut T,
     consumed: bool,
 }
 
@@ -43,7 +49,10 @@ impl<'a, T: Session + 'a> Ref<'a, T> {
     ///
     /// [into_inner]: #method.into_inner
     pub fn new(socket: &'a mut T) -> Self {
-        Ref { socket, consumed: false }
+        Ref {
+            socket,
+            consumed: false,
+        }
     }
 
     /// Unwrap a smart pointer to a socket.

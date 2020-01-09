@@ -6,10 +6,17 @@ extern crate at_rs as at;
 #[macro_use]
 extern crate nb;
 extern crate no_std_net;
+// extern crate packed_struct;
+// #[macro_use]
+// extern crate packed_struct_codegen;
 
-
-pub type ATClient<T> =
-  at::client::ATClient<T, command::Command, command::ResponseType, heapless::consts::U10, heapless::consts::U10>;
+pub type ATClient<T> = at::client::ATClient<
+    T,
+    command::Command,
+    command::ResponseType,
+    heapless::consts::U10,
+    heapless::consts::U10,
+>;
 
 #[cfg(test)]
 #[macro_use]

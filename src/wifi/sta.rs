@@ -97,24 +97,16 @@ where
             action: STAAction::Activate,
         })?;
 
-        // Store Wi-Fi configuration.
-        // self.send(Command::ExecSTAAction {
-        //     configuration_id: 0,
-        //     action: STAAction::Store,
-        // })?;
-
         // Await connected event?
-        let (bssid, channel) = if let UnsolicitedResponse::WifiLinkConnected {
-            connection_id,
-            bssid,
-            channel,
-        } = block!(wait_for_unsolicited!(self, UnsolicitedResponse::WifiLinkConnected { .. }))
-            .unwrap()
-        {
-            (bssid, channel)
-        } else {
-            unreachable!()
-        };
+        let (bssid, channel) =
+            if let UnsolicitedResponse::WifiLinkConnected { bssid, channel, .. } =
+                block!(wait_for_unsolicited!(self, UnsolicitedResponse::WifiLinkConnected { .. }))
+                    .unwrap()
+            {
+                (bssid, channel)
+            } else {
+                unreachable!()
+            };
 
         block!(wait_for_unsolicited!(self, UnsolicitedResponse::NetworkUp { .. })).unwrap();
 

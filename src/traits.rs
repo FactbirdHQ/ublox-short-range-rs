@@ -5,8 +5,8 @@ use super::wifi::{
     options::{ConnectionOptions, HotspotOptions},
 };
 
+use embedded_hal::timer::{Cancel, CountDown};
 use heapless::Vec;
-use embedded_hal::timer::{CountDown, Cancel};
 
 /// Wireless network connectivity functionality.
 pub trait WifiConnectivity<T>
@@ -15,10 +15,7 @@ where
     T::Time: Copy,
 {
     /// Makes an attempt to connect to a selected wireless network with password specified.
-    fn connect(
-        self,
-        options: ConnectionOptions,
-    ) -> Result<WifiConnection<T>, WifiConnectionError>;
+    fn connect(self, options: ConnectionOptions) -> Result<WifiConnection<T>, WifiConnectionError>;
 
     fn scan(&mut self) -> Result<Vec<WifiNetwork, at::MaxResponseLines>, WifiError>;
 }

@@ -1,17 +1,17 @@
-use embedded_hal::timer::{CountDown, Cancel};
+use embedded_hal::timer::{Cancel, CountDown};
 
 use heapless::consts;
 
 use crate::{
+    client::UbloxClient,
     socket::{tcp::TcpSocket, Socket, SocketHandle, SocketSet},
     wifi::network::{WifiMode, WifiNetwork},
-    client::UbloxClient
 };
 
 pub struct WifiConnection<T>
 where
     T: CountDown + Cancel,
-    T::Time: Copy
+    T::Time: Copy,
 {
     pub connected: bool,
     pub network: WifiNetwork,
@@ -22,7 +22,7 @@ where
 impl<T> WifiConnection<T>
 where
     T: CountDown + Cancel,
-    T::Time: Copy
+    T::Time: Copy,
 {
     pub fn new(client: UbloxClient<T>, network: WifiNetwork) -> Self {
         WifiConnection {

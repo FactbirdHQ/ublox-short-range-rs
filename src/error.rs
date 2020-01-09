@@ -9,7 +9,9 @@ pub enum WifiConnectionError {
     /// Failed to disconnect from wireless network. Try turning the wireless interface down.
     FailedToDisconnect(String<U64>),
     /// A wireless error occurred.
-    Other { kind: WifiError },
+    Other {
+        kind: WifiError,
+    },
 
     BufferOverflow,
     // SsidNotFound,

@@ -244,7 +244,6 @@ pub enum Response {
     },
 }
 
-
 /// Unsolicited
 #[derive(Debug, Clone)]
 pub enum UnsolicitedResponse {
@@ -258,26 +257,44 @@ pub enum UnsolicitedResponse {
         frame_size: u64,
     },
     /// An IP peer has been connected
-    IPPeerConnected { peer_handle: u8, r#type: u8 },
+    IPPeerConnected {
+        peer_handle: u8,
+        r#type: u8,
+    },
     /// 5.11 Peer disconnected \
     /// A connection to a remote peer has been disconnected
-    PeerDisconnected { peer_handle: u8 },
+    PeerDisconnected {
+        peer_handle: u8,
+    },
     /// 7.15 Wi-Fi Link connected +UUWLE
     /// Unsolicited response code for Wi-Fi
     /// Wi-Fi connection established
-    WifiLinkConnected { connection_id: u8, bssid: String<at::MaxCommandLen>, channel: u8 },
+    WifiLinkConnected {
+        connection_id: u8,
+        bssid: String<at::MaxCommandLen>,
+        channel: u8,
+    },
     /// 7.16 Wi-Fi Link disconnected +UUWLD
     /// Unsolicited response code for Wi-Fi
     /// Wi-Fi connection disconnected.
-    WifiLinkDisconnected { connection_id: u8, reason: u8 },
+    WifiLinkDisconnected {
+        connection_id: u8,
+        reason: u8,
+    },
     /// 10.6 Network down
     /// Network is down
-    NetworkUp { interface_id: u8 },
+    NetworkUp {
+        interface_id: u8,
+    },
     /// 10.7 Network down
     /// Network is down
-    NetworkDown { interface_id: u8 },
+    NetworkDown {
+        interface_id: u8,
+    },
     /// 10.8 Network error
     /// An error has occured
-    NetworkError { interface_id: u8, error_code: u8 },
-
+    NetworkError {
+        interface_id: u8,
+        error_code: u8,
+    },
 }

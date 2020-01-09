@@ -3,11 +3,11 @@
 
 use core::cmp;
 
-use heapless::{Vec, ArrayLength};
 use super::Resettable;
+use heapless::{ArrayLength, Vec};
 
 pub enum Error {
-  Exhausted
+    Exhausted,
 }
 
 type Result<O> = core::result::Result<O, Error>;
@@ -30,7 +30,7 @@ type Result<O> = core::result::Result<O, Error>;
 pub struct RingBuffer<T, N: ArrayLength<T>> {
     storage: Vec<T, N>,
     read_at: usize,
-    length:  usize,
+    length: usize,
 }
 
 impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
@@ -39,16 +39,16 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
     /// During creation, every element in `storage` is reset.
     pub fn new() -> RingBuffer<T, N> {
         RingBuffer {
-          storage: Vec::new(),
-          read_at: 0,
-          length: 0
+            storage: Vec::new(),
+            read_at: 0,
+            length: 0,
         }
     }
 
     /// Clear the ring buffer.
     pub fn clear(&mut self) {
         self.read_at = 0;
-        self.length  = 0;
+        self.length = 0;
     }
 
     /// Return the maximum number of elements in the ring buffer.
@@ -58,7 +58,9 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
 
     /// Clear the ring buffer, and reset every element.
     pub fn reset(&mut self)
-            where T: Resettable {
+    where
+        T: Resettable,
+    {
         self.clear();
         for elem in self.storage.iter_mut() {
             elem.reset();
@@ -115,8 +117,12 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
     /// Call `f` with a single buffer element, and enqueue the element if `f`
     /// returns successfully, or return `Err(Error::Exhausted)` if the buffer is full.
     pub fn enqueue_one_with<'b, R, F>(&'b mut self, f: F) -> Result<R>
-            where F: FnOnce(&'b mut T) -> Result<R> {
-        if self.is_full() { return Err(Error::Exhausted) }
+    where
+        F: FnOnce(&'b mut T) -> Result<R>,
+    {
+        if self.is_full() {
+            return Err(Error::Exhausted);
+        }
 
         let index = self.get_idx_unchecked(self.length);
         match f(&mut self.storage[index]) {
@@ -124,7 +130,7 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
                 self.length += 1;
                 Ok(result)
             }
-            Err(error) => Err(error)
+            Err(error) => Err(error),
         }
     }
 
@@ -139,8 +145,12 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
     /// Call `f` with a single buffer element, and dequeue the element if `f`
     /// returns successfully, or return `Err(Error::Exhausted)` if the buffer is empty.
     pub fn dequeue_one_with<'b, R, F>(&'b mut self, f: F) -> Result<R>
-            where F: FnOnce(&'b mut T) -> Result<R> {
-        if self.is_empty() { return Err(Error::Exhausted) }
+    where
+        F: FnOnce(&'b mut T) -> Result<R>,
+    {
+        if self.is_empty() {
+            return Err(Error::Exhausted);
+        }
 
         let next_at = self.get_idx_unchecked(1);
         match f(&mut self.storage[self.read_at]) {
@@ -149,7 +159,7 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
                 self.read_at = next_at;
                 Ok(result)
             }
-            Err(error) => Err(error)
+            Err(error) => Err(error),
         }
     }
 
@@ -172,7 +182,9 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
     /// This function panics if the amount of elements returned by `f` is larger
     /// than the size of the slice passed into it.
     pub fn enqueue_many_with<'b, R, F>(&'b mut self, f: F) -> (usize, R)
-            where F: FnOnce(&'b mut [T]) -> (usize, R) {
+    where
+        F: FnOnce(&'b mut [T]) -> (usize, R),
+    {
         if self.length == 0 {
             // Ring is currently empty. Reset `read_at` to optimize
             // for contiguous space.
@@ -197,14 +209,17 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
         self.enqueue_many_with(|buf| {
             let size = cmp::min(size, buf.len());
             (size, &mut buf[..size])
-        }).1
+        })
+        .1
     }
 
     /// Enqueue as many elements from the given slice into the buffer as possible,
     /// and return the amount of elements that could fit.
     // #[must_use]
     pub fn enqueue_slice(&mut self, data: &[T]) -> usize
-            where T: Copy {
+    where
+        T: Copy,
+    {
         let (size_1, data) = self.enqueue_many_with(|buf| {
             let size = cmp::min(buf.len(), data.len());
             buf[..size].copy_from_slice(&data[..size]);
@@ -225,7 +240,9 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
     /// This function panics if the amount of elements returned by `f` is larger
     /// than the size of the slice passed into it.
     pub fn dequeue_many_with<'b, R, F>(&'b mut self, f: F) -> (usize, R)
-            where F: FnOnce(&'b mut [T]) -> (usize, R) {
+    where
+        F: FnOnce(&'b mut [T]) -> (usize, R),
+    {
         let capacity = self.capacity();
         let max_size = cmp::min(self.len(), capacity - self.read_at);
         let (size, result) = f(&mut self.storage[self.read_at..self.read_at + max_size]);
@@ -249,14 +266,17 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
         self.dequeue_many_with(|buf| {
             let size = cmp::min(size, buf.len());
             (size, &mut buf[..size])
-        }).1
+        })
+        .1
     }
 
     /// Dequeue as many elements from the buffer into the given slice as possible,
     /// and return the amount of elements that could fit.
     // #[must_use]
     pub fn dequeue_slice(&mut self, data: &mut [T]) -> usize
-            where T: Copy {
+    where
+        T: Copy,
+    {
         let (size_1, data) = self.dequeue_many_with(|buf| {
             let size = cmp::min(buf.len(), data.len());
             data[..size].copy_from_slice(&buf[..size]);
@@ -280,13 +300,19 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
     pub fn get_unallocated(&mut self, offset: usize, mut size: usize) -> &mut [T] {
         let start_at = self.get_idx(self.length + offset);
         // We can't access past the end of unallocated data.
-        if offset > self.window() { return &mut [] }
+        if offset > self.window() {
+            return &mut [];
+        }
         // We can't enqueue more than there is free space.
         let clamped_window = self.window() - offset;
-        if size > clamped_window { size = clamped_window }
+        if size > clamped_window {
+            size = clamped_window
+        }
         // We can't contiguously enqueue past the end of the storage.
         let until_end = self.capacity() - start_at;
-        if size > until_end { size = until_end }
+        if size > until_end {
+            size = until_end
+        }
 
         &mut self.storage[start_at..start_at + size]
     }
@@ -296,7 +322,9 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
     /// the amount written.
     // #[must_use]
     pub fn write_unallocated(&mut self, offset: usize, data: &[T]) -> usize
-            where T: Copy {
+    where
+        T: Copy,
+    {
         let (size_1, offset, data) = {
             let slice = self.get_unallocated(offset, data.len());
             let slice_len = slice.len();
@@ -327,13 +355,19 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
     pub fn get_allocated(&self, offset: usize, mut size: usize) -> &[T] {
         let start_at = self.get_idx(offset);
         // We can't read past the end of the allocated data.
-        if offset > self.length { return &mut [] }
+        if offset > self.length {
+            return &mut [];
+        }
         // We can't read more than we have allocated.
         let clamped_length = self.length - offset;
-        if size > clamped_length { size = clamped_length }
+        if size > clamped_length {
+            size = clamped_length
+        }
         // We can't contiguously dequeue past the end of the storage.
         let until_end = self.capacity() - start_at;
-        if size > until_end { size = until_end }
+        if size > until_end {
+            size = until_end
+        }
 
         &self.storage[start_at..start_at + size]
     }
@@ -343,7 +377,9 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
     /// the amount read.
     // #[must_use]
     pub fn read_allocated(&mut self, offset: usize, data: &mut [T]) -> usize
-            where T: Copy {
+    where
+        T: Copy,
+    {
         let (size_1, offset, data) = {
             let slice = self.get_allocated(offset, data.len());
             data[..slice.len()].copy_from_slice(slice);
@@ -371,9 +407,9 @@ impl<'a, T: 'a, N: ArrayLength<T>> RingBuffer<T, N> {
 impl<'a, T: 'a, N: ArrayLength<T>> From<Vec<T, N>> for RingBuffer<T, N> {
     fn from(slice: Vec<T, N>) -> RingBuffer<T, N> {
         RingBuffer {
-          storage: slice,
-          read_at: 0,
-          length:  0,
-      }
+            storage: slice,
+            read_at: 0,
+            length: 0,
+        }
     }
 }
