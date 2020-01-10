@@ -66,28 +66,28 @@ macro_rules! setup_test_case {
                 .init();
         });
 
-        static mut WIFI_CMD_Q: Option<Queue<Command, U10, u8>> = None;
-        static mut WIFI_RESP_Q: Option<Queue<Result<ResponseType, at::Error>, U10, u8>> = None;
+        static mut WIFI_REQ_Q: Option<Queue<RequestType, U5, u8>> = None;
+        static mut WIFI_RES_Q: Option<Queue<Result<ResponseType, at::Error>, U5, u8>> = None;
 
-        unsafe { WIFI_CMD_Q = Some(Queue::u8()) };
-        unsafe { WIFI_RESP_Q = Some(Queue::u8()) };
+        unsafe { WIFI_REQ_Q = Some(Queue::u8()) };
+        unsafe { WIFI_RES_Q = Some(Queue::u8()) };
 
-        let (wifi_cmd_p, wifi_cmd_c) = unsafe { WIFI_CMD_Q.as_mut().unwrap().split() };
-        let (wifi_resp_p, wifi_resp_c) = unsafe { WIFI_RESP_Q.as_mut().unwrap().split() };
+        let (wifi_req_p, wifi_req_c) = unsafe { WIFI_REQ_Q.as_mut().unwrap().split() };
+        let (wifi_res_p, wifi_res_c) = unsafe { WIFI_RES_Q.as_mut().unwrap().split() };
 
-        let wifi_client = at::client::ATClient::new((wifi_cmd_p, wifi_resp_c), 1000.ms(), Timer6);
+        let wifi_client = at::client::ATClient::new((wifi_req_p, wifi_res_c), 1000.ms(), Timer6);
 
         let ublox = UbloxClient::new(wifi_client);
 
-        (ublox, (wifi_cmd_c, wifi_resp_p))
+        (ublox, (wifi_req_c, wifi_res_p))
     }};
 }
 
 macro_rules! cleanup_test_case {
-    ($connection: expr, $cmd_c: expr) => {
+    ($connection: expr, $req_c: expr) => {
         // let wifi_client = $connection.unwrap().disconnect();
-        // let (_, mut wifi_resp_c) = wifi_client.release();
-        // assert!(wifi_resp_c.dequeue().is_none());
-        assert!($cmd_c.dequeue().is_none());
+        // let (_, mut wifi_res_c) = wifi_client.release();
+        // assert!(wifi_res_c.dequeue().is_none());
+        assert!($req_c.dequeue().is_none());
     };
 }

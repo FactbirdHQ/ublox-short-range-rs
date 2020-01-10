@@ -1,10 +1,10 @@
 use crate::{command::*, ATClient};
 
-use at::{ATCommandInterface, ATInterface};
+use at::ATInterface;
 use embedded_hal::timer::CountDown;
 use log::info;
 
-// use edm::Packet;
+use edm::Packet;
 
 #[macro_export]
 macro_rules! wait_for_unsolicited {
@@ -71,10 +71,9 @@ where
     pub fn init(&mut self) -> Result<(), at::Error> {
         // Initilize a new ublox device to a known state (set RS232 settings, restart, wait for startup etc.)
         size_of!(Command);
-        size_of!(CommandType);
         size_of!(Response);
         size_of!(ResponseType);
-        // size_of!(Packet);
+        size_of!(Packet);
 
         self.send_internal(Command::SetRS232Settings {
             baud_rate: BaudRate::Baud115200,
@@ -98,7 +97,7 @@ where
 
     fn send_internal(&mut self, cmd: Command) -> Result<ResponseType, at::Error> {
         match self.serial_mode {
-            SerialMode::Cmd => self.client.send(cmd),
+            SerialMode::Cmd => self.client.send(RequestType::Cmd(cmd)),
             SerialMode::Data => Err(at::Error::Write),
             SerialMode::ExtendedData => {
                 // edm::Packet::new(edm::Identifier::AT, edm::Type::Request, cmd.get_cmd().into_bytes());

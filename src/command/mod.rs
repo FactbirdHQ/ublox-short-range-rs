@@ -1,18 +1,20 @@
-//! AT Commands for ODIN-W2 module\
-//! Following https://www.u-blox.com/sites/default/files/u-connect-ATCommands-Manual_(UBX-14044127).pdf
+//! AT Commands for U-Blox short range module family\
+//! Following [ATCommands Manual](https://www.u-blox.com/sites/default/files/u-connect-ATCommands-Manual_(UBX-14044127).pdf)
 
 use core::fmt::Write;
-use heapless::{String, Vec};
+use heapless::{consts, String, Vec};
 
-use at::ATCommandInterface;
+use at::{ATCommandInterface, ATRequestType};
 
 mod cmd;
-// pub mod edm;
+
+/// [Extended Data Mode](https://www.u-blox.com/sites/default/files/ExtendedDataMode_ProtocolSpec_%28UBX-14044126%29.pdf)
+pub mod edm;
 mod response;
 mod types;
 
 pub use cmd::Command;
-// use edm::Packet;
+use edm::Packet;
 pub use response::{Response, UnsolicitedResponse};
 pub use types::*;
 
@@ -23,18 +25,45 @@ pub enum ResponseType {
     SingleSolicited(Response),
     // MultiSolicited(Vec<Response, heapless::consts::U10>),
     Unsolicited(UnsolicitedResponse),
-    // Data(Packet),
+    ExtendedData(Packet),
     None,
 }
 
 #[derive(Debug, Clone)]
-pub enum CommandType {
+pub enum RequestType {
     Cmd(Command),
-    Data,
-    // ExtendedData(Packet),
+    Data(Vec<u8, consts::U1024>),
+    ExtendedData(Packet),
 }
 
-impl ATCommandInterface<ResponseType> for Command {
+impl ATRequestType for RequestType {
+    type Command = Command;
+
+    fn try_get_cmd(self) -> Option<Self::Command> {
+        match self {
+            RequestType::Cmd(c) => Some(c),
+            RequestType::ExtendedData(_p) => {
+                // Attempt to extract any AT Cmd
+                None
+            }
+            _ => None
+        }
+    }
+
+    // fn get_bytes(&self) -> &str {
+    //     match self {
+    //         RequestType::Cmd(c) => c.get_cmd().as_str(),
+    //         RequestType::ExtendedData(p) => {
+    //             p.pack().as_str()
+    //         }
+    //         _ => ""
+    //     }
+    // }
+}
+
+impl ATCommandInterface for Command {
+    type Response = ResponseType;
+
     fn get_cmd(&self) -> String<at::MaxCommandLen> {
         let mut buffer: String<at::MaxCommandLen> = String::new();
         match self {

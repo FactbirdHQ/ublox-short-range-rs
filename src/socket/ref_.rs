@@ -85,10 +85,10 @@ impl<'a, T: Session> DerefMut for Ref<'a, T> {
     }
 }
 
-impl<'a, T: Session> Drop for Ref<'a, T> {
-    fn drop(&mut self) {
-        if !self.consumed {
-            Session::finish(self.socket);
-        }
-    }
-}
+// impl<'a, T: Session> Drop for Ref<'a, T> {
+//     fn drop(&mut self) {
+//         if !self.consumed {
+//             Session::finish(self.socket);
+//         }
+//     }
+// }

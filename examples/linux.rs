@@ -63,8 +63,12 @@ impl embedded_hal::timer::Cancel for Timer {
     }
 }
 
-static mut WIFI_CMD_Q: Option<Queue<Command, U10, u8>> = None;
-static mut WIFI_RESP_Q: Option<Queue<Result<ResponseType, at::Error>, U10, u8>> = None;
+type SerialRxBufferLen = U4096;
+type ATRequestQueueLen = U5;
+type ATResponseQueueLen = U5;
+
+static mut WIFI_REQ_Q: Option<Queue<RequestType, ATRequestQueueLen, u8>> = None;
+static mut WIFI_RES_Q: Option<Queue<Result<ResponseType, at::Error>, ATResponseQueueLen, u8>> = None;
 
 fn main() {
     env_logger::builder()
@@ -88,11 +92,11 @@ fn main() {
     port.set_timeout(Duration::from_millis(2))
         .expect("Could not set serial port timeout");
 
-    unsafe { WIFI_CMD_Q = Some(Queue::u8()) };
-    unsafe { WIFI_RESP_Q = Some(Queue::u8()) };
+    unsafe { WIFI_REQ_Q = Some(Queue::u8()) };
+    unsafe { WIFI_RES_Q = Some(Queue::u8()) };
 
-    let (wifi_client, parser) = at::new::<Serial, Command, ResponseType, Timer, U8192, U10, U10>(
-        unsafe { (WIFI_CMD_Q.as_mut().unwrap(), WIFI_RESP_Q.as_mut().unwrap()) },
+    let (wifi_client, parser) = at::new::<_, _, _, SerialRxBufferLen, _, _>(
+        unsafe { (WIFI_REQ_Q.as_mut().unwrap(), WIFI_RES_Q.as_mut().unwrap()) },
         Serial(port),
         Timer,
         1000.ms(),
@@ -113,12 +117,11 @@ fn main() {
         })
         .unwrap();
 
-    let at_parser = at_parser_arc.clone();
     let serial_loop = thread::Builder::new()
         .name("serial_loop".to_string())
         .spawn(move || loop {
             thread::sleep(Duration::from_millis(100));
-            if let Ok(mut at) = at_parser.lock() {
+            if let Ok(mut at) = at_parser_arc.lock() {
                 at.spin()
             }
         })

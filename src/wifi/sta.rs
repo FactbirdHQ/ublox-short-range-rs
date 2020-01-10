@@ -11,7 +11,7 @@ use crate::{
     },
 };
 
-use at::ATInterface;
+use at::{ATInterface, ATRequestType};
 
 // use core::convert::TryFrom;
 use embedded_hal::timer::{Cancel, CountDown};
@@ -144,38 +144,38 @@ mod tests {
 
     #[test]
     fn test_connect() {
-        let (ublox, (mut wifi_cmd_c, mut wifi_resp_p)) = setup_test_case!();
+        let (ublox, (mut wifi_req_c, mut wifi_res_p)) = setup_test_case!();
 
         // Load the response queue with expected responses
-        wifi_resp_p.enqueue(Ok(ResponseType::None)).unwrap();
-        wifi_resp_p.enqueue(Ok(ResponseType::None)).unwrap();
-        wifi_resp_p.enqueue(Ok(ResponseType::None)).unwrap();
-        wifi_resp_p
+        wifi_res_p.enqueue(Ok(ResponseType::None)).unwrap();
+        wifi_res_p.enqueue(Ok(ResponseType::None)).unwrap();
+        wifi_res_p.enqueue(Ok(ResponseType::None)).unwrap();
+        wifi_res_p
             .enqueue(Ok(ResponseType::SingleSolicited(Response::STASetConfig {
                 configuration_id: 0,
                 param_tag: UWSCSetTag::ActiveOnStartup(true),
             })))
             .unwrap();
-        wifi_resp_p
+        wifi_res_p
             .enqueue(Ok(ResponseType::SingleSolicited(Response::STASetConfig {
                 configuration_id: 0,
                 param_tag: UWSCSetTag::SSID(String::from("WifiSSID")),
             })))
             .unwrap();
-        wifi_resp_p
+        wifi_res_p
             .enqueue(Ok(ResponseType::SingleSolicited(Response::STASetConfig {
                 configuration_id: 0,
                 param_tag: UWSCSetTag::Authentication(AuthentificationType::WpaWpa2),
             })))
             .unwrap();
-        wifi_resp_p
+        wifi_res_p
             .enqueue(Ok(ResponseType::SingleSolicited(Response::STASetConfig {
                 configuration_id: 0,
                 param_tag: UWSCSetTag::Passphrase(String::from("passphrase123098")),
             })))
             .unwrap();
-        wifi_resp_p.enqueue(Ok(ResponseType::None)).unwrap();
-        // wifi_resp_p.enqueue(Ok(ResponseType::None)).unwrap();
+        wifi_res_p.enqueue(Ok(ResponseType::None)).unwrap();
+        // wifi_res_p.enqueue(Ok(ResponseType::None)).unwrap();
 
         let options = wifi::options::ConnectionOptions::new()
             .ssid(String::from("WifiSSID"))
@@ -188,7 +188,7 @@ mod tests {
 
         // assertions
         // assert_eq!(
-        //     wifi_cmd_c.dequeue().unwrap(),
+        //     wifi_req_c.dequeue().unwrap(),
         //     Command::SetRS232Settings {
         //         baud_rate: BaudRate::Baud115200,
         //         flow_control: FlowControl::NotUsed,
@@ -199,10 +199,10 @@ mod tests {
         //     }
         // );
 
-        // assert_eq!(wifi_cmd_c.dequeue().unwrap(), Command::Store);
+        // assert_eq!(wifi_req_c.dequeue().unwrap(), Command::Store);
 
         assert_eq!(
-            wifi_cmd_c.dequeue().unwrap(),
+            wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
             Command::ExecSTAAction {
                 configuration_id: 0,
                 action: STAAction::Deactivate,
@@ -210,28 +210,28 @@ mod tests {
         );
 
         assert_eq!(
-            wifi_cmd_c.dequeue().unwrap(),
+            wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
             Command::STASetConfig {
                 configuration_id: 0,
                 param_tag: UWSCSetTag::ActiveOnStartup(true),
             }
         );
         assert_eq!(
-            wifi_cmd_c.dequeue().unwrap(),
+            wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
             Command::STASetConfig {
                 configuration_id: 0,
                 param_tag: UWSCSetTag::SSID(String::from("WifiSSID")),
             }
         );
         assert_eq!(
-            wifi_cmd_c.dequeue().unwrap(),
+            wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
             Command::STASetConfig {
                 configuration_id: 0,
                 param_tag: UWSCSetTag::Authentication(AuthentificationType::WpaWpa2),
             }
         );
         assert_eq!(
-            wifi_cmd_c.dequeue().unwrap(),
+            wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
             Command::STASetConfig {
                 configuration_id: 0,
                 param_tag: UWSCSetTag::Passphrase(String::from("passphrase123098")),
@@ -239,7 +239,7 @@ mod tests {
         );
 
         assert_eq!(
-            wifi_cmd_c.dequeue().unwrap(),
+            wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
             Command::ExecSTAAction {
                 configuration_id: 0,
                 action: STAAction::Activate,
@@ -247,13 +247,13 @@ mod tests {
         );
 
         // assert_eq!(
-        //     wifi_cmd_c.dequeue().unwrap(),
+        //     wifi_req_c.dequeue().unwrap().get_cmd().unwrap(),
         //     Command::ExecSTAAction {
         //         configuration_id: 0,
         //         action: STAAction::Store,
         //     }
         // );
 
-        cleanup_test_case!(connection, wifi_cmd_c);
+        cleanup_test_case!(connection, wifi_req_c);
     }
 }
