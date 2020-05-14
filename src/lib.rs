@@ -2,7 +2,6 @@
 
 extern crate heapless;
 
-extern crate at_rs as at;
 #[macro_use]
 extern crate nb;
 extern crate no_std_net;
