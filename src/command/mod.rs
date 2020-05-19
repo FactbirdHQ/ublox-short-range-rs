@@ -25,12 +25,32 @@ pub struct AT;
 
 #[derive(Clone, AtatUrc)]
 pub enum Urc {
-    // #[at_urc("+UUSORD")]
-    // SocketDataAvailable(ip_transport_layer::urc::SocketDataAvailable),
-    // #[at_urc("+UUPSDD")]
-    // DataConnectionDeactivated(psn::urc::DataConnectionDeactivated),
-    // #[at_urc("+UUSOCL")]
-    // SocketClosed(ip_transport_layer::urc::SocketClosed),
-    // #[at_urc("+UMWI")]
-    // MessageWaitingIndication(sms::urc::MessageWaitingIndication),
+    // /// 5.10 Peer connected +UUDPC
+// #[at_urc("+UUDPC")]
+// /// 5.11 Peer disconnected +UUDPD
+// #[at_urc("+UUDPD")]
+// 7.15 Wi-Fi Link connected +UUWLE
+// #[at_urc("+UUWLE")]
+// 7.16 Wi-Fi Link disconnected +UUWLD
+// #[at_urc("+UUWLD")]
+// 7.17 Wi-Fi Access point up +UUWAPU
+// #[at_urc("+UUWAPU")]
+// 7.18 Wi-Fi Access point down +UUWAPD
+// #[at_urc("+UUWAPD")]
+// 7.19 Wi-Fi Access point station connected +UUWAPSTAC
+// #[at_urc("+UUWAPSTAC")]
+// 7.20 Wi-Fi Access point station disconnected +UUWAPSTAD
+// #[at_urc("+UUWAPSTAD")]
+//
+// #[at_urc("+UUWLD")]
+// #[at_urc("+UUWLD")]
+// #[at_urc("+UUWLD")]
+
+// SocketDataAvailable(ip_transport_layer::urc::SocketDataAvailable),
+// #[at_urc("+UUPSDD")]
+// DataConnectionDeactivated(psn::urc::DataConnectionDeactivated),
+// #[at_urc("+UUSOCL")]
+// SocketClosed(ip_transport_layer::urc::SocketClosed),
+// #[at_urc("+UMWI")]
+// MessageWaitingIndication(sms::urc::MessageWaitingIndication),
 }

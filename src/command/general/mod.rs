@@ -11,6 +11,7 @@ pub mod responses;
 pub mod types;
 
 use atat::atat_derive::AtatCmd;
+use heapless::{consts, String};
 use responses::*;
 use types::*;
 
@@ -70,29 +71,38 @@ pub struct SerialNumber2;
 /// Identificationinformation.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("I0", IdentificationInfomationTypeCodeResponse, timeout_ms = 10000)]
-pub struct IdentificationInfomationTypeCode{}
+pub struct IdentificationInfomationTypeCode {}
 
 /// 3.9 Identification information I9
 ///
 /// Identificationinformation.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("I9", IdentificationInfomationSoftwareVersionResponse, timeout_ms = 10000)]
-pub struct IdentificationInfomationSoftwareVersion{}
+#[at_cmd(
+    "I9",
+    IdentificationInfomationSoftwareVersionResponse,
+    timeout_ms = 10000
+)]
+pub struct IdentificationInfomationSoftwareVersion {}
 
 /// 3.9 Identification information I10
 ///
 /// Identificationinformation.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("I10", IdentificationInfomationMCUIDResponse, timeout_ms = 10000)]
-pub struct IdentificationInfomationMCUID{}
+pub struct IdentificationInfomationMCUID {}
 
-
-/// 20.2 Get GPIO select configuration command +UGPIOC
+/// 3.11 Set greeting text +CSGT
 ///
-/// Configures the GPIOs pins as input, output or to handle a custom function. When the GPIOs pins are configured
-/// as output pin, it is possible to set the value.
-/// The test command provides the list of the supported GPIOs, the supported functions and the status of all the
-/// GPIOs.
+/// Sets the greeting text. Max 48 characters.
+/// Configures and activates/deactivates the greeting text. The configuration change
+/// in the greeting text will be applied at the subsequent boot. If active, the greeting
+/// text is shown at boot once, on any AT interface, if the module start up mode is set to
+/// command mode.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UGPIOC?", GpioConfiguration, timeout_ms = 10000)]
-pub struct GetGpioConfiguration;
+#[at_cmd("+CSGT", NoResponse, timeout_ms = 10000)]
+pub struct SetGreetingText {
+    #[at_arg(position = 0)]
+    pub mode: Mode,
+    #[at_arg(position = 1)]
+    pub text: Option<String<consts::U64>>,
+}
