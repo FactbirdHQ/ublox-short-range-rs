@@ -39,7 +39,6 @@ pub struct ChangeMode{
 pub struct ConnectPeer {
     #[at_arg(position = 0)]
     pub url: String<consts::U64>,
-    // pub url: URL,
 }
 
 /// 5.3 Close peer connection +UDCPC
@@ -83,25 +82,7 @@ pub struct ServerConfiguration{
     #[at_arg(position = 0)]
     pub id: u8,
     #[at_arg(position = 1)]
-    pub server_type: ServerType,
-    #[at_arg(position = 2)]
-    pub option1: Option<String<consts::U64>>,
-    /// For UDP,<option2> specifies the behaviour of incoming data.
-    #[at_arg(position = 3)]
-    pub option2_1: Option<UDPBehaviour>,
-    /// For UUID,<option2> specifies the 128-bit UUID identifier.
-    #[at_arg(position = 3)]
-    pub option2_2: Option<&u8>,
-    /// For ATP, <option2> specifies the listening port if the AT-service is started on a TCP or
-    /// UDP interface
-    #[at_arg(position = 3)]
-    pub option2_3: Option<u16>,
-    /// For TCP, <option2> specifies if there should be an immediate flush after a write.
-    #[at_arg(position = 3)]
-    pub option2_4: Option<ImmediateFlush>,
-    /// For UDP, <option3> specifies IP version of the started service.
-    #[at_arg(position = 4)]
-    pub option3: Option<IPVersion>,
+    pub server_config: ServerConfig,
 }
 
 /// 5.7 Server flags +UDSF
@@ -130,8 +111,6 @@ pub struct SetServerFlags{
 pub struct SetWatchdogSettings{
     #[at_arg(position = 0)]
     pub setting_type: WatchdogSetting,
-    #[at_arg(position = 1)]
-    pub value: u32,
 }
 
 /// 5.9 Configuration +UDCFG
@@ -148,8 +127,6 @@ pub struct SetWatchdogSettings{
 pub struct SetPeerConfiguration{
     #[at_arg(position = 0)]
     pub parameter: PeerConfigParameter,
-    #[at_arg(position = 1)]
-    pub config_value: u32,
 }
 
 /// 5.12 Bind +UDBIND

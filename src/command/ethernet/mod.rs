@@ -29,9 +29,7 @@ use super::NoResponse;
 #[at_cmd("+UETHC", NoResponse, timeout_ms = 10000)]
 pub struct SetEthernetConfiguration{
     #[at_arg(position = 0)]
-    pub param_tag: EthernetConfigTag,
-    #[at_arg(position = 1)]
-    pub param_val: EthernetConfigValue,
+    pub param_tag: EthernetConfig,
 }
 
 /// 8.1 Ethernet configuration +UETHC
@@ -44,7 +42,7 @@ pub struct SetEthernetConfiguration{
 #[at_cmd("+UETHC", EthernetConfigurationResponse, timeout_ms = 10000)]
 pub struct GetEthernetConfiguration{
     #[at_arg(position = 0)]
-    pub param_tag: EthernetConfigTag,
+    pub param_tag: EthernetConfig,
 }
 
 /// 8.2 Ethernet configuration action +UETHCA

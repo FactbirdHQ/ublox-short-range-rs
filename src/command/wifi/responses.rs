@@ -3,6 +3,15 @@ use super::types::*;
 use atat::atat_derive::AtatResp;
 use heapless::{consts, String};
 
+/// 7.1 Wi-Fi station configuration +UWSC
+#[derive(Clone, AtatResp)]
+pub struct GetWifiStationConfigResponse{
+    #[at_arg(position = 0)]
+    pub config_id: u8,
+    #[at_arg(position = 1)]
+    pub parameter: WifiStationConfig,
+}
+
 /// 7.3 Scan +UWSCAN
 #[derive(Clone, AtatResp)]
 pub struct WifiScanResponse {
@@ -29,9 +38,7 @@ pub struct WifiScanResponse {
 #[derive(Clone, AtatResp)]
 pub struct WifiStatusResponse {
     #[at_arg(position = 0)]
-    pub status_id: StatusId,
-    #[at_arg(position = 1)]
-    pub status_val: i32,
+    pub status_id: WifiStatus,
 }
 
 
@@ -39,9 +46,7 @@ pub struct WifiStatusResponse {
 #[derive(Clone, AtatResp)]
 pub struct WifiConfigResponse {
     #[at_arg(position = 0)]
-    pub config_param: WifiConfigParameter,
-    #[at_arg(position = 1)]
-    pub config_value: ConfigValue,
+    pub config_param: WifiConfig,
 }
 
 /// 7.8 Wi-Fi Access point configuration +UWAPC
@@ -51,17 +56,13 @@ pub struct WifiAPConfigResponse {
     pub ap_id: AccessPointId,
     #[at_arg(position = 1)]
     pub ap_config_param: AccessPointConfig,
-    #[at_arg(position = 2)]
-    pub ap_config_val: AccessPointConfigValue,
 }
 
 /// 7.10 Wi-Fi Access point status +UWAPSTAT
 #[derive(Clone, AtatResp)]
 pub struct WifiAPStatusResponse {
     #[at_arg(position = 0)]
-    pub ap_status_id: AccessPointStatusId,
-    #[at_arg(position = 1)]
-    pub ap_status_val: AccessPointConfigValue,
+    pub ap_status_id: AccessPointStatus,
 }
 
 /// 7.11 Wi-Fi Access point station list +UWAPSTALIST

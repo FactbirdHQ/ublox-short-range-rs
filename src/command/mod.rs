@@ -1,20 +1,16 @@
 //! AT Commands for U-Blox short range module family\
 //! Following the [u-connect ATCommands Manual](https://www.u-blox.com/sites/default/files/u-connect-ATCommands-Manual_(UBX-14044127).pdf)
 
-// pub mod control;
-// pub mod device_data_security;
-// pub mod device_lock;
-// pub mod dns;
+pub mod datamode;
+pub mod ethernet;
 pub mod general;
-// pub mod gpio;
-// pub mod ip_transport_layer;
-// pub mod mobile_control;
-// pub mod network_service;
-// pub mod psn;
-// pub mod sms;
-// pub mod system_features;
+pub mod network;
+pub mod system;
+pub mod wifi;
 
 use atat::atat_derive::{AtatCmd, AtatResp, AtatUrc};
+use heapless::String;
+use heapless::consts;
 
 #[derive(Clone, AtatResp)]
 pub struct NoResponse;
@@ -42,8 +38,10 @@ pub enum Urc {
 // 7.20 Wi-Fi Access point station disconnected +UUWAPSTAD
 // #[at_urc("+UUWAPSTAD")]
 //
-// #[at_urc("+UUWLD")]
-// #[at_urc("+UUWLD")]
+// 8.3 Ethernet link up +UUETHLU
+// #[at_urc("+UUETHLU")]
+// 8.4 Ethernet link down +UUETHLD
+// #[at_urc("+UUETHLD")]
 // #[at_urc("+UUWLD")]
 
 // SocketDataAvailable(ip_transport_layer::urc::SocketDataAvailable),

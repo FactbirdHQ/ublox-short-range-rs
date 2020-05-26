@@ -2,6 +2,8 @@
 
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use ufmt::derive::uDebug;
+use heapless::String;
+use heapless::consts;
 
 #[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]

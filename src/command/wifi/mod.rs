@@ -31,23 +31,34 @@ pub struct SetWifiStationConfig{
     #[at_arg(position = 0)]
     pub config_id: u8,
     #[at_arg(position = 1)]
+    pub parameter: WifiStationConfig,
+}
+
+/// 7.1 Wi-Fi station configuration +UWSC
+///
+/// This command is used to configure up to 10 different Wi-Fi networks. After configuring a network, it must be
+/// activated (Wi-Fi Station Configuration Action +UWSCA) before use.
+/// If more than one configuration has active on start up parameter enabled, the behaviour is undefined.
+#[derive(Clone, AtatCmd)]
+#[at_cmd("+UWSC", GetWifiStationConfigResponse, timeout_ms = 10000)]
+pub struct GetWifiStationConfig{
+    /// Wi-Fi configuration id. 0-9
+    #[at_arg(position = 0)]
+    pub config_id: u8,
+    #[at_arg(position = 1)]
     pub parameter: WifiStationConfigParameter,
-    #[at_arg(position = 2)]
-    pub valueInt: WiFiConfigValue,
 }
 
 /// 7.2 Wi-Fi station configuration action +UWSCA
 /// Executes an action for the Wi-Fi network.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWSCA", NoResponse, timeout_ms = 10000)]
-pub struct SetWifiStationConfig{
+pub struct WifiStationConfigAction{
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
     pub config_id: u8,
     #[at_arg(position = 1)]
-    pub parameter: WifiStationConfigParameter,
-    #[at_arg(position = 2)]
-    pub valueInt: Option<u32>,
+    pub parameter: WifiStationAction,
 }
 
 /// 7.3 Scan +UWSCAN
@@ -95,7 +106,7 @@ pub struct SetChannelList{
 /// Writes the required channel list for station mode.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWSSTAT", WifiStatusResponse, timeout_ms = 10000)]
-pub struct WifiStatus{
+pub struct GetWifiStatus{
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
     pub status_id: StatusId,
@@ -108,9 +119,7 @@ pub struct WifiStatus{
 #[at_cmd("+UWCFG", NoResponse, timeout_ms = 10000)]
 pub struct SetWifiConfig{
     #[at_arg(position = 0)]
-    pub config_param: WifiConfigParameter,
-    #[at_arg(position = 1)]
-    pub config_value: ConfigValue,
+    pub config_param: WifiConfig,
 }
 
 /// 7.6 Wi-Fi Configuration +UWCFG
@@ -149,8 +158,6 @@ pub struct SetWifiAPConfig{
     pub ap_config_id: AccessPointId,
     #[at_arg(position = 1)]
     pub ap_config_param: AccessPointConfig,
-    #[at_arg(position = 2)]
-    pub ap_config_val: AccessPointConfigValue,
 }
 
 /// 7.8 Wi-Fi Access point configuration +UWAPC
@@ -165,7 +172,7 @@ pub struct GetWifiAPConfig {
     #[at_arg(position = 0)]
     pub ap_id: AccessPointId,
     #[at_arg(position = 1)]
-    pub ap_config_param: AccessPointConfig,
+    pub ap_config_param: AccessPointConfigTag,
 }
 
 /// 7.9 Wi-Fi Access point configuration action +UWAPCA

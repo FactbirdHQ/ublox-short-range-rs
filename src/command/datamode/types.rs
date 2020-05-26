@@ -3,6 +3,8 @@
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use ufmt::derive::uDebug;
 use no_std_net::IpAddr;
+use heapless::String;
+use heapless::consts;
 
 #[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
@@ -44,11 +46,33 @@ pub enum ConnectScheme{
     /// Always connected - External Connect
     Both = 0b110,
 }
+pub enum ServerConfig {
+    Type(ServerType),
+    Url(String<consts::U64>),
+}
+#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+pub enum ServerType {
+    #[at_arg(value = 0)]
+    Dissabled,
+    #[at_arg(value = 1)]
+    TCP(u16, ImmediateFlush),
+    #[at_arg(value = 2)]
+    UDP(u16, UDPBehaviour, IPVersion),
+    #[at_arg(value = 3)]
+    SSP(String<consts::U15>),
+    #[at_arg(value = 4)]
+    DUN(String<consts::U15>),
+    #[at_arg(value = 5)]
+    UUID(String<consts::U15>, String<consts::U36>),
+    #[at_arg(value = 6)]
+    SPS,
+    #[at_arg(value = 8)]
+    ATP(Interface, Option<u16>),
+}
 
 #[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
-pub enum ServerType {
-    Dissabled = 0,
+pub enum Interface {
     TCP = 1,
     UDP = 2,
     SSP = 3,
@@ -102,28 +126,33 @@ pub enum WatchdogSetting {
     /// milliseconds before DCE disconnects if a write is not acknowledged.
     /// • 0: Disabled
     /// • > 0: Timeout in milliseconds (factory default value: 10000 ms)
-    SPP = 0,
+    #[at_arg(value = 0)]
+    SPP(u16),
     /// Inactivity timeout: <value> is the time in milliseconds before DCE disconnects all
     /// links when no data activity in the system is detected.
     /// • 0 (factory default): Disabled
     /// • > 0: Timeout in milliseconds
-    InactivityTimeout = 1,
+    #[at_arg(value = 1)]
+    InactivityTimeout(u16),
     /// Bluetooth disconnect reset: <value> defines if the DCE shall reset on any dropped
     /// Bluetooth connection (not on an actively closed connection)
-    /// • 0 (factory default): Disabled
-    /// • 1: Enabled
-    BluetoothDisconnectReset = 2,
+    /// • Off (factory default): Disabled
+    /// • On: Enabled
+    #[at_arg(value = 2)]
+    BluetoothDisconnectReset(OnOff),
     /// Wi-Fi Station disconnect reset: <value> defines if the DCE shall reset on dropped
     /// Wi-Fi Station connection (not on actively closed connection)
-    /// • 0 (factory default): Disabled
-    /// • 1: Enabled
-    WiFiDisconnectReset = 3,
+    /// • Off (factory default): Disabled
+    /// • On: Enabled
+    #[at_arg(value = 3)]
+    WiFiDisconnectReset(OnOff),
     /// Wi-Fi connect timeout: <param_val1> is the time, in seconds, that an ongoing
     /// connection attempt, for a station, will proceed before a Wi-Fi recovery is done. Note
     /// that after the recovery, the connection attempt will continue and there is no need
     /// for additional user activity. Recommended value is 30s and it should not be set lower
     /// than 20s. The default value is 0, which means that the watchdog is disabled.
-    WiFiConnectTomeout = 4,
+    #[at_arg(value = 4)]
+    WiFiConnectTomeout(u8),
     /// Net Up timeout: <param_val1> is the time, in seconds, allowed between a +UUWLE
     /// (link connected) event and a +UUNU (net up) event. If the +UUNU is not received
     /// within the set time, the link is automatically disconnected and connected again
@@ -132,40 +161,47 @@ pub enum WatchdogSetting {
     /// an enabled recommended value is 3 seconds. Also, the link supervision time for the
     /// Bluetooth links should be increased from the default value of 2s (see the parameter
     /// tag 7 in +UBTCFG for more information).
-    NetUpTimeout = 5,
+    #[at_arg(value = 5)]
+    NetUpTimeout(u8),
 }
 
 #[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
 pub enum PeerConfigParameter {
     /// Keep remote peer in the command mode
-    /// • 0: Disconnect peers when entering the command mode
-    /// • 1 (default): Keep connections when entering the command mode
-    KeepInCommandMode = 0,
+    /// • Off: Disconnect peers when entering the command mode
+    /// • On (default): Keep connections when entering the command mode
+    #[at_arg(value = 0)]
+    KeepInCommandMode(OnOff),
     /// The module will be reset to factory default settings if it detects the following
     /// sequence on the DTR line: 1 second silence, 5 transfers from DEASSERTED to
     /// ASSERTED within 1 second, and 1 second silence.
     /// AT&D settings does not affect this.
-    /// • 0: Disabled
-    /// • 1 (default): Enabled
-    DTRReset = 1,
+    /// • Off: Disabled
+    /// • On (default): Enabled
+    #[at_arg(value = 1)]
+    DTRReset(OnOff),
     /// Number of allowed TCP links.
     /// ODIN-W2:
     /// • 1-8: Default is 2.
-    AllowedTCPLinks = 2,
+    #[at_arg(value = 2)]
+    AllowedTCPLinks(u8),
     /// DSR activation bit mask.
     /// Defines the condition when the DSR line is asserted. The default value for the bit
     /// mask corresponds to the previous behaviour of the &S2 AT command.
     /// • Bit 0: Activate DSR if any data peer is connected (old behavior)
     /// • Bit 1: Activate DSR if a Bluetooth LE bonded device is connected
     /// • Bit 2: Activate DSR on any Bluetooth LE GAP connection
-    DSRActivationBitMask = 3,
+    #[at_arg(value = 3)]
+    DSRActivationBitMask(u8),
     /// Always connected reconnect time out
     /// • 100-60000 milliseconds before trying to reconnect a default remote peer with
     /// always connected bit set (Default is 10000)
-    ReconnectTimeout = 4,
+    #[at_arg(value = 4)]
+    ReconnectTimeout(u16),
     /// TCP out of sequence queue length
     /// • 0-15: Queue length for TCP packets arriving out of sequence (Default is 3). If
     /// multiple TCP links are used, this should be low.
-    TCPOutOfSequenceQueue = 5,
+    #[at_arg(value = 5)]
+    TCPOutOfSequenceQueue(u8),
 }

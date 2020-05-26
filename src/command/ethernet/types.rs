@@ -2,7 +2,9 @@
 
 use serde_repr::{Deserialize_repr, Serialize_repr};
 use ufmt::derive::uDebug;
-use no_std_net::IpAddr;
+use no_std_net::{Ipv4Addr, Ipv6Addr, IpAddr};
+use heapless::String;
+use heapless::consts;
 
 #[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
 #[repr(u8)]
@@ -65,10 +67,89 @@ pub enum EthernetConfigTag{
 }
 
 #[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
-pub enum EthernetConfigValue{
-    Unsigned(u8),
-    String(String<consts::U64>),
-    IpAddr(IpAddr)
+pub enum EthernetConfig{
+    /// <param_val> decides if the network is active on start up.
+    /// • 0 (default): inactive
+    /// • 1: active
+    #[at_arg(value = 0)]
+    ActiveOnStartup(OnOff),
+    /// <param_val> Phy support mode
+    /// • 0: disabled
+    /// • 1 (default): enabled
+    /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
+    #[at_arg(value = 1)]
+    PhySupport(OnOff),
+    /// <param_val> Ethernet speed
+    /// • 0 (default): 100 Mbit/s
+    /// • 1: 10 Mbit/s
+    /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
+    #[at_arg(value = 2)]
+    Speed(EthernetSpeed),
+    /// <param_val> Ethernet Duplex mode
+    /// • 0 (default): Full duplex
+    /// • 1: Half duplex
+    /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
+    #[at_arg(value = 3)]
+    DuplexMode(EthernetDuplexMode),
+    /// <param_val> Auto-negotiation (of speed and duplex mode)
+    /// • 0: disabled
+    /// • 1 (default): enabled
+    /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
+    #[at_arg(value = 4)]
+    AutoNegotiation(OnOff),
+    /// <param_val> is the Phy address. The factory default value is 0x3 (for ODIN) and 0x0
+    /// (for NINA-W13 and NINA-W15).
+    #[at_arg(value = 5)]
+    PhyAddress(u32),
+    /// IPv4 Mode - <param_val1> to set the way to retrieve an IP address
+    /// • 1 (default): Static
+    /// • 2: DHCP
+    #[at_arg(value = 100)]
+    IPv4Mode(IPv4Mode),
+    /// <param_val> is the IPv4 address. The factory default value is 0.0.0.0
+    #[at_arg(value = 101)]
+    IPv4Address(Ipv4Addr),
+    /// <param_val> is the subnet mask. The factory default value is 0.0.0.0
+    #[at_arg(value = 102)]
+    SubnetMask(Ipv4Addr),
+    /// <param_val> is the default gateway. The factory default value is 0.0.0.0
+    #[at_arg(value = 103)]
+    DefaultGateway(Ipv4Addr),
+    /// <param_val> is the primary DNS server IP address. The factory default value is 0
+    /// .0.0.0
+    #[at_arg(value = 104)]
+    PrimaryDNS(Ipv4Addr),
+    /// <param_val> is the secondary DNS server IP address. The factory default value is
+    /// 0.0.0.0
+    #[at_arg(value = 105)]
+    SecondaryDNS(Ipv4Addr),
+    /// Address conflict detection. The factory default value is 0 (disabled). This tag is
+    /// supported by ODIN-W2 from software version 6.0.0 onwards only.
+    /// • 0: Disabled
+    /// • 1: Enabled
+    #[at_arg(value = 107)]
+    AddressConflictDetection(OnOff),
+}
+
+#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum EthernetSpeed{
+    Mbps10 = 1,
+    Mbps100 = 0,
+}
+
+#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum EthernetDuplexMode{
+    FullDuplex = 0,
+    HalfDuplex = 1,
+}
+
+#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[repr(u8)]
+pub enum IPv4Mode{
+    Static = 1,
+    DHCP = 2,
 }
 
 #[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]

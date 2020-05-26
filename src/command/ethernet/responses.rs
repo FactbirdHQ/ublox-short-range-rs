@@ -7,8 +7,6 @@ use heapless::{consts, String};
 #[derive(Clone, AtatResp)]
 pub struct EthernetConfigurationResponse {
     #[at_arg(position = 0)]
-    pub param_tag: EthernetConfigTag,
-    #[at_arg(position = 1)]
-    pub param_val: EthernetConfigValue,
+    pub param_tag: EthernetConfig,
 }
 

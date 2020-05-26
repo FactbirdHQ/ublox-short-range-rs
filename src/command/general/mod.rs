@@ -71,7 +71,7 @@ pub struct SerialNumber2;
 /// Identificationinformation.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("I0", IdentificationInfomationTypeCodeResponse, timeout_ms = 10000)]
-pub struct IdentificationInfomationTypeCode {}
+pub struct IdentificationInfomationTypeCode;
 
 /// 3.9 Identification information I9
 ///
@@ -82,14 +82,14 @@ pub struct IdentificationInfomationTypeCode {}
     IdentificationInfomationSoftwareVersionResponse,
     timeout_ms = 10000
 )]
-pub struct IdentificationInfomationSoftwareVersion {}
+pub struct IdentificationInfomationSoftwareVersion;
 
 /// 3.9 Identification information I10
 ///
 /// Identificationinformation.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("I10", IdentificationInfomationMCUIDResponse, timeout_ms = 10000)]
-pub struct IdentificationInfomationMCUID {}
+pub struct IdentificationInfomationMCUID;
 
 /// 3.11 Set greeting text +CSGT
 ///
@@ -102,7 +102,5 @@ pub struct IdentificationInfomationMCUID {}
 #[at_cmd("+CSGT", NoResponse, timeout_ms = 10000)]
 pub struct SetGreetingText {
     #[at_arg(position = 0)]
-    pub mode: Mode,
-    #[at_arg(position = 1)]
-    pub text: Option<String<consts::U64>>,
+    pub mode : GreetingTextMode,
 }
