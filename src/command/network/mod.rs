@@ -1,21 +1,13 @@
-//! ### 20 - GPIO Commands
-//! The section describes the AT commands used to configure the GPIO pins provided by u-blox cellular modules
-//! ### GPIO functions
-//! On u-blox cellular modules, GPIO pins can be opportunely configured as general purpose input or output.
-//! Moreover GPIO pins of u-blox cellular modules can be configured to provide custom functions via +UGPIOC
-//! AT command. The custom functions availability can vary depending on the u-blox cellular modules series and
-//! version: see Table 53 for an overview of the custom functions supported by u-blox cellular modules. \
-//! The configuration of the GPIO pins (i.e. the setting of the parameters of the +UGPIOC AT command) is saved
-//! in the NVM and used at the next power-on.
+//! ### 10 - Network Commands
 pub mod responses;
 pub mod types;
+pub mod urc;
 
 use atat::atat_derive::AtatCmd;
 use heapless::{consts, String};
+use no_std_net::IpAddr;
 use responses::*;
 use types::*;
-use no_std_net::IpAddr;
-
 
 use super::NoResponse;
 
@@ -24,9 +16,9 @@ use super::NoResponse;
 /// Sets a new host name.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UNHN", NoResponse, timeout_ms = 10000)]
-pub struct SetNetworkHostName{
-    #[at_arg(position = 0)]
-    pub host_name: String<consts::U64>,
+pub struct SetNetworkHostName<'a> {
+    #[at_arg(position = 0, len = 64)]
+    pub host_name: &'a str,
 }
 
 /// 10.2 Network status +UNSTAT
@@ -38,7 +30,7 @@ pub struct GetNetworkStatus {
     #[at_arg(position = 0)]
     pub interface_id: u8,
     #[at_arg(position = 1)]
-    pub status: NetworkStatus,
+    pub status: NetworkStatusParameter,
 }
 
 /// 10.3 Layer-2 routing +UNL2RCFG
@@ -46,7 +38,7 @@ pub struct GetNetworkStatus {
 /// Writes configuration for layer-2 routing.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UNL2RCFG", NoResponse, timeout_ms = 10000)]
-pub struct Layer2Routing{
+pub struct Layer2Routing {
     #[at_arg(position = 0)]
     pub routing_tag: RoutingTag,
     #[at_arg(position = 1)]
@@ -64,9 +56,31 @@ pub struct Layer2Routing{
 /// ODIN-W2-SW3.0.x onwards
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UBRGC", NoResponse, timeout_ms = 10000)]
-pub struct SetBridgeConfiguration{
+pub struct SetBridgeConfiguration {
+    #[at_arg(position = 0)]
+    pub config_id: BridgeConfigId,
+    #[at_arg(position = 1, len = 40)]
+    pub config_tag: BridgeConfig,
+}
+
+/// 10.5 Bridge configuration action +UBRGCA
+///
+/// Executes an action for the network bridge configuration.
+#[derive(Clone, AtatCmd)]
+#[at_cmd("+UBRGCA", NoResponse, timeout_ms = 10000)]
+pub struct BridgeConfigurationAction {
     #[at_arg(position = 0)]
     pub config_id: BridgeConfigId,
     #[at_arg(position = 1)]
-    pub config_tag: BridgeConfig,
+    pub action: BridgeAction,
+}
+
+/// 10.9 IPv4 address conflict detection timing +UNACDT
+///
+/// Sets parameters for IPv4 address conflict detection as described in RFC5227.
+#[derive(Clone, AtatCmd)]
+#[at_cmd("+UNACDT", NoResponse, timeout_ms = 10000)]
+pub struct AddressConflictDetectionTiming {
+    #[at_arg(position = 0)]
+    pub parameter: Timing,
 }

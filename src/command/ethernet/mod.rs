@@ -1,21 +1,13 @@
-//! ### 20 - GPIO Commands
-//! The section describes the AT commands used to configure the GPIO pins provided by u-blox cellular modules
-//! ### GPIO functions
-//! On u-blox cellular modules, GPIO pins can be opportunely configured as general purpose input or output.
-//! Moreover GPIO pins of u-blox cellular modules can be configured to provide custom functions via +UGPIOC
-//! AT command. The custom functions availability can vary depending on the u-blox cellular modules series and
-//! version: see Table 53 for an overview of the custom functions supported by u-blox cellular modules. \
-//! The configuration of the GPIO pins (i.e. the setting of the parameters of the +UGPIOC AT command) is saved
-//! in the NVM and used at the next power-on.
+//! ### 8 - Ethernet
 pub mod responses;
 pub mod types;
+pub mod urc;
 
 use atat::atat_derive::AtatCmd;
 use heapless::{consts, String};
+use no_std_net::IpAddr;
 use responses::*;
 use types::*;
-use no_std_net::IpAddr;
-
 
 use super::NoResponse;
 
@@ -27,8 +19,8 @@ use super::NoResponse;
 /// +UETHCA" for instructions on how to deactivate a configuration.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UETHC", NoResponse, timeout_ms = 10000)]
-pub struct SetEthernetConfiguration{
-    #[at_arg(position = 0)]
+pub struct SetEthernetConfiguration {
+    #[at_arg(position = 0, len = 40)]
     pub param_tag: EthernetConfig,
 }
 
@@ -40,9 +32,9 @@ pub struct SetEthernetConfiguration{
 /// +UETHCA" for instructions on how to deactivate a configuration.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UETHC", EthernetConfigurationResponse, timeout_ms = 10000)]
-pub struct GetEthernetConfiguration{
+pub struct GetEthernetConfiguration {
     #[at_arg(position = 0)]
-    pub param_tag: EthernetConfig,
+    pub param_tag: EthernetConfigParameter,
 }
 
 /// 8.2 Ethernet configuration action +UETHCA
@@ -50,7 +42,7 @@ pub struct GetEthernetConfiguration{
 /// Sets network type.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UETHC", NoResponse, timeout_ms = 10000)]
-pub struct EthernetConfigurationAction{
+pub struct EthernetConfigurationAction {
     #[at_arg(position = 0)]
     pub action: EthernetConfigAction,
 }

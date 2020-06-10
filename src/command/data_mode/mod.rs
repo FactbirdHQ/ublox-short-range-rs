@@ -1,14 +1,7 @@
-//! ### 20 - GPIO Commands
-//! The section describes the AT commands used to configure the GPIO pins provided by u-blox cellular modules
-//! ### GPIO functions
-//! On u-blox cellular modules, GPIO pins can be opportunely configured as general purpose input or output.
-//! Moreover GPIO pins of u-blox cellular modules can be configured to provide custom functions via +UGPIOC
-//! AT command. The custom functions availability can vary depending on the u-blox cellular modules series and
-//! version: see Table 53 for an overview of the custom functions supported by u-blox cellular modules. \
-//! The configuration of the GPIO pins (i.e. the setting of the parameters of the +UGPIOC AT command) is saved
-//! in the NVM and used at the next power-on.
+//! ### 5 - Data Mode 
 pub mod responses;
 pub mod types;
+pub mod urc;
 
 use atat::atat_derive::AtatCmd;
 use heapless::{consts, String};
@@ -24,7 +17,7 @@ use super::NoResponse;
 /// required before start of data transmission.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("O", NoResponse, timeout_ms = 10000)]
-pub struct ChangeMode{
+pub struct ChangeMode {
     #[at_arg(position = 0)]
     pub mode: Mode,
 }
@@ -36,9 +29,9 @@ pub struct ChangeMode{
 /// event.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 10000)]
-pub struct ConnectPeer {
-    #[at_arg(position = 0)]
-    pub url: String<consts::U64>,
+pub struct ConnectPeer <'a> {
+    #[at_arg(position = 0, len = 128)]
+    pub url: &'a str,
 }
 
 /// 5.3 Close peer connection +UDCPC
@@ -46,7 +39,7 @@ pub struct ConnectPeer {
 /// Closes an existing peer connection.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCPC", NoResponse, timeout_ms = 10000)]
-pub struct ClosePeerConnection{
+pub struct ClosePeerConnection {
     #[at_arg(position = 0)]
     pub peer_handle: u32,
 }
@@ -58,10 +51,13 @@ pub struct ClosePeerConnection{
 /// (either by command or at start up, if defined by the Module Start Mode +UMSM command).
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDDRP", NoResponse, timeout_ms = 10000)]
-pub struct SetDefaultRemotePeer{
-    /// For ODIN-W2, the peer ID can be 0-6. 
+pub struct SetDefaultRemotePeer<'a> {
+    /// For ODIN-W2, the peer ID can be 0-6.
+    #[at_arg(position = 0)]
     pub peer_id: u8,
-    pub url: String<consts::U64>,
+    #[at_arg(position = 1, len = 128)]
+    pub url: &'a str,
+    #[at_arg(position = 2)]
     pub connect_scheme: ConnectScheme,
 }
 
@@ -74,15 +70,15 @@ pub struct PeerList;
 
 /// 5.6 Server configuration +UDSC
 ///
-/// Writes server configuration. Only one option from option2 is to be used. 
+/// Writes server configuration. Only one option from option2 is to be used.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDSC", NoResponse, timeout_ms = 10000)]
-pub struct ServerConfiguration{
+pub struct ServerConfiguration<'a> {
     /// 0-6, the server ID to configure. Disable an active server first before changing.
     #[at_arg(position = 0)]
     pub id: u8,
     #[at_arg(position = 1)]
-    pub server_config: ServerConfig,
+    pub server_config: ServerConfig<'a>,
 }
 
 /// 5.7 Server flags +UDSF
@@ -93,7 +89,7 @@ pub struct ServerConfiguration{
 /// O command).
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDSF", NoResponse, timeout_ms = 10000)]
-pub struct SetServerFlags{
+pub struct SetServerFlags {
     /// Id as given by AT+UDSC
     #[at_arg(position = 0)]
     pub id: u8,
@@ -108,7 +104,7 @@ pub struct SetServerFlags{
 /// mode must also be set to online or sleep mode.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDWS", NoResponse, timeout_ms = 10000)]
-pub struct SetWatchdogSettings{
+pub struct SetWatchdogSettings {
     #[at_arg(position = 0)]
     pub setting_type: WatchdogSetting,
 }
@@ -124,7 +120,7 @@ pub struct SetWatchdogSettings{
 /// 4,5                     |    >= 7.0.0
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCFG", NoResponse, timeout_ms = 10000)]
-pub struct SetPeerConfiguration{
+pub struct SetPeerConfiguration {
     #[at_arg(position = 0)]
     pub parameter: PeerConfigParameter,
 }
@@ -136,7 +132,7 @@ pub struct SetPeerConfiguration{
 /// request to delete from the command line, the immediately preceding character.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDBIND", BindResponse, timeout_ms = 10000)]
-pub struct SetBind{
+pub struct SetBind {
     #[at_arg(position = 0)]
     pub stream_id_1: u8,
     #[at_arg(position = 1)]
@@ -150,9 +146,9 @@ pub struct SetBind{
 /// of a successful bind command.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDBINDC", NoResponse, timeout_ms = 10000)]
-pub struct SoftwareUpdate{
+pub struct SoftwareUpdate {
     #[at_arg(position = 0)]
-    pub stream_id: SoftwareUpdateMode,
+    pub stream_id: u8,
     #[at_arg(position = 1)]
-    pub channel_id: SoftwareUpdateBaudRate
+    pub channel_id: u8,
 }

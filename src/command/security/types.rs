@@ -1,14 +1,12 @@
-//! Argument and parameter types used by GPIO Commands and Responses
+//! Argument and parameter types used by Security Commands and Responses
 
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use ufmt::derive::uDebug;
+use atat::atat_derive::AtatEnum;
+use heapless::{consts, String, Vec};
 use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use heapless::{consts, String};
 
-
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum SecurityOperation{
+pub enum SecurityOperation {
     /// Import a certificate or a private key (data provided by the stream of byte)
     Import = 0,
     /// Remove an imported certificate or private key
@@ -19,10 +17,9 @@ pub enum SecurityOperation{
     MD5 = 4,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum SecurityDataType{
+pub enum SecurityDataType {
     ClientCertificate = 1,
     ClientPrivateKey = 2,
 }
-

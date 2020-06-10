@@ -1,21 +1,19 @@
-//! Argument and parameter types used by GPIO Commands and Responses
+//! Argument and parameter types used by System Commands and Responses
 
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use ufmt::derive::uDebug;
-use heapless::String;
-use heapless::consts;
+use atat::atat_derive::AtatEnum;
+use heapless::{consts, String, Vec};
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum Mode {
     /// Turn off
-    Off = 0, 
+    Off = 0,
     /// Turn on
     On = 1,
 }
 
 /// DTR behavior
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum DTRMode {
     /// DTR line is ignored.
@@ -31,7 +29,7 @@ pub enum DTRMode {
     DisconnectPeers = 2,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum DSRAssertMode {
     /// ASSERT DSR
@@ -47,24 +45,24 @@ pub enum DSRAssertMode {
 }
 
 /// Echo on
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum EchoOn {
     ///  Unit does not echo the characters in command mode
-    Off = 0, 
+    Off = 0,
     /// Unit echoes the characters in command mode. (default)
     On = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum SoftwareUpdateMode {
     ///  u-connect software update using serial port
     SoftwareUpdate = 0,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
-#[repr(u8)]
+#[derive(Clone, PartialEq, AtatEnum)]
+#[repr(u32)]
 pub enum SoftwareUpdateBaudRate {
     /// Default
     B115200 = 115200,
@@ -72,7 +70,7 @@ pub enum SoftwareUpdateBaudRate {
     B460800 = 460800,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum ModuleStartMode {
     /// Default
@@ -82,7 +80,7 @@ pub enum ModuleStartMode {
     PPPMode = 3,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum InserfaceID {
     Bluetooth = 0,
@@ -90,8 +88,7 @@ pub enum InserfaceID {
     Ethernet = 2,
 }
 
-
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum StatusID {
     /// The <status_val>is the uptime in seconds. That is, the seconds since last reboot
@@ -102,30 +99,30 @@ pub enum StatusID {
     SavedStatus = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
-#[repr(u8)]
+#[derive(Clone, PartialEq, AtatEnum)]
+#[repr(u32)]
 /// ODIN-W2:
 /// 19200 - 5250000. The module will set a baud rate as close as possible to the
 /// requested baud rate. Recommended baud rates: 9600, 14400, 19200, 28800,
 /// 38400, 57600, 76800, 115200, 230400, 250000, 460800, 921600, 3000000.
 pub enum BaudRate {
-    B9600 = 9600, 
+    B9600 = 9600,
     B14400 = 14400,
-    B19200 = 19200, 
+    B19200 = 19200,
     B28800 = 28800,
-    B38400 = 38400, 
-    B57600 = 57600, 
-    B76800 = 76800, 
-    B115200 = 115200, 
-    B230400 = 230400, 
-    B250000 = 250000, 
-    B460800 = 460800, 
-    B921600 = 921600, 
+    B38400 = 38400,
+    B57600 = 57600,
+    B76800 = 76800,
+    B115200 = 115200,
+    B230400 = 230400,
+    B250000 = 250000,
+    B460800 = 460800,
+    B921600 = 921600,
     B3000000 = 3000000,
     B5250000 = 5250000,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum FlowControl {
     /// (Default) CTS/RTS used for flow control
@@ -134,7 +131,7 @@ pub enum FlowControl {
     Off = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum StopBits {
     /// (Default): 1 stop bit
@@ -143,7 +140,7 @@ pub enum StopBits {
     Two = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum Parity {
     /// (Default) no parity
@@ -154,7 +151,7 @@ pub enum Parity {
     Even = 2,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 /// When operating in the extended data mode, the change_after_confirm has no
 /// direct effect. Settings must be stored to the profile and the module must be
@@ -167,16 +164,16 @@ pub enum ChangeAfterConfirm {
     ChangeAfterOK = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum PowerRegulatorSettings {
     /// Switch automatically between DC/DC and LDO regulators.
-    SwitchAutomatically = 0, 
+    SwitchAutomatically = 0,
     /// Disable DC/DC and use only LDO regulator.
     LDO = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum LPODetection {
     Detected = 1,

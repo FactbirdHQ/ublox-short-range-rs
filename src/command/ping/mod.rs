@@ -1,20 +1,12 @@
-//! ### 20 - GPIO Commands
-//! The section describes the AT commands used to configure the GPIO pins provided by u-blox cellular modules
-//! ### GPIO functions
-//! On u-blox cellular modules, GPIO pins can be opportunely configured as general purpose input or output.
-//! Moreover GPIO pins of u-blox cellular modules can be configured to provide custom functions via +UGPIOC
-//! AT command. The custom functions availability can vary depending on the u-blox cellular modules series and
-//! version: see Table 53 for an overview of the custom functions supported by u-blox cellular modules. \
-//! The configuration of the GPIO pins (i.e. the setting of the parameters of the +UGPIOC AT command) is saved
-//! in the NVM and used at the next power-on.
+//! ### 20 - Ping Commands
 pub mod responses;
 pub mod types;
 
 use atat::atat_derive::AtatCmd;
 use heapless::{consts, String};
+use no_std_net::IpAddr;
 use responses::*;
 use types::*;
-use no_std_net::IpAddr;
 
 use super::NoResponse;
 
@@ -39,13 +31,13 @@ use super::NoResponse;
 /// in another way.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UPING", NoResponse, timeout_ms = 10000)]
-pub struct Ping<'a>{
+pub struct Ping<'a> {
     /// IP address (dotted decimal representation) or domain name of the remote host
     /// • Maximum length: 64 characters
-    #[at_arg(position = 0)]
+    #[at_arg(position = 0, len = 64)]
     pub hostname: &'a str,
-    /// Unique identifier of an imported certificate or private key. If an existing name is
-    /// used, the data will be overridden. The maximum length is 32 characters.
-    #[at_arg(position = 1)]
-    pub retry_num: RetryNum,
+    // /// Unique identifier of an imported certificate or private key. If an existing name is
+    // /// used, the data will be overridden. The maximum length is 32 characters.
+    // #[at_arg(position = 1)]
+    // pub retry_num: RetryNum,
 }

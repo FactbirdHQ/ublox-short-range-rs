@@ -30,7 +30,7 @@ pub struct SystemStatusResponse {
 }
 /// 4.19 LPO detection +UMLPO
 #[derive(Clone, AtatResp)]
-pub struct LPODetectionResponse{
+pub struct LPODetectionResponse {
     #[at_arg(position = 0)]
     pub lpo_detection: LPODetection,
 }

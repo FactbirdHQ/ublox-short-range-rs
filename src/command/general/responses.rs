@@ -56,5 +56,5 @@ pub struct IdentificationInfomationSoftwareVersionResponse {
 pub struct IdentificationInfomationMCUIDResponse {
     /// Text string that identifies the serial number.
     #[at_arg(position = 0)]
-    pub serial_number: [u8; 64],
+    pub serial_number: String<consts::U64>,
 }

@@ -1,10 +1,8 @@
-//! Argument and parameter types used by GPIO Commands and Responses
+//! Argument and parameter types used by Ping Commands and Responses
 
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use ufmt::derive::uDebug;
+use atat::atat_derive::AtatEnum;
+use heapless::{consts, String, Vec};
 use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use heapless::{consts, String};
-
 
 /// Indicates the number of iterations for the ping command.
 /// • Range: 1-2147483647

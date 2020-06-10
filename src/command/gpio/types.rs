@@ -1,13 +1,11 @@
 //! Argument and parameter types used by GPIO Commands and Responses
 
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use ufmt::derive::uDebug;
+use atat::atat_derive::AtatEnum;
+use heapless::{consts, String, Vec};
 use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use heapless::{consts, String};
-
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum GPIOId{
+pub enum GPIOId {
     /// LPO_CLK
     C16 = 14,
     /// UART_RTS
@@ -56,8 +54,8 @@ pub enum GPIOId{
     C12 = 29,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
-pub enum GPIOMode{
+#[derive(Clone, PartialEq, AtatEnum)]
+pub enum GPIOMode {
     #[at_arg(value = 0)]
     Output(GPIOOutputConfig),
     #[at_arg(value = 1)]
@@ -67,17 +65,17 @@ pub enum GPIOMode{
     Disabled,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum GPIOOutputConfig{
+pub enum GPIOOutputConfig {
     /// Default
     Low = 0,
     High = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum GPIOInputConfig{
+pub enum GPIOInputConfig {
     /// Default
     /// (default value) No resistor activated
     NoPull = 0,
@@ -87,11 +85,9 @@ pub enum GPIOInputConfig{
     PullDown = 2,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum GPIOValue{
+pub enum GPIOValue {
     Low = 0,
     High = 1,
 }
-
-

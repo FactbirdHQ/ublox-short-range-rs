@@ -1,21 +1,19 @@
-//! Argument and parameter types used by GPIO Commands and Responses
+//! Argument and parameter types used by Ethernet Commands and Responses
 
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use ufmt::derive::uDebug;
-use no_std_net::{Ipv4Addr, Ipv6Addr, IpAddr};
-use heapless::String;
-use heapless::consts;
+use atat::atat_derive::AtatEnum;
+use heapless::{consts, String, Vec};
+use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum OnOff{
+pub enum OnOff {
     Off = 0,
     On = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum EthernetConfigTag{
+pub enum EthernetConfigParameter {
     /// <param_val> decides if the network is active on start up.
     /// • 0 (default): inactive
     /// • 1: active
@@ -66,8 +64,8 @@ pub enum EthernetConfigTag{
     AddressConflictDetection = 107,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
-pub enum EthernetConfig{
+#[derive(Clone, PartialEq, AtatEnum)]
+pub enum EthernetConfig {
     /// <param_val> decides if the network is active on start up.
     /// • 0 (default): inactive
     /// • 1: active
@@ -108,21 +106,21 @@ pub enum EthernetConfig{
     IPv4Mode(IPv4Mode),
     /// <param_val> is the IPv4 address. The factory default value is 0.0.0.0
     #[at_arg(value = 101)]
-    IPv4Address(Ipv4Addr),
+    IPv4Address(#[at_arg(len = 16)] Ipv4Addr),
     /// <param_val> is the subnet mask. The factory default value is 0.0.0.0
     #[at_arg(value = 102)]
-    SubnetMask(Ipv4Addr),
+    SubnetMask(#[at_arg(len = 16)] Ipv4Addr),
     /// <param_val> is the default gateway. The factory default value is 0.0.0.0
     #[at_arg(value = 103)]
-    DefaultGateway(Ipv4Addr),
+    DefaultGateway(#[at_arg(len = 16)] Ipv4Addr),
     /// <param_val> is the primary DNS server IP address. The factory default value is 0
     /// .0.0.0
     #[at_arg(value = 104)]
-    PrimaryDNS(Ipv4Addr),
+    PrimaryDNS(#[at_arg(len = 16)] Ipv4Addr),
     /// <param_val> is the secondary DNS server IP address. The factory default value is
     /// 0.0.0.0
     #[at_arg(value = 105)]
-    SecondaryDNS(Ipv4Addr),
+    SecondaryDNS(#[at_arg(len = 16)] Ipv4Addr),
     /// Address conflict detection. The factory default value is 0 (disabled). This tag is
     /// supported by ODIN-W2 from software version 6.0.0 onwards only.
     /// • 0: Disabled
@@ -131,30 +129,95 @@ pub enum EthernetConfig{
     AddressConflictDetection(OnOff),
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
+pub enum EthernetConfigR {
+    /// <param_val> decides if the network is active on start up.
+    /// • 0 (default): inactive
+    /// • 1: active
+    #[at_arg(value = 0)]
+    ActiveOnStartup(OnOff),
+    /// <param_val> Phy support mode
+    /// • 0: disabled
+    /// • 1 (default): enabled
+    /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
+    #[at_arg(value = 1)]
+    PhySupport(OnOff),
+    /// <param_val> Ethernet speed
+    /// • 0 (default): 100 Mbit/s
+    /// • 1: 10 Mbit/s
+    /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
+    #[at_arg(value = 2)]
+    Speed(EthernetSpeed),
+    /// <param_val> Ethernet Duplex mode
+    /// • 0 (default): Full duplex
+    /// • 1: Half duplex
+    /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
+    #[at_arg(value = 3)]
+    DuplexMode(EthernetDuplexMode),
+    /// <param_val> Auto-negotiation (of speed and duplex mode)
+    /// • 0: disabled
+    /// • 1 (default): enabled
+    /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
+    #[at_arg(value = 4)]
+    AutoNegotiation(OnOff),
+    /// <param_val> is the Phy address. The factory default value is 0x3 (for ODIN) and 0x0
+    /// (for NINA-W13 and NINA-W15).
+    #[at_arg(value = 5)]
+    PhyAddress(u32),
+    /// IPv4 Mode - <param_val1> to set the way to retrieve an IP address
+    /// • 1 (default): Static
+    /// • 2: DHCP
+    #[at_arg(value = 100)]
+    IPv4Mode(IPv4Mode),
+    /// <param_val> is the IPv4 address. The factory default value is 0.0.0.0
+    #[at_arg(value = 101)]
+    IPv4Address(#[at_arg(len = 16)] Ipv4Addr),
+    /// <param_val> is the subnet mask. The factory default value is 0.0.0.0
+    #[at_arg(value = 102)]
+    SubnetMask(#[at_arg(len = 16)] Ipv4Addr),
+    /// <param_val> is the default gateway. The factory default value is 0.0.0.0
+    #[at_arg(value = 103)]
+    DefaultGateway(#[at_arg(len = 16)] Ipv4Addr),
+    /// <param_val> is the primary DNS server IP address. The factory default value is 0
+    /// .0.0.0
+    #[at_arg(value = 104)]
+    PrimaryDNS(#[at_arg(len = 16)] Ipv4Addr),
+    /// <param_val> is the secondary DNS server IP address. The factory default value is
+    /// 0.0.0.0
+    #[at_arg(value = 105)]
+    SecondaryDNS(#[at_arg(len = 16)] Ipv4Addr),
+    /// Address conflict detection. The factory default value is 0 (disabled). This tag is
+    /// supported by ODIN-W2 from software version 6.0.0 onwards only.
+    /// • 0: Disabled
+    /// • 1: Enabled
+    #[at_arg(value = 107)]
+    AddressConflictDetection(OnOff),
+}
+
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum EthernetSpeed{
+pub enum EthernetSpeed {
     Mbps10 = 1,
     Mbps100 = 0,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum EthernetDuplexMode{
+pub enum EthernetDuplexMode {
     FullDuplex = 0,
     HalfDuplex = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum IPv4Mode{
+pub enum IPv4Mode {
     Static = 1,
     DHCP = 2,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum EthernetConfigAction{
+pub enum EthernetConfigAction {
     /// Reset; it clears the specified profile, resetting all the parameters to their factory
     /// programmed values
     Reset = 0,

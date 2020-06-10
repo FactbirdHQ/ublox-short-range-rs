@@ -1,21 +1,13 @@
-//! ### 20 - GPIO Commands
-//! The section describes the AT commands used to configure the GPIO pins provided by u-blox cellular modules
-//! ### GPIO functions
-//! On u-blox cellular modules, GPIO pins can be opportunely configured as general purpose input or output.
-//! Moreover GPIO pins of u-blox cellular modules can be configured to provide custom functions via +UGPIOC
-//! AT command. The custom functions availability can vary depending on the u-blox cellular modules series and
-//! version: see Table 53 for an overview of the custom functions supported by u-blox cellular modules. \
-//! The configuration of the GPIO pins (i.e. the setting of the parameters of the +UGPIOC AT command) is saved
-//! in the NVM and used at the next power-on.
+//! ### 20 - WiFi Commands
 pub mod responses;
 pub mod types;
+pub mod urc;
 
 use atat::atat_derive::AtatCmd;
-use heapless::{consts, String};
+use heapless::{consts, String, Vec};
+use no_std_net::IpAddr;
 use responses::*;
 use types::*;
-use no_std_net::IpAddr;
-
 
 use super::NoResponse;
 
@@ -26,12 +18,12 @@ use super::NoResponse;
 /// If more than one configuration has active on start up parameter enabled, the behaviour is undefined.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWSC", NoResponse, timeout_ms = 10000)]
-pub struct SetWifiStationConfig{
+pub struct SetWifiStationConfig<'a> {
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
     pub config_id: u8,
     #[at_arg(position = 1)]
-    pub parameter: WifiStationConfig,
+    pub parameter: WifiStationConfig<'a>,
 }
 
 /// 7.1 Wi-Fi station configuration +UWSC
@@ -41,7 +33,7 @@ pub struct SetWifiStationConfig{
 /// If more than one configuration has active on start up parameter enabled, the behaviour is undefined.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWSC", GetWifiStationConfigResponse, timeout_ms = 10000)]
-pub struct GetWifiStationConfig{
+pub struct GetWifiStationConfig {
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
     pub config_id: u8,
@@ -53,7 +45,7 @@ pub struct GetWifiStationConfig{
 /// Executes an action for the Wi-Fi network.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWSCA", NoResponse, timeout_ms = 10000)]
-pub struct WifiStationConfigAction{
+pub struct WifiStationConfigAction {
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
     pub config_id: u8,
@@ -69,10 +61,10 @@ pub struct WifiStationConfigAction{
 /// the SSID is defined, a directed scan will be performed.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWSCAN", WifiScanResponse, timeout_ms = 10000)]
-pub struct WifiScan{
+pub struct WifiScan<'a> {
     /// Wi-Fi configuration id. 0-9
-    #[at_arg(position = 0)]
-    pub ssid: Option<String<consts::u64>>,
+    #[at_arg(position = 0, len = 64)]
+    pub ssid: Option<&'a str>,
 }
 
 /// 7.4 Channel list +UWCL
@@ -86,19 +78,19 @@ pub struct WifiScan{
 /// The actual channel list may differ from the wanted channel list. Depending on the physical location, the
 /// radio environment, and the product version, the actual channel list in use may be limited to comply with
 /// the regulatory approvals. Some sample scenarios are listed below:
-/// • Channels 12 and 13 will be disabled until it has been determined that the module operates outside the 
+/// • Channels 12 and 13 will be disabled until it has been determined that the module operates outside the
 ///   FCC region.
-/// • Channels 120, 124, and 128 will be disabled until it has been determined that the module operates outside 
+/// • Channels 120, 124, and 128 will be disabled until it has been determined that the module operates outside
 ///   the FCC region.
-/// • Channels 149, 153, 157, 161, and 165 will be disabled until it has been determined that these are allowed 
+/// • Channels 149, 153, 157, 161, and 165 will be disabled until it has been determined that these are allowed
 ///   for the current region.
 /// • Any DFS channel will be disabled for active use until an appropriate authoritative source has been found
 ///   for clearing each specific channel.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWCL", WifiScanResponse, timeout_ms = 10000)]
-pub struct SetChannelList{
+pub struct SetChannelList {
     #[at_arg(position = 0)]
-    pub channels: &[u8],
+    pub channels: Vec<u8, consts::U10>,
 }
 
 /// 7.5 Wi-Fi station status +UWSSTAT
@@ -106,7 +98,7 @@ pub struct SetChannelList{
 /// Writes the required channel list for station mode.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWSSTAT", WifiStatusResponse, timeout_ms = 10000)]
-pub struct GetWifiStatus{
+pub struct GetWifiStatus {
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
     pub status_id: StatusId,
@@ -117,7 +109,7 @@ pub struct GetWifiStatus{
 /// Writes configuration parameter.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWCFG", NoResponse, timeout_ms = 10000)]
-pub struct SetWifiConfig{
+pub struct SetWifiConfig {
     #[at_arg(position = 0)]
     pub config_param: WifiConfig,
 }
@@ -127,7 +119,7 @@ pub struct SetWifiConfig{
 /// Reads configuration parameter.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWCFG", WifiConfigResponse, timeout_ms = 10000)]
-pub struct GetWifiConfig{
+pub struct GetWifiConfig {
     #[at_arg(position = 0)]
     pub config_param: WifiConfigParameter,
 }
@@ -138,7 +130,7 @@ pub struct GetWifiConfig{
 /// This command is deprecated and kept for backwards compatibility. Use +UDWS instead.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWWS", NoResponse, timeout_ms = 10000)]
-pub struct GetWifiConfig{
+pub struct GetWatchdogConfig {
     #[at_arg(position = 0)]
     pub watchdog_setting: WatchdogSetting,
     #[at_arg(position = 1)]
@@ -153,11 +145,11 @@ pub struct GetWifiConfig{
 /// Action +UWAPCA" for instructions on how to deactivate a configuration.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWAPC", NoResponse, timeout_ms = 10000)]
-pub struct SetWifiAPConfig{
+pub struct SetWifiAPConfig<'a> {
     #[at_arg(position = 0)]
     pub ap_config_id: AccessPointId,
     #[at_arg(position = 1)]
-    pub ap_config_param: AccessPointConfig,
+    pub ap_config_param: AccessPointConfig<'a>,
 }
 
 /// 7.8 Wi-Fi Access point configuration +UWAPC
@@ -172,7 +164,7 @@ pub struct GetWifiAPConfig {
     #[at_arg(position = 0)]
     pub ap_id: AccessPointId,
     #[at_arg(position = 1)]
-    pub ap_config_param: AccessPointConfigTag,
+    pub ap_config_param: AccessPointConfigParameter,
 }
 
 /// 7.9 Wi-Fi Access point configuration action +UWAPCA
@@ -210,17 +202,3 @@ pub struct WiFiAPStationList;
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWAPMACADDR", WifiMacResponse, timeout_ms = 10000)]
 pub struct GetWifiMac;
-
-/// 7.15 Wi-Fi Link connected +UUWLE
-/// +UWSCANIE
-///
-/// This command allows the user to discover vendor-specific Information Element(s) (IE), typically transmitted in
-/// beacons and probe responses. The vendor-specific IEs are tagged with 0xDD, followed by a length byte and an
-/// OUI of at least three bytes followed by the vendor-specific data.
-/// Starts scanning for vendor-specific IEs.
-#[derive(Clone, AtatCmd)]
-#[at_cmd("+UWSCANIE", WifiAPStatusResponse, timeout_ms = 10000)]
-pub struct WifiAPStatus {
-    #[at_arg(position = 0)]
-    pub ap_status_id: AccessPointStatusId,
-}

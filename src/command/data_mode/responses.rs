@@ -1,4 +1,4 @@
-//! Responses for System Commands
+//! Responses for Data Mode 
 use super::types::*;
 use atat::atat_derive::AtatResp;
 use heapless::{consts, String};
@@ -16,11 +16,11 @@ pub struct PeerListResponse {
     #[at_arg(position = 0)]
     pub peer_handle: u32,
     #[at_arg(position = 1)]
-    pub protocol: String<consts::u64>,
+    pub protocol: String<consts::U64>,
     #[at_arg(position = 2)]
-    pub local_address: String<consts::u64>,
+    pub local_address: String<consts::U64>,
     #[at_arg(position = 3)]
-    pub remote_address: String<consts::u64>,
+    pub remote_address: String<consts::U64>,
 }
 
 /// 5.12 Bind +UDBIND

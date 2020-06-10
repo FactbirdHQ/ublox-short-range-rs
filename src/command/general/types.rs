@@ -1,20 +1,20 @@
-//! Argument and parameter types used by GPIO Commands and Responses
+//! Argument and parameter types used by General Commands and Responses
 
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use ufmt::derive::uDebug;
-use heapless::String;
-use heapless::consts;
+use atat::atat_derive::AtatEnum;
+use heapless::{consts, String, Vec};
 
-pub enum GreetingTextMode{
+#[derive(Clone, PartialEq, AtatEnum)]
+pub enum GreetingTextMode<'a> {
     /// Turn off the greeting text
     #[at_arg(value = 0)]
     Off,
     /// Turn on the greeting text
     #[at_arg(value = 1)]
-    On(Option<String<consts::U49>>),
+    On(#[at_arg(len = 48)] Option<&'a str>),
 }
+
 /// Identification information command value
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum IdentificationInfoEnum {
     /// Type code

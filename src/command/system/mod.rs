@@ -1,12 +1,4 @@
-//! ### 20 - GPIO Commands
-//! The section describes the AT commands used to configure the GPIO pins provided by u-blox cellular modules
-//! ### GPIO functions
-//! On u-blox cellular modules, GPIO pins can be opportunely configured as general purpose input or output.
-//! Moreover GPIO pins of u-blox cellular modules can be configured to provide custom functions via +UGPIOC
-//! AT command. The custom functions availability can vary depending on the u-blox cellular modules series and
-//! version: see Table 53 for an overview of the custom functions supported by u-blox cellular modules. \
-//! The configuration of the GPIO pins (i.e. the setting of the parameters of the +UGPIOC AT command) is saved
-//! in the NVM and used at the next power-on.
+//! ### 20 - System Commands
 pub mod responses;
 pub mod types;
 
@@ -37,7 +29,7 @@ pub struct SetToDefaultConfig;
 ///
 /// Reset to factory defined defaults. A reboot is required before using the new settings.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UFACTORY", SoftwareVersionResponse, timeout_ms = 10000)]
+#[at_cmd("+UFACTORY", NoResponse, timeout_ms = 10000)]
 pub struct ResetToFacroryDefaults;
 
 /// 4.4 Circuit 108/2 (DTR) behavior &D
@@ -48,7 +40,7 @@ pub struct ResetToFacroryDefaults;
 /// The DTR line is connected to the DSR pin on the module.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("&D", NoResponse, timeout_ms = 10000)]
-pub struct SetDTRBehavior{
+pub struct SetDTRBehavior {
     #[at_arg(position = 0)]
     pub mode: DTRMode,
 }
@@ -61,7 +53,7 @@ pub struct SetDTRBehavior{
 /// The DSR line is connected to the DTR pin on the module.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("&S", NoResponse, timeout_ms = 10000)]
-pub struct SetDSROverride{
+pub struct SetDSROverride {
     #[at_arg(position = 0)]
     pub mode: DSRAssertMode,
 }
@@ -72,7 +64,7 @@ pub struct SetDSROverride{
 /// from the DTE in Command Mode. If <echo_on> is omitted, it turns off the echoing.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("E", NoResponse, timeout_ms = 10000, value_sep = false)]
-pub struct SetEcho{
+pub struct SetEcho {
     #[at_arg(position = 0)]
     pub on: EchoOn,
 }
@@ -88,7 +80,7 @@ pub struct SetEcho{
 /// Factory default: 43, the "+" character.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("S2", NoResponse, timeout_ms = 10000)]
-pub struct SetEscapeCharacter{
+pub struct SetEscapeCharacter {
     #[at_arg(position = 0)]
     pub esc_char: u8,
 }
@@ -109,7 +101,7 @@ pub struct SetEscapeCharacter{
 /// of the CR.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("S3", NoResponse, timeout_ms = 10000)]
-pub struct SetLineTerminationCharacter{
+pub struct SetLineTerminationCharacter {
     /// 0...127  Factory default: 13
     #[at_arg(position = 0)]
     pub line_term: u8,
@@ -125,12 +117,11 @@ pub struct SetLineTerminationCharacter{
 /// that command line will use the new value of S4.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("S4", NoResponse, timeout_ms = 10000)]
-pub struct SetResponseFormattingCharacter{
+pub struct SetResponseFormattingCharacter {
     /// 0...127  Factory default: 10
     #[at_arg(position = 0)]
     pub term: u8,
 }
-
 
 /// 4.10 Backspace character S5
 ///
@@ -139,7 +130,7 @@ pub struct SetResponseFormattingCharacter{
 /// request to delete from the command line, the immediately preceding character.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("S5", NoResponse, timeout_ms = 10000)]
-pub struct SetBackspaceCharacter{
+pub struct SetBackspaceCharacter {
     /// 0...127  Factory default: 8
     #[at_arg(position = 0)]
     pub backspace: u8,
@@ -152,13 +143,12 @@ pub struct SetBackspaceCharacter{
 /// mode and follow the boot menu commands.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UFWUPD", SoftwareUpdateResponse, timeout_ms = 10000)]
-pub struct SoftwareUpdate{
+pub struct SoftwareUpdate {
     #[at_arg(position = 0)]
     pub mode: SoftwareUpdateMode,
     #[at_arg(position = 1)]
-    pub baud: SoftwareUpdateBaudRate
+    pub baud: SoftwareUpdateBaudRate,
 }
-
 
 /// 4.12 Module switch off +CPWROFF
 ///
@@ -168,13 +158,12 @@ pub struct SoftwareUpdate{
 #[at_cmd("+CPWROFF", NoResponse, timeout_ms = 10000)]
 pub struct RebootDCE;
 
-
 /// 4.13 Module start mode +UMSM
 ///
 /// Writes start mode
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UMSM", NoResponse, timeout_ms = 10000)]
-pub struct ModuleStart{
+pub struct ModuleStart {
     #[at_arg(position = 0)]
     pub mode: ModuleStartMode,
 }
@@ -185,15 +174,15 @@ pub struct ModuleStart{
 /// change takes effect.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UMLA", NoResponse, timeout_ms = 10000)]
-pub struct SetLocalAddress{
+pub struct SetLocalAddress<'a> {
     #[at_arg(position = 0)]
     pub interface_id: InserfaceID,
     /// MAC address of the interface id. If the address is set to 000000000000, the local
     /// address will be restored to factory-programmed value.
     /// The least significant bit of the first octet of the <address> must be 0; that is, the
     /// <address> must be a unicast address.
-    #[at_arg(position = 1)]
-    pub mac_address: String<consts::U64>,
+    #[at_arg(position = 1, len = 20)]
+    pub mac_address: &'a str,
 }
 
 /// 4.14 Get Local address +UMLA
@@ -201,7 +190,7 @@ pub struct SetLocalAddress{
 /// Reads the local address of the interface id.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UMSM", LocalAddressResponse, timeout_ms = 10000)]
-pub struct GetLocalAddress{
+pub struct GetLocalAddress {
     #[at_arg(position = 0)]
     pub interface_id: InserfaceID,
 }
@@ -212,7 +201,7 @@ pub struct GetLocalAddress{
 /// listed.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UMSTAT", SystemStatusResponse, timeout_ms = 10000)]
-pub struct SystemStatus{
+pub struct SystemStatus {
     #[at_arg(position = 0)]
     pub status_id: Option<StatusID>,
 }
@@ -224,11 +213,27 @@ pub struct SystemStatus{
 /// command, to guarantee a proper baudrate reconfiguration.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UMRS", NoResponse, timeout_ms = 10000)]
-pub struct SetRS232Settings{
+pub struct SetRS232Settings {
     #[at_arg(position = 0)]
     pub baud_rate: BaudRate,
+    // #[at_arg(position = 1)]
+    // pub settings: Option<(
+    //     FlowControl,
+    //     Option<(
+    //         u8,
+    //         Option<(StopBits, Option<(Parity, Option<ChangeAfterConfirm>)>)>,
+    //     )>,
+    // )>,
     #[at_arg(position = 1)]
-    pub settings: Option<(FlowControl, Option<(u8, Option<(StopBits, Option<(Parity, Option<(ChangeAfterConfirm)>)>)>)>)>
+    pub flow_control: FlowControl,
+    #[at_arg(position = 2)]
+    pub data_bits: u8,
+    #[at_arg(position = 3)]
+    pub stop_bits : StopBits,
+    #[at_arg(position = 4)]
+    pub parity: Parity,
+    #[at_arg(position = 5)]
+    pub change_after_confirm: ChangeAfterConfirm,
 }
 
 /// 4.17 Route radio signals to GPIOs +UMRSIG
@@ -237,19 +242,19 @@ pub struct SetRS232Settings{
 /// GPIO commands on the same pins to avoid undefined behavior.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UMRSIG", NoResponse, timeout_ms = 10000)]
-pub struct SetRouteSignalsGPIO{
+pub struct SetRouteSignalsGPIO {
     #[at_arg(position = 0)]
     pub mode: Mode,
 }
 
 /// 4.18 Power regulator +UPWRREG
-/// 
+///
 /// Enable/disable automatic switch between DC/DC and LDO power regulators.
 /// For the settings to take effect, use the commands - &W and +CPWROFF to store the configuration to
 /// start up database and reboot the module.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UPWRREG", NoResponse, timeout_ms = 10000)]
-pub struct SetPowerRegulatorSettings{
+pub struct SetPowerRegulatorSettings {
     #[at_arg(position = 0)]
     pub settings: PowerRegulatorSettings,
 }

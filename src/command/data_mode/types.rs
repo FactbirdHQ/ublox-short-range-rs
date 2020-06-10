@@ -1,19 +1,17 @@
-//! Argument and parameter types used by GPIO Commands and Responses
+//! Argument and parameter types used by Data Mode Commands and Responses
 
-use serde_repr::{Deserialize_repr, Serialize_repr};
-use ufmt::derive::uDebug;
+use atat::atat_derive::AtatEnum;
+use heapless::{consts, String, Vec};
 use no_std_net::IpAddr;
-use heapless::String;
-use heapless::consts;
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum OnOff{
+pub enum OnOff {
     Off = 0,
     On = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum Mode {
     /// Command mode
@@ -27,9 +25,9 @@ pub enum Mode {
     PPPMode = 3,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum ConnectScheme{
+pub enum ConnectScheme {
     /// Always connected - Keep the peer connected when not in command mode.
     /// That is, on errors and remote disconnect, the peer will automatically try to
     /// reconnect.
@@ -46,12 +44,13 @@ pub enum ConnectScheme{
     /// Always connected - External Connect
     Both = 0b110,
 }
-pub enum ServerConfig {
-    Type(ServerType),
-    Url(String<consts::U64>),
+#[derive(Clone, PartialEq, AtatEnum)]
+pub enum ServerConfig<'a> {
+    Type(ServerType<'a>),
+    Url(#[at_arg(len = 128)] &'a str),
 }
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
-pub enum ServerType {
+#[derive(Clone, PartialEq, AtatEnum)]
+pub enum ServerType<'a> {
     #[at_arg(value = 0)]
     Dissabled,
     #[at_arg(value = 1)]
@@ -59,18 +58,18 @@ pub enum ServerType {
     #[at_arg(value = 2)]
     UDP(u16, UDPBehaviour, IPVersion),
     #[at_arg(value = 3)]
-    SSP(String<consts::U15>),
+    SSP(#[at_arg(len = 15)] &'a str),
     #[at_arg(value = 4)]
-    DUN(String<consts::U15>),
+    DUN(#[at_arg(len = 15)] &'a str),
     #[at_arg(value = 5)]
-    UUID(String<consts::U15>, String<consts::U36>),
+    UUID(#[at_arg(len = 15)] &'a str, #[at_arg(len = 37)] &'a str),
     #[at_arg(value = 6)]
     SPS,
     #[at_arg(value = 8)]
     ATP(Interface, Option<u16>),
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum Interface {
     TCP = 1,
@@ -82,7 +81,7 @@ pub enum Interface {
     ATP = 8,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum UDPBehaviour {
     /// No connect. This will trigger an +UUDPC URC immediately (with
@@ -97,29 +96,29 @@ pub enum UDPBehaviour {
     AutoConnect = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum ImmediateFlush{
+pub enum ImmediateFlush {
     Disable = 0,
     Enable = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum IPVersion{
+pub enum IPVersion {
     /// Default
     IPv4 = 0,
     IPv6 = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum RemoteConfiguration {
     Disable = 0,
     Enable = 1,
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum WatchdogSetting {
     /// SPP (and all SPP based protocols like DUN) write timeout: <value>is the time in
@@ -165,8 +164,7 @@ pub enum WatchdogSetting {
     NetUpTimeout(u8),
 }
 
-#[derive(uDebug, Clone, PartialEq, Serialize_repr, Deserialize_repr)]
-#[repr(u8)]
+#[derive(Clone, PartialEq, AtatEnum)]
 pub enum PeerConfigParameter {
     /// Keep remote peer in the command mode
     /// • Off: Disconnect peers when entering the command mode
@@ -204,4 +202,29 @@ pub enum PeerConfigParameter {
     /// multiple TCP links are used, this should be low.
     #[at_arg(value = 5)]
     TCPOutOfSequenceQueue(u8),
+}
+
+#[derive(Clone, PartialEq, AtatEnum)]
+#[repr(u8)]
+pub enum ConnectionType{
+    Bluetooth = 1,
+    IPv4 = 2,
+    IPv6 = 3,
+}
+
+// #[derive(Clone, PartialEq, AtatEnum)]
+// #[repr(u8)]
+// pub enum Profile {
+//     SPP = 1,
+//     DUN = 2,
+//     UUID = 3,
+//     SPS = 4,
+//     Reserved = 5,
+// }
+
+#[derive(Clone, PartialEq, AtatEnum)]
+#[repr(u8)]
+pub enum IPProtocol{
+    TCP = 0,
+    UDP = 1,
 }

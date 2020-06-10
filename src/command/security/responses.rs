@@ -1,9 +1,7 @@
-//! Responses for System Commands
+//! Responses for Security Commands
 use super::types::*;
 use atat::atat_derive::AtatResp;
 use heapless::{consts, String};
-
-
 
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG
 #[derive(Clone, PartialEq, AtatResp)]
@@ -37,4 +35,3 @@ pub struct SecurityDataMD5 {
     #[at_arg(position = 2)]
     md5_string: String<consts::U128>,
 }
-

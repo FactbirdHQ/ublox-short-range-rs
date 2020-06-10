@@ -1,12 +1,4 @@
-//! ### 20 - GPIO Commands
-//! The section describes the AT commands used to configure the GPIO pins provided by u-blox cellular modules
-//! ### GPIO functions
-//! On u-blox cellular modules, GPIO pins can be opportunely configured as general purpose input or output.
-//! Moreover GPIO pins of u-blox cellular modules can be configured to provide custom functions via +UGPIOC
-//! AT command. The custom functions availability can vary depending on the u-blox cellular modules series and
-//! version: see Table 53 for an overview of the custom functions supported by u-blox cellular modules. \
-//! The configuration of the GPIO pins (i.e. the setting of the parameters of the +UGPIOC AT command) is saved
-//! in the NVM and used at the next power-on.
+//! ### 3 - General
 pub mod responses;
 pub mod types;
 
@@ -100,7 +92,7 @@ pub struct IdentificationInfomationMCUID;
 /// command mode.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+CSGT", NoResponse, timeout_ms = 10000)]
-pub struct SetGreetingText {
-    #[at_arg(position = 0)]
-    pub mode : GreetingTextMode,
+pub struct SetGreetingText<'a> {
+    #[at_arg(position = 0, len = 48)]
+    pub mode: GreetingTextMode<'a>,
 }

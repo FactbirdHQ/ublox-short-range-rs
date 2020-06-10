@@ -1,4 +1,4 @@
-//! Responses for System Commands
+//! Responses for Ethernet
 use super::types::*;
 use atat::atat_derive::AtatResp;
 use heapless::{consts, String};
@@ -7,6 +7,5 @@ use heapless::{consts, String};
 #[derive(Clone, AtatResp)]
 pub struct EthernetConfigurationResponse {
     #[at_arg(position = 0)]
-    pub param_tag: EthernetConfig,
+    pub param_tag: EthernetConfigR,
 }
-
