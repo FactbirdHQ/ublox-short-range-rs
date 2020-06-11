@@ -1,6 +1,38 @@
-use at::Error as ATError;
+use atat::Error as ATError;
 use heapless::{consts::U64, String};
 
+
+#[derive(Debug)]
+pub enum Error {
+    SetState,
+    BadLength,
+    Network,
+    Pin,
+    BorrowError(core::cell::BorrowError),
+    BorrowMutError(core::cell::BorrowMutError),
+    AT(atat::Error),
+    Busy,
+    InvalidHex,
+    _Unknown,
+}
+
+impl From<atat::Error> for Error {
+    fn from(e: atat::Error) -> Self {
+        Error::AT(e)
+    }
+}
+
+impl From<core::cell::BorrowMutError> for Error {
+    fn from(e: core::cell::BorrowMutError) -> Self {
+        Error::BorrowMutError(e)
+    }
+}
+
+impl From<core::cell::BorrowError> for Error {
+    fn from(e: core::cell::BorrowError) -> Self {
+        Error::BorrowError(e)
+    }
+}
 /// Error that occurs when attempting to connect to a wireless network.
 #[derive(Debug)]
 pub enum WifiConnectionError {
@@ -28,7 +60,7 @@ pub enum WifiError {
     // IoError(IoError),
     // AT Error occurred.
     ATError(ATError),
-
+    HexError,
     // FIXME: Temp fix!
     Other,
 }

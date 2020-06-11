@@ -1,6 +1,7 @@
+use atat::AtatClient;
 use crate::{
     client::UbloxClient,
-    command::*,
+    command::wifi::types::{OperationMode, Authentication},
     error::WifiHotspotError,
     prelude::WifiHotspot,
     wifi::{
@@ -15,8 +16,7 @@ use heapless::String;
 
 impl<T> WifiHotspot<T> for UbloxClient<T>
 where
-    T: CountDown + Cancel,
-    T::Time: Copy,
+    T: AtatClient
 {
     /// Creates wireless hotspot service for host machine.
     fn create_hotspot(
@@ -26,7 +26,7 @@ where
     ) -> Result<WifiConnection<T>, WifiHotspotError> {
         let network = WifiNetwork {
             bssid: String::new(),
-            op_mode: OPMode::AdHoc,
+            op_mode: OperationMode::AdHoc,
             ssid: options.ssid,
             channel: configuration.channel.unwrap() as u8,
             rssi: 1,

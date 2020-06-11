@@ -1,6 +1,12 @@
-use crate::command::*;
+use crate::command::{
+    wifi::types::{
+        OperationMode,
+        Authentication,
+        ScanedWifiNetwork}
+    };
 use crate::error::WifiError;
-use heapless::String;
+use crate::hex::from_hex;
+use heapless::{String, consts};
 
 use core::convert::TryFrom;
 
@@ -12,22 +18,22 @@ pub enum WifiMode {
 
 #[derive(Debug)]
 pub struct WifiNetwork {
-    pub bssid: String<at::MaxCommandLen>,
-    pub op_mode: OPMode,
-    pub ssid: String<at::MaxCommandLen>,
+    pub bssid: String<consts::U64>,
+    pub op_mode: OperationMode,
+    pub ssid: String<consts::U64>,
     pub channel: u8,
-    pub rssi: i16,
+    pub rssi: i32,
     pub authentication_suites: u8,
     pub unicast_ciphers: u8,
     pub group_ciphers: u8,
     pub mode: WifiMode,
 }
 
-impl TryFrom<Response> for WifiNetwork {
+impl TryFrom<ScanedWifiNetwork> for WifiNetwork {
     type Error = WifiError;
 
-    fn try_from(r: Response) -> Result<Self, Self::Error> {
-        if let Response::STAScan {
+    fn try_from(r: ScanedWifiNetwork) -> Result<Self, Self::Error> {
+        if let ScanedWifiNetwork {
             bssid,
             op_mode,
             ssid,
@@ -44,8 +50,8 @@ impl TryFrom<Response> for WifiNetwork {
                 ssid,
                 channel,
                 rssi,
-                authentication_suites,
-                unicast_ciphers,
+                authentication_suites: from_hex(&mut [authentication_suites]).map_err(|_| Self::Error::HexError)?[0], //TODO: Better solution
+                unicast_ciphers: from_hex(&mut [unicast_ciphers]).map_err(|_| Self::Error::HexError)?[0],
                 group_ciphers,
                 mode: WifiMode::Station,
             })

@@ -68,7 +68,8 @@ type ATRequestQueueLen = U5;
 type ATResponseQueueLen = U5;
 
 static mut WIFI_REQ_Q: Option<Queue<RequestType, ATRequestQueueLen, u8>> = None;
-static mut WIFI_RES_Q: Option<Queue<Result<ResponseType, at::Error>, ATResponseQueueLen, u8>> = None;
+static mut WIFI_RES_Q: Option<Queue<Result<ResponseType, at::Error>, ATResponseQueueLen, u8>> =
+    None;
 
 fn main() {
     env_logger::builder()

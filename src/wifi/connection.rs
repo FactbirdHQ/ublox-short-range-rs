@@ -1,3 +1,4 @@
+use atat::AtatClient;
 use embedded_hal::timer::{Cancel, CountDown};
 
 use heapless::consts;
@@ -10,8 +11,7 @@ use crate::{
 
 pub struct WifiConnection<T>
 where
-    T: CountDown + Cancel,
-    T::Time: Copy,
+    T: AtatClient
 {
     pub connected: bool,
     pub network: WifiNetwork,
@@ -21,8 +21,7 @@ where
 
 impl<T> WifiConnection<T>
 where
-    T: CountDown + Cancel,
-    T::Time: Copy,
+    T: AtatClient
 {
     pub fn new(client: UbloxClient<T>, network: WifiNetwork) -> Self {
         WifiConnection {

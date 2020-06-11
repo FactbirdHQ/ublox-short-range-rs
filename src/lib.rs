@@ -21,6 +21,7 @@ extern crate packed_struct_codegen;
 mod test_helpers;
 
 mod client;
+mod hex;
 
 pub use client::UbloxClient;
 

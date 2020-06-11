@@ -1,3 +1,4 @@
+use atat::AtatClient;
 use super::error::*;
 use super::wifi::{
     connection::WifiConnection,
@@ -6,24 +7,22 @@ use super::wifi::{
 };
 
 use embedded_hal::timer::{Cancel, CountDown};
-use heapless::Vec;
+use heapless::{Vec, consts};
 
 /// Wireless network connectivity functionality.
 pub trait WifiConnectivity<T>
 where
-    T: CountDown + Cancel,
-    T::Time: Copy,
+    T: AtatClient,
 {
     /// Makes an attempt to connect to a selected wireless network with password specified.
     fn connect(self, options: ConnectionOptions) -> Result<WifiConnection<T>, WifiConnectionError>;
 
-    fn scan(&mut self) -> Result<Vec<WifiNetwork, at::MaxResponseLines>, WifiError>;
+    fn scan(&mut self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError>;
 }
 
 pub trait WifiHotspot<T>
 where
-    T: CountDown + Cancel,
-    T::Time: Copy,
+    T: AtatClient
 {
     /// Creates wireless hotspot service for host machine.
     fn create_hotspot(
