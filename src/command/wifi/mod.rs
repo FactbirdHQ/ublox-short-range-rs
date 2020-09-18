@@ -23,7 +23,7 @@ pub struct SetWifiStationConfig<'a> {
     #[at_arg(position = 0)]
     pub config_id: u8,
     #[at_arg(position = 1)]
-    pub parameter: WifiStationConfig<'a>,
+    pub config_param: WifiStationConfig<'a>,
 }
 
 /// 7.1 Wi-Fi station configuration +UWSC
@@ -50,7 +50,7 @@ pub struct WifiStationConfigAction {
     #[at_arg(position = 0)]
     pub config_id: u8,
     #[at_arg(position = 1)]
-    pub parameter: WifiStationAction,
+    pub action: WifiStationAction,
 }
 
 /// 7.3 Scan +UWSCAN
