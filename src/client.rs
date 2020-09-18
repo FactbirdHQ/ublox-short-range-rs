@@ -126,6 +126,8 @@ where
         
         self.send_internal(&StoreCurrentConfig, false)?;
         
+        // TODO: Wait for connect
+        
         // self.send_internal(&RebootDCE, false)?;
         // block!(wait_for_unsolicited!(self, UnsolicitedResponse::Startup)).unwrap();
         // self.send_internal(&AT, false)?;
@@ -134,16 +136,7 @@ where
         Ok(())
     }
 
-    // fn send_internal(&mut self, cmd: AtatCmd) -> Result<AtatResp, atat::Error> {
-    //     match self.serial_mode {
-    //         SerialMode::Cmd => self.client.send(cmd),
-    //         SerialMode::Data => Err(atat::Error::Write),
-    //         SerialMode::ExtendedData => {
-    //             // edm::Packet::new(edm::Identifier::AT, edm::Type::Request, cmd.get_cmd().into_bytes());
-    //             Err(atat::Error::Write)
-    //         }
-    //     }
-    // }
+
     pub(crate) fn send_internal<A: atat::AtatCmd>(
         &self,
         req: &A,
@@ -257,16 +250,7 @@ where
         }
     }
 
-
-    // pub fn send_at(&mut self, cmd: AtatCmd) -> Result<AtatResp, atat::Error> {
-    //     if !self.initialized {
-    //         self.init()?
-    //     }
-
-    //     self.send_internal(cmd, true)
-    // }
-
-    pub fn send_at<A: atat::AtatCmd>(&mut self, cmd: &A) -> Result<A::Response, Error> {
+        pub fn send_at<A: atat::AtatCmd>(&mut self, cmd: &A) -> Result<A::Response, Error> {
         if !*self.initialized.try_borrow()? {
             self.init()?;
         }

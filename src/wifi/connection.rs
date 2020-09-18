@@ -9,6 +9,7 @@ use crate::{
     wifi::network::{WifiMode, WifiNetwork},
 };
 
+//Fold into wifi connectivity
 pub struct WifiConnection<T>
 where
     T: AtatClient
@@ -23,7 +24,7 @@ impl<T> WifiConnection<T>
 where
     T: AtatClient
 {
-    pub fn new(client: UbloxClient<T>, network: WifiNetwork) -> Self {
+    pub(crate) fn new(client: UbloxClient<T>, network: WifiNetwork) -> Self {
         WifiConnection {
             connected: true,
             client,
