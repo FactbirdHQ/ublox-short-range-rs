@@ -184,9 +184,9 @@ where
             ssid: None,
         }, true){
             Ok(resp) => Ok(resp.network_list
-                .into_iter()),
-                // .map(|n|WifiNetwork::try_from(*n))
-                // .collect()),
+                .into_iter()
+                .map(|n|WifiNetwork::try_from(*n))
+                .collect()),
             Err(_) => Err(WifiError::UnexpectedResponse),
         }
         // match self.send_at(Command::STAScan { ssid: None })? {
