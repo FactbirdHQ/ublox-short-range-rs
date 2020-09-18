@@ -1,10 +1,11 @@
 use atat::AtatClient;
 use crate::{
-    client::UbloxClient,
-    command::*,
+    client::{UbloxClient, State},
+    command::{*, 
+        wifi::{types::*, *, responses::*}},
     error::{WifiConnectionError, WifiError},
     prelude::*,
-    wait_for_unsolicited,
+    // wait_for_unsolicited,
     wifi::{
         connection::WifiConnection,
         network::{WifiMode, WifiNetwork},
@@ -15,6 +16,7 @@ use crate::{
 // use core::convert::TryFrom;
 use embedded_hal::timer::{Cancel, CountDown};
 use heapless::{Vec, String, consts};
+use core::convert::TryFrom;
 use log::info;
 
 impl<T> WifiConnectivity<T> for UbloxClient<T>
@@ -32,6 +34,10 @@ where
         //     configuration_id: 0,
         //     action: STAAction::Deactivate,
         // })?;
+        self.send_internal(&WifiStationConfigAction{
+            config_id: 0,
+            action: WifiStationAction::Deactivate,
+        }, true)?;
 
         // // Disable DHCP Client (static IP address will be used)
         // if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
@@ -40,6 +46,12 @@ where
         //         param_tag: UWSCSetTag::Ipv4Mode(Ipv4Mode::Static),
         //     })?;
         // }
+        if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
+            self.send_internal(&SetWifiStationConfig{
+                config_id: 0,
+                config_param: WifiStationConfig::IPv4Mode(IPv4Mode::Static)
+            }, true)?;
+        }
 
         // // Network IP address
         // if let Some(ip) = options.ip {
@@ -48,6 +60,12 @@ where
         //         param_tag: UWSCSetTag::Ipv4Address(ip),
         //     })?;
         // }
+        if let Some(ip) = options.ip {
+            self.send_internal(&SetWifiStationConfig{
+                config_id: 0,
+                config_param: WifiStationConfig::IPv4Address(ip),
+            }, true)?;
+        }
         // // Network Subnet mask
         // if let Some(subnet) = options.subnet {
         //     self.send_at(Command::STASetConfig {
@@ -55,6 +73,12 @@ where
         //         param_tag: UWSCSetTag::SubnetMask(subnet),
         //     })?;
         // }
+        if let Some(subnet) = options.subnet{
+            self.send_internal(&SetWifiStationConfig{
+                config_id: 0,
+                config_param: WifiStationConfig::SubnetMask(subnet),
+            }, true)?;
+        }
         // // Network Default gateway
         // if let Some(gateway) = options.gateway {
         //     self.send_at(Command::STASetConfig {
@@ -62,8 +86,18 @@ where
         //         param_tag: UWSCSetTag::DefaultGateway(gateway),
         //     })?;
         // }
+        if let Some(gateway) = options.gateway{
+            self.send_internal(&SetWifiStationConfig{
+                config_id: 0,
+                config_param: WifiStationConfig::DefaultGateway(gateway),
+            }, true)?;
+        }
 
-        // // Active on startup
+        // Active on startup
+        self.send_internal(&SetWifiStationConfig{
+            config_id: 0,
+            config_param: WifiStationConfig::ActiveOnStartup(OnOff::On),
+        }, true)?;
         // self.send_at(Command::STASetConfig {
         //     configuration_id: 0,
         //     param_tag: UWSCSetTag::ActiveOnStartup(true),
@@ -71,24 +105,35 @@ where
 
         // // Wifi part
         // // Set the Network SSID to connect to
+        self.send_internal(&SetWifiStationConfig{
+            config_id: 0,
+            config_param: WifiStationConfig::SSID(&options.ssid),
+        }, true)?;
         // self.send_at(Command::STASetConfig {
         //     configuration_id: 0,
         //     param_tag: UWSCSetTag::SSID(options.ssid.clone()),
         // })?;
 
-        // if let Some(pass) = options.password {
-        //     // Use WPA2 as authentication type
-        //     self.send_at(Command::STASetConfig {
-        //         configuration_id: 0,
-        //         param_tag: UWSCSetTag::Authentication(AuthentificationType::WpaWpa2),
-        //     })?;
+        if let Some(pass) = options.password{
+            // Use WPA2 as authentication type
+            self.send_internal(&SetWifiStationConfig{
+                config_id: 0,
+                config_param: WifiStationConfig::Authentication(Authentication::WPA_WAP2_PSK)
+            }, true)?;
 
-        //     // Recommended to use a secured WPA2 password
-        //     self.send_at(Command::STASetConfig {
-        //         configuration_id: 0,
-        //         param_tag: UWSCSetTag::Passphrase(pass),
-        //     })?;
-        // }
+            // Use WPA2 as authentication type
+            self.send_internal(&SetWifiStationConfig{
+                config_id: 0,
+                config_param: WifiStationConfig::WPA_PSKOrPassphrase(&pass),
+            }, true)?;
+        }
+
+        self.set_state(State::Connecting)?;
+
+        self.send_internal(&WifiStationConfigAction{
+            config_id: 0,
+            action: WifiStationAction::Activate,
+        }, true)?;
 
         // self.send_at(Command::ExecSTAAction {
         //     configuration_id: 0,
@@ -125,7 +170,7 @@ where
         Ok(WifiConnection::new(self, WifiNetwork {
             bssid: String::new(),
             op_mode: wifi::types::OperationMode::AdHoc,
-            ssid: String::new(),
+            ssid: options.ssid,
             channel: 0,
             rssi: 1,
             authentication_suites: 0,
@@ -135,6 +180,15 @@ where
     }
 
     fn scan(&mut self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError> {
+        match self.send_internal(&WifiScan{
+            ssid: None,
+        }, true){
+            Ok(resp) => Ok(resp.network_list
+                .into_iter()),
+                // .map(|n|WifiNetwork::try_from(*n))
+                // .collect()),
+            Err(_) => Err(WifiError::UnexpectedResponse),
+        }
         // match self.send_at(Command::STAScan { ssid: None })? {
         //     // ResponseType::MultiSolicited(responses) => responses
         //     //     .iter()
@@ -143,7 +197,7 @@ where
         //     //     .collect(),
         //     _ => Err(WifiError::UnexpectedResponse),
         // }
-        Ok(Vec::new())
+        // Ok(Vec::new())
     }
 }
 

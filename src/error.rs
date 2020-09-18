@@ -47,6 +47,13 @@ pub enum WifiConnectionError {
 
     BufferOverflow,
     // SsidNotFound,
+    Internal(Error),
+}
+
+impl From<Error> for WifiConnectionError{
+    fn from(e: Error) -> Self {
+        WifiConnectionError::Internal(e)
+    }
 }
 
 #[derive(Debug)]

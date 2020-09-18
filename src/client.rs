@@ -10,7 +10,7 @@ use crate::{
             StoreCurrentConfig,
             RebootDCE,
             types::{
-                BaudRate, 
+                BaudRate,
                 StopBits,
                 FlowControl,
                 Parity,
@@ -51,6 +51,8 @@ pub enum State{
     Restarting,
     Initializing,
     Idle,
+    Connecting,
+    Connected,
 }
 
 #[derive(PartialEq)]
@@ -118,15 +120,15 @@ where
             data_bits: 8,
             stop_bits: StopBits::One,
             parity: Parity::None,
-            change_after_confirm: ChangeAfterConfirm::StoreAndReset,
+            change_after_confirm: ChangeAfterConfirm::ChangeAfterOK,
         }, false)?;
 
+        
         self.send_internal(&StoreCurrentConfig, false)?;
-        self.send_internal(&RebootDCE, false)?;
-
+        
+        // self.send_internal(&RebootDCE, false)?;
         // block!(wait_for_unsolicited!(self, UnsolicitedResponse::Startup)).unwrap();
-
-        self.send_internal(&AT, false)?;
+        // self.send_internal(&AT, false)?;
 
         *self.initialized.try_borrow_mut()? = true;
         Ok(())
@@ -197,11 +199,13 @@ where
             Some(Urc::WifiLinkConnected(_)) => {
                 #[cfg(feature = "logging")]
                 log::info!("[URC] WifiLinkConnected");
+                self.set_state(State::Connected)?;
                 Ok(())
             }
             Some(Urc::WifiLinkDisconnected(_)) => {
                 #[cfg(feature = "logging")]
                 log::info!("[URC] WifiLinkDisconnected");
+                self.set_state(State::Idle)?;
                 Ok(())
             }
             Some(Urc::WifiAPUp(_)) => {
