@@ -194,7 +194,7 @@ where
                 #[cfg(feature = "logging")]
                 log::info!("[URC] WifiLinkDisconnected{:?}", msg);
                 if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                    con.sockets.prune();
+                    // con.sockets.prune();
                     con.state = WiFiState::Disconnected;
                 }
                 Ok(())
@@ -241,7 +241,7 @@ where
                 #[cfg(feature = "logging")]
                 log::info!("[URC] NetworkDown");
                 if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                    con.sockets.prune();
+                    // con.sockets.prune();
                     if con.state == WiFiState::EthernetUp{
                         con.state = WiFiState::Connected;
                     }
