@@ -1,6 +1,6 @@
 use atat::AtatClient;
 use atat::atat_derive::{AtatCmd, AtatResp};
-use core::cell::RefCell;
+use core::cell::{Cell, RefCell};
 use embedded_hal::timer::CountDown;
 use log::info;
 use crate::{
@@ -19,6 +19,7 @@ use crate::{
         AT,
         Urc,
     },
+    wifi::connection::{WifiConnection, WiFiState},
     error::Error,
 };
 
@@ -46,16 +47,14 @@ macro_rules! wait_for_unsolicited {
     }};
 }
 
-#[derive(Copy, Clone)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum State{
     Restarting,
     Initializing,
     Idle,
-    Connecting,
-    Connected,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum SerialMode {
     Cmd,
     Data,
@@ -76,9 +75,10 @@ pub struct UbloxClient<T>
 where
     T: AtatClient
 {
-    state: RefCell<State>,
-    initialized: RefCell<bool>,
-    serial_mode: RefCell<SerialMode>,
+    pub(crate) state: Cell<State>,
+    initialized: Cell<bool>,
+    serial_mode: Cell<SerialMode>,
+    pub(crate) wifi_connection: RefCell<Option<WifiConnection>>,
     pub(crate) client: RefCell<T>,
 }
 
@@ -88,21 +88,12 @@ where
 {
     pub fn new(client: T) -> Self {
         UbloxClient {
-            state: RefCell::new(State::Idle),
-            initialized: RefCell::new(false),
-            serial_mode: RefCell::new(SerialMode::Cmd),
+            state: Cell::new(State::Idle),
+            initialized: Cell::new(false),
+            serial_mode: Cell::new(SerialMode::Cmd),
+            wifi_connection: RefCell::new(None),
             client: RefCell::new(client),
         }
-    }
-
-    pub(crate) fn set_state(&self, state: State) -> Result<State, Error> {
-        let prev_state = self.get_state()?;
-        *self.state.try_borrow_mut().map_err(|_| Error::SetState)? = state;
-        Ok(prev_state)
-    }
-
-    pub fn get_state(&self) -> Result<State, Error> {
-        Ok(*self.state.try_borrow().map_err(|_| Error::SetState)?)
     }
 
     pub fn init(&mut self) -> Result<(), Error> {
@@ -112,7 +103,7 @@ where
         // size_of!(ResponseType);
         // size_of!(Packet);
 
-        self.set_state(State::Initializing)?;
+        self.state.set(State::Initializing);
 
         self.send_internal(&SetRS232Settings {
             baud_rate: BaudRate::B115200,
@@ -132,7 +123,7 @@ where
         // block!(wait_for_unsolicited!(self, UnsolicitedResponse::Startup)).unwrap();
         // self.send_internal(&AT, false)?;
 
-        *self.initialized.try_borrow_mut()? = true;
+        self.initialized.set(true);
         Ok(())
     }
 
@@ -143,7 +134,7 @@ where
         check_urc: bool,
     ) -> Result<A::Response, Error> {
 
-        match *self.serial_mode.try_borrow()? {
+        match self.serial_mode.get() {
             SerialMode::Cmd => {},
             SerialMode::Data => return Err(Error::AT(atat::Error::Write)),
             SerialMode::ExtendedData => {
@@ -189,16 +180,23 @@ where
                 log::info!("[URC] PeerDisconnected");
                 Ok(())
             }
-            Some(Urc::WifiLinkConnected(_)) => {
+            Some(Urc::WifiLinkConnected(msg)) => {
                 #[cfg(feature = "logging")]
                 log::info!("[URC] WifiLinkConnected");
-                self.set_state(State::Connected)?;
+                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+                        con.state = WiFiState::Connected;
+                        con.network.bssid = msg.bssid;
+                        con.network.channel = msg.channel;
+                }
                 Ok(())
             }
             Some(Urc::WifiLinkDisconnected(_)) => {
                 #[cfg(feature = "logging")]
-                log::info!("[URC] WifiLinkDisconnected");
-                self.set_state(State::Idle)?;
+                log::info!("[URC] WifiLinkDisconnected{:?}", msg);
+                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+                    con.sockets.prune();
+                    con.state = WiFiState::Disconnected;
+                }
                 Ok(())
             }
             Some(Urc::WifiAPUp(_)) => {
@@ -234,11 +232,20 @@ where
             Some(Urc::NetworkUp(_)) => {
                 #[cfg(feature = "logging")]
                 log::info!("[URC] NetworkUp");
+                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+                    con.state = WiFiState::EthernetUp;
+                }
                 Ok(())
             }
             Some(Urc::NetworkDown(_)) => {
                 #[cfg(feature = "logging")]
                 log::info!("[URC] NetworkDown");
+                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+                    con.sockets.prune();
+                    if con.state == WiFiState::EthernetUp{
+                        con.state = WiFiState::Connected;
+                    }
+                }
                 Ok(())
             }
             Some(Urc::NetworkError(_)) => {
@@ -251,7 +258,7 @@ where
     }
 
         pub fn send_at<A: atat::AtatCmd>(&mut self, cmd: &A) -> Result<A::Response, Error> {
-        if !*self.initialized.try_borrow()? {
+        if !self.initialized.get() {
             self.init()?;
         }
 

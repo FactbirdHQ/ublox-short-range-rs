@@ -45,7 +45,7 @@ pub struct GetWifiStationConfig {
 /// Executes an action for the Wi-Fi network.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWSCA", NoResponse, timeout_ms = 10000)]
-pub struct WifiStationConfigAction {
+pub struct ExecWifiStationAction {
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
     pub config_id: u8,

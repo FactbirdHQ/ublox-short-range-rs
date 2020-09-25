@@ -33,30 +33,43 @@ impl TryFrom<ScanedWifiNetwork> for WifiNetwork {
     type Error = WifiError;
 
     fn try_from(r: ScanedWifiNetwork) -> Result<Self, Self::Error> {
-        if let ScanedWifiNetwork {
-            bssid,
-            op_mode,
-            ssid,
-            channel,
-            rssi,
-            authentication_suites,
-            unicast_ciphers,
-            group_ciphers,
-        } = r
-        {
-            Ok(WifiNetwork {
-                bssid,
-                op_mode,
-                ssid,
-                channel,
-                rssi,
-                authentication_suites: from_hex(&mut [authentication_suites]).map_err(|_| Self::Error::HexError)?[0], //TODO: Better solution
-                unicast_ciphers: from_hex(&mut [unicast_ciphers]).map_err(|_| Self::Error::HexError)?[0],
-                group_ciphers,
-                mode: WifiMode::Station,
-            })
-        } else {
-            Err(WifiError::UnexpectedResponse)
-        }
+
+        Ok(WifiNetwork {
+            bssid: r.bssid,
+            op_mode: r.op_mode,
+            ssid: r.ssid,
+            channel: r.channel,
+            rssi: r.rssi,
+            authentication_suites: from_hex(&mut [r.authentication_suites]).map_err(|_| Self::Error::HexError)?[0], //TODO: Better solution
+            unicast_ciphers: from_hex(&mut [r.unicast_ciphers]).map_err(|_| Self::Error::HexError)?[0],
+            group_ciphers: r.group_ciphers,
+            mode: WifiMode::Station,
+        })
+
+        // if let ScanedWifiNetwork {
+        //     bssid,
+        //     op_mode,
+        //     ssid,
+        //     channel,
+        //     rssi,
+        //     authentication_suites,
+        //     unicast_ciphers,
+        //     group_ciphers,
+        // } = r
+        // {
+        //     Ok(WifiNetwork {
+        //         bssid,
+        //         op_mode,
+        //         ssid,
+        //         channel,
+        //         rssi,
+        //         authentication_suites: from_hex(&mut [authentication_suites]).map_err(|_| Self::Error::HexError)?[0], //TODO: Better solution
+        //         unicast_ciphers: from_hex(&mut [unicast_ciphers]).map_err(|_| Self::Error::HexError)?[0],
+        //         group_ciphers,
+        //         mode: WifiMode::Station,
+        //     })
+        // } else {
+        //     Err(WifiError::UnexpectedResponse)
+        // }
     }
 }

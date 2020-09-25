@@ -7,7 +7,7 @@ use crate::{
     prelude::*,
     // wait_for_unsolicited,
     wifi::{
-        connection::WifiConnection,
+        connection::{WifiConnection, WiFiState},
         network::{WifiMode, WifiNetwork},
         options::ConnectionOptions,
     },
@@ -27,14 +27,14 @@ where
     fn connect(
         mut self,
         options: ConnectionOptions,
-    ) -> Result<WifiConnection<T>, WifiConnectionError> {
+    ) -> Result<(), WifiConnectionError> {
         // // Network part
         // // Deactivate network id 0
         // self.send_at(Command::ExecSTAAction {
         //     configuration_id: 0,
         //     action: STAAction::Deactivate,
         // })?;
-        self.send_internal(&WifiStationConfigAction{
+        self.send_internal(&ExecWifiStationAction{
             config_id: 0,
             action: WifiStationAction::Deactivate,
         }, true)?;
@@ -128,55 +128,31 @@ where
             }, true)?;
         }
 
-        self.set_state(State::Connecting)?;
-
-        self.send_internal(&WifiStationConfigAction{
+        *self.wifi_connection.try_borrow_mut()? = Some(
+            WifiConnection::new(
+                WifiNetwork {
+                    bssid: String::new(),
+                    op_mode: wifi::types::OperationMode::AdHoc,
+                    ssid: options.ssid,
+                    channel: 0,
+                    rssi: 1,
+                    authentication_suites: 0,
+                    unicast_ciphers: 0,
+                    group_ciphers: 0,
+                    mode: WifiMode::AccessPoint
+                },
+                WiFiState::Connecting
+            )
+        );
+        self.send_internal(&ExecWifiStationAction{
             config_id: 0,
             action: WifiStationAction::Activate,
         }, true)?;
 
-        // self.send_at(Command::ExecSTAAction {
-        //     configuration_id: 0,
-        //     action: STAAction::Activate,
-        // })?;
-
-        // // Await connected event?
-        // let (bssid, channel) =
-        //     if let UnsolicitedResponse::WifiLinkConnected { bssid, channel, .. } =
-        //         block!(wait_for_unsolicited!(self, UnsolicitedResponse::WifiLinkConnected { .. }))
-        //             .unwrap()
-        //     {
-        //         (bssid, channel)
-        //     } else {
-        //         unreachable!()
-        //     };
-
+        // TODO: Await connected event?
         // block!(wait_for_unsolicited!(self, UnsolicitedResponse::NetworkUp { .. })).unwrap();
 
-        // // Read ip, mac info
-        // let network = WifiNetwork {
-        //     bssid,
-        //     op_mode: wifi::types::OperationMode::AdHoc,
-        //     ssid: options.ssid,
-        //     channel,
-        //     rssi: 1,
-        //     authentication_suites: 0,
-        //     unicast_ciphers: 0,
-        //     group_ciphers: 0,
-        //     mode: WifiMode::Station,
-        // };
-
-        // Ok(WifiConnection::new(self, network))
-        Ok(WifiConnection::new(self, WifiNetwork {
-            bssid: String::new(),
-            op_mode: wifi::types::OperationMode::AdHoc,
-            ssid: options.ssid,
-            channel: 0,
-            rssi: 1,
-            authentication_suites: 0,
-            unicast_ciphers: 0,
-            group_ciphers: 0,
-            mode: WifiMode::AccessPoint}))
+        Ok(())
     }
 
     fn scan(&mut self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError> {
@@ -189,15 +165,24 @@ where
                 .collect(),
             Err(_) => Err(WifiError::UnexpectedResponse),
         }
-        // match self.send_at(Command::STAScan { ssid: None })? {
-        //     // ResponseType::MultiSolicited(responses) => responses
-        //     //     .iter()
-        //     //     .cloned()
-        //     //     .map(WifiNetwork::try_from)
-        //     //     .collect(),
-        //     _ => Err(WifiError::UnexpectedResponse),
-        // }
-        // Ok(Vec::new())
+    }
+
+    fn disconnect(&mut self) -> Result<(), WifiConnectionError> {
+        if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+            match con.state {
+                WiFiState::Connected | WiFiState::Connecting | WiFiState::EthernetUp => {
+                    con.state = WiFiState::Disconnecting;
+                    self.send_internal(&ExecWifiStationAction{
+                        config_id: 0,
+                        action: WifiStationAction::Deactivate,
+                    }, true)?;
+                }
+                _ => {}
+            }
+        } else {
+            return Err(WifiConnectionError::FailedToDisconnect);
+        }
+        Ok(())
     }
 }
 

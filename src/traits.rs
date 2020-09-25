@@ -15,21 +15,20 @@ where
     T: AtatClient,
 {
     /// Makes an attempt to connect to a selected wireless network with password specified.
-    fn connect(self, options: ConnectionOptions) -> Result<WifiConnection<T>, WifiConnectionError>;
+    fn connect(self, options: ConnectionOptions) -> Result<(), WifiConnectionError>;
 
     fn scan(&mut self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError>;
+
+    fn disconnect(&mut self) -> Result<(), WifiConnectionError>;
 }
 
-pub trait WifiHotspot<T>
-where
-    T: AtatClient
-{
+pub trait WifiHotspot{
     /// Creates wireless hotspot service for host machine.
     fn create_hotspot(
         self,
         options: ConnectionOptions,
         configuration: HotspotOptions,
-    ) -> Result<WifiConnection<T>, WifiHotspotError>;
+    ) -> Result<(), WifiHotspotError>;
 
     /// Stop serving a wireless network.
     ///

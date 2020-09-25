@@ -37,9 +37,11 @@ impl From<core::cell::BorrowError> for Error {
 #[derive(Debug)]
 pub enum WifiConnectionError {
     /// Failed to connect to wireless network.
-    FailedToConnect(String<U64>),
+    // FailedToConnect(String<U64>),
+    FailedToConnect,
     /// Failed to disconnect from wireless network. Try turning the wireless interface down.
-    FailedToDisconnect(String<U64>),
+    // FailedToDisconnect(String<U64>),
+    FailedToDisconnect,
     /// A wireless error occurred.
     Other {
         kind: WifiError,
@@ -47,12 +49,26 @@ pub enum WifiConnectionError {
 
     BufferOverflow,
     // SsidNotFound,
+    BorrowError(core::cell::BorrowError),
+    BorrowMutError(core::cell::BorrowMutError),
     Internal(Error),
 }
 
 impl From<Error> for WifiConnectionError{
     fn from(e: Error) -> Self {
         WifiConnectionError::Internal(e)
+    }
+}
+
+impl From<core::cell::BorrowMutError> for WifiConnectionError {
+    fn from(e: core::cell::BorrowMutError) -> Self {
+        WifiConnectionError::BorrowMutError(e)
+    }
+}
+
+impl From<core::cell::BorrowError> for WifiConnectionError {
+    fn from(e: core::cell::BorrowError) -> Self {
+        WifiConnectionError::BorrowError(e)
     }
 }
 

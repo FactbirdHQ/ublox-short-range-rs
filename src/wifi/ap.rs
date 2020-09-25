@@ -14,7 +14,7 @@ use crate::{
 use embedded_hal::timer::{Cancel, CountDown};
 use heapless::String;
 
-impl<T> WifiHotspot<T> for UbloxClient<T>
+impl<T> WifiHotspot for UbloxClient<T>
 where
     T: AtatClient
 {
@@ -23,7 +23,7 @@ where
         self,
         options: ConnectionOptions,
         configuration: HotspotOptions,
-    ) -> Result<WifiConnection<T>, WifiHotspotError> {
+    ) -> Result<(), WifiHotspotError> {
         let network = WifiNetwork {
             bssid: String::new(),
             op_mode: OperationMode::AdHoc,
@@ -35,7 +35,8 @@ where
             group_ciphers: 0,
             mode: WifiMode::AccessPoint,
         };
-        Ok(WifiConnection::new(self, network))
+        // self.wifi_connection.set(Some(WifiConnection::new(network)));
+        Ok(())
     }
 
     /// Stop serving a wireless network.
