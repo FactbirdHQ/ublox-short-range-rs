@@ -1,12 +1,13 @@
 use core::ops::{Deref, DerefMut};
+use heapless::ArrayLength;
 
-#[cfg(all(
-    feature = "socket-icmp",
-    any(feature = "proto-ipv4", feature = "proto-ipv6")
-))]
-use crate::socket::IcmpSocket;
-#[cfg(feature = "socket-raw")]
-use crate::socket::RawSocket;
+// #[cfg(all(
+//     feature = "socket-icmp",
+//     any(feature = "proto-ipv4", feature = "proto-ipv6")
+// ))]
+// use crate::socket::IcmpSocket;
+// #[cfg(feature = "socket-raw")]
+// use crate::socket::RawSocket;
 #[cfg(feature = "socket-tcp")]
 use crate::socket::TcpSocket;
 #[cfg(feature = "socket-udp")]
@@ -22,17 +23,17 @@ pub trait Session {
     fn finish(&mut self) {}
 }
 
-#[cfg(feature = "socket-raw")]
-impl<'a, 'b> Session for RawSocket<'a, 'b> {}
-#[cfg(all(
-    feature = "socket-icmp",
-    any(feature = "proto-ipv4", feature = "proto-ipv6")
-))]
-impl<'a, 'b> Session for IcmpSocket<'a, 'b> {}
+// #[cfg(feature = "socket-raw")]
+// impl<'a, 'b> Session for RawSocket<'a, 'b> {}
+// #[cfg(all(
+//     feature = "socket-icmp",
+//     any(feature = "proto-ipv4", feature = "proto-ipv6")
+// ))]
+// impl<'a, 'b> Session for IcmpSocket<'a, 'b> {}
 #[cfg(feature = "socket-udp")]
-impl<'a, 'b> Session for UdpSocket<'a, 'b> {}
+impl<L: ArrayLength<u8>> Session for UdpSocket<L> {}
 #[cfg(feature = "socket-tcp")]
-impl Session for TcpSocket {}
+impl<L: ArrayLength<u8>> Session for TcpSocket<L> {}
 
 /// A smart pointer to a socket.
 ///
@@ -64,7 +65,7 @@ impl<'a, T: Session + 'a> Ref<'a, T> {
     /// map a `&mut SocketRef<'a, XSocket>` to a `&'a mut XSocket` (note the lifetimes);
     /// be sure to call [new] afterwards.
     ///
-    /// [new_unchecked]: #method.new_unchecked
+    /// [new]: #method.new_unchecked
     pub fn into_inner(mut ref_: Self) -> &'a mut T {
         ref_.consumed = true;
         ref_.socket

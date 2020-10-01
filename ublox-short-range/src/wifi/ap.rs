@@ -12,11 +12,13 @@ use crate::{
 };
 
 use embedded_hal::timer::{Cancel, CountDown};
-use heapless::String;
+use heapless::{String, ArrayLength};
 
-impl<T> WifiHotspot for UbloxClient<T>
+impl<T, N, L> WifiHotspot for UbloxClient<T, N, L>
 where
-    T: AtatClient
+    T: AtatClient,
+    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
+    L: ArrayLength<u8>,
 {
     /// Creates wireless hotspot service for host machine.
     fn create_hotspot(

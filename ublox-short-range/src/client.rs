@@ -2,7 +2,6 @@ use atat::AtatClient;
 use atat::atat_derive::{AtatCmd, AtatResp};
 use core::cell::{Cell, RefCell};
 use embedded_hal::timer::CountDown;
-use log::info;
 use crate::{
     command::{
         system::{
@@ -15,14 +14,20 @@ use crate::{
                 FlowControl,
                 Parity,
                 ChangeAfterConfirm,
-            }},
+            },
+        },
         AT,
         Urc,
     },
     wifi::connection::{WifiConnection, WiFiState, NetworkState},
     error::Error,
+    sockets::SocketSet,
 };
-
+use heapless::{consts, ArrayLength, String};
+    
+    
+#[cfg(feature = "logging")]
+use log::info;
 // use edm::Packet;
 
 #[macro_export]
@@ -49,7 +54,7 @@ macro_rules! wait_for_unsolicited {
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum State{
-    Restarting,
+    Uninitialized,
     Initializing,
     Idle,
 }
@@ -63,7 +68,7 @@ pub enum SerialMode {
 
 macro_rules! size_of {
     ($type:ident) => {
-        info!(
+        log::info!(
             "Size of {}: {:?}",
             stringify!($type),
             core::mem::size_of::<$type>()
@@ -71,31 +76,41 @@ macro_rules! size_of {
     };
 }
 
-pub struct UbloxClient<T>
+pub struct UbloxClient<C, N, L>
 where
-    T: AtatClient
+    C: AtatClient,
+    N: 'static + ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
+    L: 'static + ArrayLength<u8>,
 {
-    pub(crate) state: Cell<State>,
+    // pub(crate) state: Cell<State>,
     initialized: Cell<bool>,
     serial_mode: Cell<SerialMode>,
     pub(crate) wifi_connection: RefCell<Option<WifiConnection>>,
-    pub(crate) client: RefCell<T>,
+    pub(crate) client: RefCell<C>,
+    pub(crate) sockets: RefCell<&'static mut SocketSet<N, L>>,
 }
 
-impl<T> UbloxClient<T>
+impl<C, N, L> UbloxClient<C, N, L>
 where
-    T: AtatClient
+    C: AtatClient,
+    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
+    L: ArrayLength<u8>,
 {
-    pub fn new(client: T) -> Self {
+    pub fn new(
+        client: C,
+        socket_set: &'static mut SocketSet<N, L>,
+    ) -> Self {
         UbloxClient {
-            state: Cell::new(State::Idle),
+            // state: Cell::new(State::Uninitialized),
             initialized: Cell::new(false),
             serial_mode: Cell::new(SerialMode::Cmd),
             wifi_connection: RefCell::new(None),
             client: RefCell::new(client),
+            sockets: RefCell::new(socket_set),
         }
     }
 
+    // pub fn init(&mut self, hostname: &str) -> Result<(), Error> {
     pub fn init(&mut self) -> Result<(), Error> {
         // Initilize a new ublox device to a known state (set RS232 settings, restart, wait for startup etc.)
         // size_of!(AtatCmd);
@@ -103,7 +118,7 @@ where
         // size_of!(ResponseType);
         // size_of!(Packet);
 
-        self.state.set(State::Initializing);
+        // self.state.set(State::Initializing);
 
         self.send_internal(&SetRS232Settings {
             baud_rate: BaudRate::B115200,
@@ -124,6 +139,121 @@ where
         // self.send_internal(&AT, false)?;
 
         self.initialized.set(true);
+        Ok(())
+    }
+
+    #[inline]
+    fn low_power_mode(&self, _enable: bool) -> Result<(), atat::Error> {
+        // if let Some(ref _dtr) = self.config.dtr_pin {
+        //     // if enable {
+        //     // dtr.set_high().ok();
+        //     // } else {
+        //     // dtr.set_low().ok();
+        //     // }
+        //     return Ok(());
+        // }
+        Ok(())
+    }
+
+    #[inline]
+    fn autosense(&self) -> Result<(), Error> {
+        for _ in 0..15 {
+            match self.client.try_borrow_mut()?.send(&AT) {
+                Ok(_) => {
+                    return Ok(());
+                }
+                Err(_e) => {}
+            };
+        }
+        Err(Error::BaudDetection)
+    }
+
+    #[inline]
+    fn reset(&self) -> Result<(), Error> {
+        // self.send_internal(
+        //     &SetModuleFunctionality {
+        //         fun: Functionality::SilentResetWithSimReset,
+        //         rst: None,
+        //     },
+        //     false,
+        // )?;
+        Ok(())
+    }
+
+    pub fn spin(&self) -> Result<(), Error> {
+        self.handle_urc()?;
+
+        // match self.state.get() {
+        //     State::Attached => {}
+        //     State::Sending => {
+        //         return Ok(());
+        //     }
+        //     s => {
+        //         return Err(Error::NetworkState(s));
+        //     }
+        // }
+
+        // // Occasionally poll every open socket, in case a `SocketDataAvailable`
+        // // URC was missed somehow. TODO: rewrite this to readable code
+        // let data_available: heapless::Vec<(SocketHandle, usize), consts::U4> = {
+        //     let sockets = self.sockets.try_borrow()?;
+
+        //     if sockets.len() > 0 && self.poll_cnt(false) >= 500 {
+        //         self.poll_cnt(true);
+
+        //         sockets
+        //             .iter()
+        //             .filter_map(|(h, s)| {
+        //                 // Figure out if socket is TCP or UDP
+        //                 match s.get_type() {
+        //                     SocketType::Tcp => self
+        //                         .send_internal(
+        //                             &ReadSocketData {
+        //                                 socket: h,
+        //                                 length: 0,
+        //                             },
+        //                             false,
+        //                         )
+        //                         .map_or(None, |s| {
+        //                             if s.length > 0 {
+        //                                 Some((h, s.length))
+        //                             } else {
+        //                                 None
+        //                             }
+        //                         }),
+        //                     // SocketType::Udp => self
+        //                     //     .send_internal(
+        //                     //         &ReadUDPSocketData {
+        //                     //             socket: h,
+        //                     //             length: 0,
+        //                     //         },
+        //                     //         false,
+        //                     //     )
+        //                     //     .map_or(None, |s| {
+        //                     //         if s.length > 0 {
+        //                     //             Some((h, s.length))
+        //                     //         } else {
+        //                     //             None
+        //                     //         }
+        //                     //     }),
+        //                     _ => None,
+        //                 }
+        //             })
+        //             .collect()
+        //     } else {
+        //         heapless::Vec::new()
+        //     }
+        // };
+
+        // data_available
+        //     .iter()
+        //     .try_for_each(|(handle, len)| self.socket_ingress(*handle, *len).map(|_| ()))
+        //     .map_err(|e| {
+        //         #[cfg(feature = "logging")]
+        //         log::error!("ERROR: {:?}", e);
+        //         e
+        //     })?;
+
         Ok(())
     }
 

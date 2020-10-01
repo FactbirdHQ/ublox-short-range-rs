@@ -15,115 +15,88 @@ use crate::{
 
 // use core::convert::TryFrom;
 use embedded_hal::timer::{Cancel, CountDown};
-use heapless::{Vec, String, consts};
+use heapless::{Vec, String, consts, ArrayLength};
 use core::convert::TryFrom;
+
+#[cfg(feature = "logging")]
 use log::info;
 
-impl<T> WifiConnectivity<T> for UbloxClient<T>
+impl<T, N, L> WifiConnectivity for UbloxClient<T, N, L>
 where
     T: AtatClient,
+    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
+    L: ArrayLength<u8>,
 {
     /// Attempts to connect to a wireless network with the given options.
     fn connect(
         mut self,
         options: ConnectionOptions,
     ) -> Result<(), WifiConnectionError> {
-        // // Network part
-        // // Deactivate network id 0
-        // self.send_at(Command::ExecSTAAction {
-        //     configuration_id: 0,
-        //     action: STAAction::Deactivate,
-        // })?;
+        let mut config_id: u8 = 0;
+        if let Some(config_id_option) = options.config_id{
+            config_id =  config_id_option;
+        }
+
+        // Network part
+        // Deactivate network id 0
         self.send_internal(&ExecWifiStationAction{
-            config_id: 0,
+            config_id: config_id,
             action: WifiStationAction::Deactivate,
         }, true)?;
 
-        // // Disable DHCP Client (static IP address will be used)
-        // if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
-        //     self.send_at(Command::STASetConfig {
-        //         configuration_id: 0,
-        //         param_tag: UWSCSetTag::Ipv4Mode(Ipv4Mode::Static),
-        //     })?;
-        // }
+        // Disable DHCP Client (static IP address will be used)
         if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
             self.send_internal(&SetWifiStationConfig{
-                config_id: 0,
+                config_id: config_id,
                 config_param: WifiStationConfig::IPv4Mode(IPv4Mode::Static)
             }, true)?;
         }
 
-        // // Network IP address
-        // if let Some(ip) = options.ip {
-        //     self.send_at(Command::STASetConfig {
-        //         configuration_id: 0,
-        //         param_tag: UWSCSetTag::Ipv4Address(ip),
-        //     })?;
-        // }
+        // Network IP address
         if let Some(ip) = options.ip {
             self.send_internal(&SetWifiStationConfig{
-                config_id: 0,
+                config_id: config_id,
                 config_param: WifiStationConfig::IPv4Address(ip),
             }, true)?;
         }
-        // // Network Subnet mask
-        // if let Some(subnet) = options.subnet {
-        //     self.send_at(Command::STASetConfig {
-        //         configuration_id: 0,
-        //         param_tag: UWSCSetTag::SubnetMask(subnet),
-        //     })?;
-        // }
+        // Network Subnet mask
         if let Some(subnet) = options.subnet{
             self.send_internal(&SetWifiStationConfig{
-                config_id: 0,
+                config_id: config_id,
                 config_param: WifiStationConfig::SubnetMask(subnet),
             }, true)?;
         }
-        // // Network Default gateway
-        // if let Some(gateway) = options.gateway {
-        //     self.send_at(Command::STASetConfig {
-        //         configuration_id: 0,
-        //         param_tag: UWSCSetTag::DefaultGateway(gateway),
-        //     })?;
-        // }
+        // Network Default gateway
         if let Some(gateway) = options.gateway{
             self.send_internal(&SetWifiStationConfig{
-                config_id: 0,
+                config_id: config_id,
                 config_param: WifiStationConfig::DefaultGateway(gateway),
             }, true)?;
         }
 
         // Active on startup
-        self.send_internal(&SetWifiStationConfig{
-            config_id: 0,
-            config_param: WifiStationConfig::ActiveOnStartup(OnOff::On),
-        }, true)?;
-        // self.send_at(Command::STASetConfig {
-        //     configuration_id: 0,
-        //     param_tag: UWSCSetTag::ActiveOnStartup(true),
-        // })?;
+        // self.send_internal(&SetWifiStationConfig{
+        //     config_id: config_id,
+        //     config_param: WifiStationConfig::ActiveOnStartup(OnOff::On),
+        // }, true)?;
 
-        // // Wifi part
-        // // Set the Network SSID to connect to
+        // Wifi part
+        // Set the Network SSID to connect to
         self.send_internal(&SetWifiStationConfig{
-            config_id: 0,
+            config_id: config_id,
             config_param: WifiStationConfig::SSID(&options.ssid),
         }, true)?;
-        // self.send_at(Command::STASetConfig {
-        //     configuration_id: 0,
-        //     param_tag: UWSCSetTag::SSID(options.ssid.clone()),
-        // })?;
 
         if let Some(pass) = options.password{
             // Use WPA2 as authentication type
             self.send_internal(&SetWifiStationConfig{
-                config_id: 0,
+                config_id: config_id,
                 config_param: WifiStationConfig::Authentication(Authentication::WPA_WAP2_PSK)
             }, true)?;
 
-            // Use WPA2 as authentication type
+            // Input passphrase
             self.send_internal(&SetWifiStationConfig{
-                config_id: 0,
+                config_id: config_id,
                 config_param: WifiStationConfig::WPA_PSKOrPassphrase(&pass),
             }, true)?;
         }
@@ -141,11 +114,12 @@ where
                     group_ciphers: 0,
                     mode: WifiMode::AccessPoint
                 },
-                WiFiState::Connecting
+                WiFiState::Connecting,
+                config_id,
             )
         );
         self.send_internal(&ExecWifiStationAction{
-            config_id: 0,
+            config_id: config_id,
             action: WifiStationAction::Activate,
         }, true)?;
 

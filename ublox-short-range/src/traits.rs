@@ -7,13 +7,10 @@ use super::wifi::{
 };
 
 use embedded_hal::timer::{Cancel, CountDown};
-use heapless::{Vec, consts};
+use heapless::{Vec, consts, ArrayLength};
 
 /// Wireless network connectivity functionality.
-pub trait WifiConnectivity<T>
-where
-    T: AtatClient,
-{
+pub trait WifiConnectivity{
     /// Makes an attempt to connect to a selected wireless network with password specified.
     fn connect(self, options: ConnectionOptions) -> Result<(), WifiConnectionError>;
 
