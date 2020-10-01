@@ -11,7 +11,7 @@ repository = "https://github.com/BlackbirdHQ/ublox-short-range-rs"
 edition = "2018"
 
 [lib]
-name = "ublox-short-range-rs"
+name = "ublox_short_range"
 doctest = false
 
 [dependencies]
