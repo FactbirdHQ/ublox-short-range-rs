@@ -320,9 +320,9 @@ where
                 }
                 Ok(())
             }
-            Some(Urc::WifiLinkDisconnected(msg)) => {
+            Some(Urc::WifiLinkDisconnected(_)) => {
                 #[cfg(feature = "logging")]
-                log::info!("[URC] WifiLinkDisconnected{:?}", msg);
+                log::info!("[URC] WifiLinkDisconnected");
                 if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
                     // con.sockets.prune();
                     con.wifi_state = WiFiState::Disconnected;
