@@ -19,7 +19,7 @@ use crate::{
         AT,
         Urc,
     },
-    wifi::connection::{WifiConnection, WiFiState},
+    wifi::connection::{WifiConnection, WiFiState, NetworkState},
     error::Error,
 };
 
@@ -184,18 +184,18 @@ where
                 #[cfg(feature = "logging")]
                 log::info!("[URC] WifiLinkConnected");
                 if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                        con.state = WiFiState::Connected;
+                        con.wifi_state = WiFiState::Connected;
                         con.network.bssid = msg.bssid;
                         con.network.channel = msg.channel;
                 }
                 Ok(())
             }
-            Some(Urc::WifiLinkDisconnected(_)) => {
+            Some(Urc::WifiLinkDisconnected(msg)) => {
                 #[cfg(feature = "logging")]
                 log::info!("[URC] WifiLinkDisconnected{:?}", msg);
                 if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
                     // con.sockets.prune();
-                    con.state = WiFiState::Disconnected;
+                    con.wifi_state = WiFiState::Disconnected;
                 }
                 Ok(())
             }
@@ -233,7 +233,7 @@ where
                 #[cfg(feature = "logging")]
                 log::info!("[URC] NetworkUp");
                 if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                    con.state = WiFiState::EthernetUp;
+                    con.network_state = NetworkState::Attached;
                 }
                 Ok(())
             }
@@ -241,10 +241,7 @@ where
                 #[cfg(feature = "logging")]
                 log::info!("[URC] NetworkDown");
                 if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                    // con.sockets.prune();
-                    if con.state == WiFiState::EthernetUp{
-                        con.state = WiFiState::Connected;
-                    }
+                    con.network_state = NetworkState::Unattached;
                 }
                 Ok(())
             }

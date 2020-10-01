@@ -169,9 +169,9 @@ where
 
     fn disconnect(&mut self) -> Result<(), WifiConnectionError> {
         if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-            match con.state {
-                WiFiState::Connected | WiFiState::Connecting | WiFiState::EthernetUp => {
-                    con.state = WiFiState::Disconnecting;
+            match con.wifi_state {
+                WiFiState::Connected | WiFiState::Connecting => {
+                    con.wifi_state = WiFiState::Disconnecting;
                     self.send_internal(&ExecWifiStationAction{
                         config_id: 0,
                         action: WifiStationAction::Deactivate,

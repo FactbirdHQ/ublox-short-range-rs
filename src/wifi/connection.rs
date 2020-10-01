@@ -15,40 +15,35 @@ pub enum WiFiState{
     Disconnected,
     Connecting,
     Connected,
-    EthernetUp,
+}
+
+/// Describes whether device is connected to a network and has an IP or not.
+/// It is possible to be attached to a network but have no Wifi connection.
+#[derive(Debug, PartialEq)]
+pub enum NetworkState{
+    Attached,
+    Unattached,
 }
 
 //Fold into wifi connectivity
 pub struct WifiConnection
 {
-    pub state: WiFiState,
+    pub wifi_state: WiFiState,
+    pub network_state: NetworkState,
     pub network: WifiNetwork,
     pub (crate) sockets: SocketSet<consts::U8>,
 }
 
 impl WifiConnection
 {
-    pub(crate) fn new(network: WifiNetwork, state: WiFiState) -> Self {
+    pub(crate) fn new(network: WifiNetwork, wifi_state: WiFiState) -> Self {
         WifiConnection {
-            state: state,
+            wifi_state: wifi_state,
+            network_state: NetworkState::Unattached,
             network,
             sockets: SocketSet::default(),
         }
     }
-
-    // pub fn disconnect(mut self) -> Result<> {
-    //     self.connected = false;
-    //     self.sockets.prune();
-    //     self.client
-    // }
-
-    // pub fn try_reconnect(&mut self) -> Result<&WifiNetwork, ()> {
-    //     if self.connected {
-    //         Ok(&self.network)
-    //     } else {
-    //         Err(())
-    //     }
-    // }
 
     pub fn is_station(&self) -> bool {
         self.network.mode == WifiMode::Station
@@ -57,15 +52,4 @@ impl WifiConnection
     pub fn is_access_point(&self) -> bool {
         !self.is_station()
     }
-
-    // pub fn tcp_socket(&mut self) -> SocketHandle {
-    //     let tcp_socket = TcpSocket::new();
-    //     let socket = Socket::Tcp(tcp_socket);
-    //     let h = self.sockets.add(socket);
-    //     {
-    //         let _socket = self.sockets.get::<TcpSocket>(h);
-    //         // socket.connect((address, port), 49500).unwrap();
-    //     }
-    //     h
-    // }
 }

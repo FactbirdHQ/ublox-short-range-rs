@@ -47,7 +47,6 @@ pub enum Urc {
     /// 7.20 Wi-Fi Access point station disconnected +UUWAPSTAD
     #[at_urc("+UUWAPSTAD")]
     WifiAPStationDisconnected(wifi::urc::WifiAPStationDisconnected),
-
     /// 8.3 Ethernet link up +UUETHLU
     #[at_urc("+UUETHLU")]
     EthernetLinkUp(ethernet::urc::EthernetLinkUp),
