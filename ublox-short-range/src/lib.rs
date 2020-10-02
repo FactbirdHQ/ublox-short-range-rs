@@ -48,7 +48,7 @@ pub mod sockets {
 /// Prelude - Include traits
 pub mod prelude{
     #[cfg(any(feature = "wifi_sta"))]
-    pub use super::traits::WifiConnectivity;
+    pub use crate::wifi::sta::WifiConnectivity;
     #[cfg(any(feature = "wifi_ap"))]
-    pub use super::traits::WifiHotspot;
+    pub use crate::wifi::ap::WifiHotspot;
 }

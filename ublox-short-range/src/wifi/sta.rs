@@ -21,6 +21,17 @@ use core::convert::TryFrom;
 #[cfg(feature = "logging")]
 use log::info;
 
+/// Wireless network connectivity functionality.
+pub trait WifiConnectivity{
+    /// Makes an attempt to connect to a selected wireless network with password specified.
+    fn connect(self, options: ConnectionOptions) -> Result<(), WifiConnectionError>;
+
+    fn scan(&mut self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError>;
+
+    fn disconnect(&mut self) -> Result<(), WifiConnectionError>;
+}
+
+
 impl<T, N, L> WifiConnectivity for UbloxClient<T, N, L>
 where
     T: AtatClient,
