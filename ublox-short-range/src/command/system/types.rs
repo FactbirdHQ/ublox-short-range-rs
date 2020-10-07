@@ -62,7 +62,7 @@ pub enum SoftwareUpdateMode {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
-#[repr(u32)]
+#[at_enum(u32)]
 pub enum SoftwareUpdateBaudRate {
     /// Default
     B115200 = 115200,
@@ -100,7 +100,7 @@ pub enum StatusID {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
-#[repr(u32)]
+#[at_enum(u32)]
 /// ODIN-W2:
 /// 19200 - 5250000. The module will set a baud rate as close as possible to the
 /// requested baud rate. Recommended baud rates: 9600, 14400, 19200, 28800,
@@ -126,29 +126,29 @@ pub enum BaudRate {
 #[repr(u8)]
 pub enum FlowControl {
     /// (Default) CTS/RTS used for flow control
-    On = 0,
+    On = 1,
     /// CTS/RTS not used.
-    Off = 1,
+    Off = 2,
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum StopBits {
     /// (Default): 1 stop bit
-    One = 0,
+    One = 1,
     /// 2 stop bits
-    Two = 1,
+    Two = 2,
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum Parity {
     /// (Default) no parity
-    None = 0,
+    None = 1,
     /// Odd parity
-    Odd = 1,
+    Odd = 2,
     /// Even parity
-    Even = 2,
+    Even = 3,
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
