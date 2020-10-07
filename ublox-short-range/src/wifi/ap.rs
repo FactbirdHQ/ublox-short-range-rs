@@ -3,7 +3,6 @@ use crate::{
     client::UbloxClient,
     command::wifi::types::{OperationMode, Authentication},
     error::WifiHotspotError,
-    prelude::WifiHotspot,
     wifi::{
         connection::WifiConnection,
         network::{WifiMode, WifiNetwork},

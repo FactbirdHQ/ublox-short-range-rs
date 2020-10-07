@@ -51,4 +51,6 @@ pub mod prelude{
     pub use crate::wifi::sta::WifiConnectivity;
     #[cfg(any(feature = "wifi_ap"))]
     pub use crate::wifi::ap::WifiHotspot;
+    #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
+    pub use embedded_nal::{TcpStack, UdpStack};
 }

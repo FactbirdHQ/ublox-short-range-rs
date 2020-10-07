@@ -4,7 +4,6 @@ use crate::{
     command::{*, 
         wifi::{types::*, *, responses::*}},
     error::{WifiConnectionError, WifiError},
-    prelude::*,
     // wait_for_unsolicited,
     wifi::{
         connection::{WifiConnection, WiFiState},
@@ -24,11 +23,11 @@ use log::info;
 /// Wireless network connectivity functionality.
 pub trait WifiConnectivity{
     /// Makes an attempt to connect to a selected wireless network with password specified.
-    fn connect(self, options: ConnectionOptions) -> Result<(), WifiConnectionError>;
+    fn connect(&self, options: ConnectionOptions) -> Result<(), WifiConnectionError>;
 
-    fn scan(&mut self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError>;
+    fn scan(&self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError>;
 
-    fn disconnect(&mut self) -> Result<(), WifiConnectionError>;
+    fn disconnect(&self) -> Result<(), WifiConnectionError>;
 }
 
 
@@ -40,7 +39,7 @@ where
 {
     /// Attempts to connect to a wireless network with the given options.
     fn connect(
-        mut self,
+        &self,
         options: ConnectionOptions,
     ) -> Result<(), WifiConnectionError> {
         let mut config_id: u8 = 0;
@@ -140,7 +139,7 @@ where
         Ok(())
     }
 
-    fn scan(&mut self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError> {
+    fn scan(&self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError> {
         match self.send_internal(&WifiScan{
             ssid: None,
         }, true){
@@ -152,7 +151,7 @@ where
         }
     }
 
-    fn disconnect(&mut self) -> Result<(), WifiConnectionError> {
+    fn disconnect(&self) -> Result<(), WifiConnectionError> {
         if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
             match con.wifi_state {
                 WiFiState::Connected | WiFiState::Connecting => {

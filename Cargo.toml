@@ -1,5 +1,2 @@
 [workspace]
-members = [
-    "ublox-short-range-rs"
-    
-]
+members = [ "ublox-short-range" ]

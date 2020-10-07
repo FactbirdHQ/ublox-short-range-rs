@@ -110,8 +110,8 @@ where
         }
     }
 
-    // pub fn init(&mut self, hostname: &str) -> Result<(), Error> {
-    pub fn init(&mut self) -> Result<(), Error> {
+    // pub fn init(&self, hostname: &str) -> Result<(), Error> {
+    pub fn init(&self) -> Result<(), Error> {
         // Initilize a new ublox device to a known state (set RS232 settings, restart, wait for startup etc.)
         // size_of!(AtatCmd);
         // size_of!(AtatResp);
