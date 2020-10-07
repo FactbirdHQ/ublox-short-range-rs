@@ -21,7 +21,7 @@ pub enum WifiStationConfigParameter {
     ActiveOnStartup = 0,
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default value is an
     /// empty string ("").
-    SSID = 1,
+    SSID = 2,
     /// Authentication - <param_val> is the authentication type.
     /// • 1 (default): Open
     /// • 2: WPA/WPA2 PSK
@@ -125,7 +125,7 @@ pub enum WifiStationConfig<'a> {
     ActiveOnStartup(OnOff),
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default value is an
     /// empty string ("").
-    #[at_arg(value = 1)]
+    #[at_arg(value = 2)]
     SSID(#[at_arg(len = 64)] &'a str),
     /// Authentication - <param_val> is the authentication type.
     /// • 1 (default): Open
@@ -259,7 +259,7 @@ pub enum WifiStationConfigR {
     ActiveOnStartup(OnOff),
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default value is an
     /// empty string ("").
-    #[at_arg(value = 1)]
+    #[at_arg(value = 2)]
     SSID(String<consts::U64>),
     /// Authentication - <param_val> is the authentication type.
     /// • 1 (default): Open
