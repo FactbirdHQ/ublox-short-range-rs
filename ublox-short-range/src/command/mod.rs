@@ -10,6 +10,7 @@ pub mod ping;
 pub mod security;
 pub mod system;
 pub mod wifi;
+pub mod edm;
 
 use atat::atat_derive::{AtatCmd, AtatResp, AtatUrc};
 use heapless::{consts, String};
@@ -17,11 +18,11 @@ use heapless::{consts, String};
 #[derive(Clone, AtatResp)]
 pub struct NoResponse;
 
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, Clone, AtatCmd)]
 #[at_cmd("", NoResponse, timeout_ms = 1000)]
 pub struct AT;
 
-#[derive(Clone, AtatUrc)]
+#[derive(Debug, PartialEq, Clone, AtatUrc)]
 pub enum Urc {
     /// 5.10 Peer connected +UUDPC
     #[at_urc("+UUDPC")]

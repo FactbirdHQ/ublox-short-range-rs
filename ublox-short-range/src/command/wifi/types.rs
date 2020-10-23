@@ -1460,7 +1460,7 @@ pub enum AccessPointStatusValue {
     String(String<consts::U64>),
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum DisconnectReason{
     Unknown = 0,

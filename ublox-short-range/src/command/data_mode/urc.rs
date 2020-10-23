@@ -6,7 +6,7 @@ use super::types::*;
 use no_std_net::IpAddr;
 
 /// 5.10 Peer connected +UUDPC
-#[derive(Clone, AtatResp)]
+#[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct PeerConnected {
     #[at_arg(position = 0)]
     pub handle: u32,
@@ -25,7 +25,7 @@ pub struct PeerConnected {
 }
 
 /// 5.11 Peer disconnected +UUDPD
-#[derive(Clone, AtatResp)]
+#[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct PeerDisconnected {
     #[at_arg(position = 0)]
     pub handle: u32,

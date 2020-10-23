@@ -204,7 +204,7 @@ pub enum PeerConfigParameter {
     TCPOutOfSequenceQueue(u8),
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum ConnectionType{
     Bluetooth = 1,
@@ -212,7 +212,7 @@ pub enum ConnectionType{
     IPv6 = 3,
 }
 
-// #[derive(Clone, PartialEq, AtatEnum)]
+// #[derive(Debug, Clone, PartialEq, AtatEnum)]
 // #[repr(u8)]
 // pub enum Profile {
 //     SPP = 1,
@@ -222,7 +222,7 @@ pub enum ConnectionType{
 //     Reserved = 5,
 // }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum IPProtocol{
     TCP = 0,

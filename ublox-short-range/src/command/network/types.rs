@@ -271,7 +271,7 @@ pub enum Timing{
     AnnounceInterval(u16),
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum ErrorType{
     IpAddressConflict = 128,

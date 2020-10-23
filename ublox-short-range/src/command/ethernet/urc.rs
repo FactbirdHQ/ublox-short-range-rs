@@ -6,9 +6,9 @@ use super::types::*;
 use no_std_net::IpAddr;
 
 /// 8.3 Ethernet link up +UUETHLU
-#[derive(Clone, AtatResp)]
+#[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct EthernetLinkUp;
 
 /// 8.4 Ethernet link down +UUETHLU
-#[derive(Clone, AtatResp)]
+#[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct EthernetLinkDown;
