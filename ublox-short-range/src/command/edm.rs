@@ -129,7 +129,7 @@ where
             .iter()
         );
         s.extend(at_vec.iter());
-        s.push(ENDBYTE).map_err(|_| atat::Error::Write);
+        s.push(ENDBYTE).unwrap_or_else(|_| core::unreachable!());
         return s;
     }
 
