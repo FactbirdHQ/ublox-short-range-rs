@@ -11,6 +11,10 @@ const STARTBYTE: u8 = 0xAA;
 const ENDBYTE: u8 = 0x55;
 const EDM_OVERHEAD: usize = 4;
 const PAYLOAD_OVERHEAD: usize = 6;
+/// Index in packet at which AT-command starts
+const AT_COMMAND_POSITION: usize = 5;
+/// Index in packet at which payload starts
+const PAYLOAD_POSITION: usize = 3;
 
 #[repr(u8)]
 enum PayloadType {
@@ -169,17 +173,17 @@ impl AtatUrc for EdmUrc{
         {
             return Err(atat::Error::ParseString);
         };
-        let payload_len = ((resp[1] as u16) << 8 + resp[2] as u16) & 0x0FFF;
+        let payload_len = (((resp[1] as u16) << 8) + resp[2] as u16) & 0x0FFF;
         if resp.len() != payload_len as usize + EDM_OVERHEAD {
             return Err(atat::Error::ParseString);
         }
 
         match resp[4].into() {
             PayloadType::ATEvent => {
-                Ok(EdmUrc::ATEvent(Urc::parse(&resp[4..2 + payload_len as usize])?))
+                Ok(EdmUrc::ATEvent(Urc::parse(&resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len as usize - 1 ])?))
             }
             
-            _ => Err(atat::Error::InvalidResponse)
+            _ => Err(atat::Error::ParseString)
         }
     }
 }
@@ -241,7 +245,7 @@ mod test {
                 0x0A,
                 0x55,
             ]).unwrap();
-        assert_eq!(parse.as_bytes(), correct, "Parsing packet incorrect.\nExpectet: {:?}\nRecived:  {:?}", correct, parse.as_bytes());
+        assert_eq!(parse.as_bytes(), correct, "Parsing packet incorrect.");
        
     }
 
@@ -250,9 +254,9 @@ mod test {
         let resp = &[
             0xAAu8,
             0x00,
-            0x0A,
+            0x0C,
             0x00,
-            0x41,
+            0x41, //[4]
             0x2B,
             0x55,
             0x55,
@@ -264,14 +268,15 @@ mod test {
             0x0D,
             0x0A,
             0x55,
-
         ];
         let urc = EdmUrc::ATEvent(
             Urc::PeerDisconnected(PeerDisconnected{ handle: 3 })
         );    
         let parsed_urc = EdmUrc::parse(resp).unwrap();
-
         assert_eq!(parsed_urc, urc, "Parsing URC failed");
+        
+        
+        // assert_eq!(1,2, "resp.len: {}", resp.len());
     }
 }
 
