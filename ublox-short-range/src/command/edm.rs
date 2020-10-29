@@ -144,7 +144,7 @@ where
         return s;
     }
 
-    // TODO: handle NoResponse
+    // TODO: handle NoResponse in form of empty payload. Should do already
     fn parse(&self, resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
         if resp.len() < PAYLOAD_OVERHEAD
             || !resp.starts_with(&[STARTBYTE])
@@ -236,7 +236,7 @@ pub(crate) mod custom_digest {
             unimplemented!("Enabeling echo is currently unsupported for EDM");
         }
 
-        let start_pos = match ingress.buf.windows(1).position(|byte| byte == &[start_byte]){
+        let start_pos = match ingress.buf.windows(1).position(|byte| byte[0] == start_byte){
             Some(pos) => pos,
             None => return,
         };
@@ -250,7 +250,8 @@ pub(crate) mod custom_digest {
         if ingress.buf.len() < EDM_OVERHEAD{
             return;
         }
-        let payload_len = (((ingress.buf[1] as u16) << 8 + ingress.buf[2] as u16) & EDM_FULL_SIZE_FILTER) as usize;
+        let payload_len = (((ingress.buf[1] as u16) << 8 | ingress.buf[2] as u16) & EDM_FULL_SIZE_FILTER) as usize;
+
         let edm_len = payload_len + EDM_OVERHEAD;
         if ingress.buf.len() < edm_len {
             return;
@@ -260,12 +261,14 @@ pub(crate) mod custom_digest {
 
         match PayloadType::from(ingress.buf[4]) {
             PayloadType::ATConfirmation => {
-                let (resp, mut remaining) = ingress.buf.split_at(edm_len - 1);
+                let (resp, mut remaining) = ingress.buf.split_at(edm_len);
                 let mut return_val: Option<Result<ByteVec<BufLen>, Error>> = None;
                 if ingress.get_state() == State::ReceivingResponse {    
                     if let Some(_) = resp.windows(b"ERROR".len()).position(|window| window == b"ERROR" ) {
+                        //Recieved Error response
                         return_val = Some(Err(Error::InvalidResponse));
                     } else if let Some(_) = resp.windows(b"OK".len()).position(|window| window == b"OK" ) {
+                        //Recieved OK response
                         return_val = Some(Ok(ByteVec::<BufLen>::from_slice(&[
                             0xAAu8,
                             0x00,
@@ -276,33 +279,32 @@ pub(crate) mod custom_digest {
                             ]).unwrap()));
                     } else {
                         //Normal response check if OK recived at end? else return to wait for OK to be received at end.
-                        let start_pos = match remaining.windows(1).position(|byte| byte == &[start_byte]){
+                        let start_pos_remaining = match remaining.windows(1).position(|byte| byte == &[start_byte]){
                             Some(pos) => pos,
                             None => return,
                         };
                 
-                        // Trim leading invalid data.
-                        if start_pos != 0 {
-                            remaining = &remaining[start_pos.. remaining.len()];
+                        if start_pos_remaining != 0 {
+                            remaining = &remaining[start_pos_remaining .. remaining.len()];
                         }
                 
-                        // Verify payload length and end byte position
                         if remaining.len() < EDM_OVERHEAD{
                             return;
                         }
-                        let payload_len = (((remaining[1] as u16) << 8 + remaining[2] as u16) & EDM_FULL_SIZE_FILTER) as usize;
-                        let edm_len = payload_len + EDM_OVERHEAD;
-                        if remaining.len() < edm_len {
+                        let payload_len_remaining = (((remaining[1] as u16) << 8 | remaining[2] as u16) & EDM_FULL_SIZE_FILTER) as usize;
+                        let edm_len_remaining = payload_len_remaining + EDM_OVERHEAD;
+                        if remaining.len() < edm_len_remaining {
                             return;
-                        } else if remaining[edm_len -1] != end_byte{
+                        } else if remaining[edm_len_remaining -1] != end_byte{
                             return;
                         }
                         if PayloadType::from(remaining[4]) == PayloadType::ATConfirmation 
                             && remaining.windows(b"OK".len()).position(|window| window == b"OK" ) != None {
-                                // Found trailing OK response remove from remaining
-                                
-                            }
+                            // Found trailing OK response remove from remaining
+                            remaining = &remaining[edm_len_remaining .. remaining.len()];
 
+                        } // else next response not OK?... TODO: Handle this case
+                        return_val = Some(Ok(ByteVec::<BufLen>::from_slice(resp).unwrap()))
                     }
                 }
                 ingress.buf = Vec::from_slice(remaining).unwrap();
@@ -311,187 +313,144 @@ pub(crate) mod custom_digest {
                 }
             },
             PayloadType::ATEvent=> {
-                let (resp, remaining) = ingress.buf.split_at(edm_len - 1);
+                // Recived URC
+                let (resp, remaining) = ingress.buf.split_at(edm_len);
                 let resp = ByteVec::<BufLen>::from_slice(resp).unwrap();
                 ingress.buf = Vec::from_slice(remaining).unwrap();
                 ingress.notify_urc(resp);
             }
             _ => {
-                // Error packet
+                // Wrong/Unsupported packet, thrown away.
+                let (resp, remaining) = ingress.buf.split_at(edm_len);
+                ingress.buf = Vec::from_slice(remaining).unwrap();
             }
         }
+    }
 
+    #[cfg(test)]
+    mod test {
+        use super::*;
+        use super::super::{STARTBYTE, ENDBYTE};
+        use atat::ingress_manager::{NoopUrcMatcher, ByteVec};
+        use atat::queues::{ComQueue, ResQueue, UrcQueue};
+        use atat::{Mode, Config};
+        use atat::heapless::{consts, spsc::Queue};
 
-        // Check packet if valid:
-        // Length
-        // Endbyte 
-        // TypeID
+        type TestRxBufLen = consts::U256;
+        type TestComCapacity = consts::U3;
+        type TestResCapacity = consts::U5;
+        type TestUrcCapacity = consts::U10;
 
-        // Add to queue according to type
-
-
-
-        // Trim leading whitespace
-        if ingress.buf.starts_with(&[start_byte]) || ingress.buf.starts_with(&[end_byte]) {
-            
-        }
-
-        #[allow(clippy::single_match)]
-        match core::str::from_utf8(&ingress.buf) {
-            Ok(_s) => {
-                #[cfg(not(feature = "log-logging"))]
-                atat_log!(trace, "Digest / {:str}", _s);
-                #[cfg(feature = "log-logging")]
-                atat_log!(trace, "Digest / {:?}", _s);
-            }
-            Err(_) => atat_log!(
-                trace,
-                "Digest / {:?}",
-                core::convert::AsRef::<[u8]>::as_ref(&buf)
-            ),
-        };
-
-        match ingress.get_state() {
-            State::Idle => {
-                // The minimal buffer length that is required to identify all
-                // types of responses (e.g. `AT` and `+`).
-                let min_length = 2;
-
-                // Echo is currently required
-                if !ingress.get_echo_enabled() {
-                    unimplemented!("Disabling AT echo is currently unsupported");
-                }
-
-                // Handle AT echo responses
-                if !ingress.get_buf_incomplete() && ingress.buf.get(0..2) == Some(b"AT") {
-                    if get_line::<BufLen, _>(
-                        &mut ingress.buf,
-                        &[end_byte],
-                        end_byte,
-                        end_byte,
-                        false,
-                        false,
-                    )
-                    .is_some()
-                    {
-                        ingress.set_state(State::ReceivingResponse);
-                        ingress.set_buf_incomplete(false);
-                        atat_log!(trace, "Switching to state ReceivingResponse");
-                    }
-
-                // Handle URCs
-                } else if !ingress.get_buf_incomplete() && ingress.buf.get(0) == Some(&b'+') {
-                    // Try to apply the custom URC matcher
-                    let handled = match ingress.custom_urc_matcher {
-                        Some(ref mut matcher) => match matcher.process(&mut ingress.buf) {
-                            UrcMatcherResult::NotHandled => false,
-                            UrcMatcherResult::Incomplete => true,
-                            UrcMatcherResult::Complete(urc) => {
-                                ingress.notify_urc(urc);
-                                true
-                            }
-                        },
-                        None => false,
-                    };
-                    if !handled {
-                        if let Some(line) = get_line(
-                            &mut ingress.buf,
-                            &[end_byte],
-                            end_byte,
-                            end_byte,
-                            false,
-                            false,
-                        ) {
-                            ingress.set_buf_incomplete(false);
-                            ingress.notify_urc(line);
-                        }
-                    }
-
-                // Text sent by the device that is not a valid response type (e.g. starting
-                // with "AT" or "+") can be ignored. Clear the buffer, but only if we can
-                // ensure that we don't accidentally break a valid response.
-                } else if ingress.get_buf_incomplete() || ingress.buf.len() > min_length {
-                    atat_log!(
-                        trace,
-                        "Clearing buffer with invalid response (incomplete: {:?}, buflen: {:?})",
-                        buf_incomplete,
-                        ingress.buf.len()
-                    );
-                    ingress.set_buf_incomplete(
-                        ingress.buf.is_empty()
-                            || (ingress.buf.len() > 0
-                                && ingress.buf.get(ingress.buf.len() - 1) != Some(&end_byte)
-                                && ingress.buf.get(ingress.buf.len() - 1) != Some(&end_byte)),
-                    );
-
-                    ingress.clear_buf(false);
-
-                    // If the buffer wasn't cleared completely, that means that
-                    // a newline was found. In that case, the buffer cannot be
-                    // in an incomplete state.
-                    if !ingress.buf.is_empty() {
-                        ingress.set_buf_incomplete(false);
-                    }
-                }
-            }
-            State::ReceivingResponse => {
-                let resp = if let Some(mut line) = get_line::<BufLen, _>(
-                    &mut ingress.buf,
-                    b"OK",
-                    end_byte,
-                    end_byte,
-                    true,
-                    false,
-                ) {
-                    Ok(get_line(
-                        &mut line,
-                        &[end_byte],
-                        end_byte,
-                        end_byte,
-                        true,
-                        true,
-                    )
-                    .unwrap_or_else(Vec::new))
-                } else if get_line::<BufLen, _>(
-                    &mut ingress.buf,
-                    b"ERROR",
-                    end_byte,
-                    end_byte,
-                    false,
-                    false,
+        macro_rules! setup {
+            ($config:expr, $urch:expr) => {{
+                static mut RES_Q: ResQueue<TestRxBufLen, TestResCapacity> =
+                    Queue(heapless::i::Queue::u8());
+                let (res_p, res_c) = unsafe { RES_Q.split() };
+                static mut URC_Q: UrcQueue<TestRxBufLen, TestUrcCapacity> =
+                    Queue(heapless::i::Queue::u8());
+                let (urc_p, urc_c) = unsafe { URC_Q.split() };
+                static mut COM_Q: ComQueue<TestComCapacity> = Queue(heapless::i::Queue::u8());
+                let (_com_p, com_c) = unsafe { COM_Q.split() };
+                (
+                    IngressManager::with_customs(res_p, urc_p, com_c, $config, $urch, custom_digest),
+                    res_c,
+                    urc_c,
                 )
-                .is_some()
-                {
-                    Err(Error::InvalidResponse)
-                } else if get_line::<BufLen, _>(
-                    &mut ingress.buf,
-                    b">",
-                    end_byte,
-                    end_byte,
-                    false,
-                    false,
-                )
-                .is_some()
-                    || get_line::<BufLen, _>(
-                        &mut ingress.buf,
-                        b"@",
-                        end_byte,
-                        end_byte,
-                        false,
-                        false,
-                    )
-                    .is_some()
-                {
-                    Ok(Vec::new())
-                } else {
-                    return;
-                };
-
-                ingress.notify_response(resp);
-                atat_log!(trace, "Switching to state Idle");
-                ingress.set_state(State::Idle);
-            }
+            }};
+            ($config:expr) => {{
+                let val: (
+                    IngressManager<
+                        TestRxBufLen,
+                        NoopUrcMatcher,
+                        TestComCapacity,
+                        TestResCapacity,
+                        TestUrcCapacity,
+                    >,
+                    _,
+                    _,
+                ) = setup!($config, None);
+                val
+            }};
         }
+        
+        #[test]
+        fn ok_response() {
+            let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
+            let (mut at_pars, mut res_c, _urc_c) = setup!(conf);
+
+            assert_eq!(at_pars.get_state(), State::Idle);
+
+            at_pars.set_state(State::ReceivingResponse);
+                                                              //  O   K   \r   \n
+            let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
+            let empty_ok_response = 
+                Vec::<u8, TestRxBufLen>::from_slice(&[ 0xAAu8, 0x00, 0x02, 0x00, PayloadType::ATConfirmation as u8, 0x55]).unwrap();
+
+            at_pars.write(data);
+            assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+
+            at_pars.digest();
+            assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+            assert_eq!(res_c.dequeue(), Some(Ok(empty_ok_response)));
+        }
+
+        #[test]
+        fn error_response() {
+            let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
+            let (mut at_pars, mut res_c, _urc_c) = setup!(conf);
+
+            assert_eq!(at_pars.get_state(), State::Idle);
+
+            at_pars.set_state(State::ReceivingResponse);
+                                                            //  E    R    R    O    R   \r   \n
+            let data = &[0xAAu8,0x00,0x09,0x00,0x45,0x45,0x52,0x52,0x4f,0x52,0x0D,0x0a,0x55];
+
+            at_pars.write(data);
+            assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+
+            at_pars.digest();
+            assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+            assert_eq!(res_c.dequeue(), Some(Err(Error::InvalidResponse)));
+        }
+
+        #[test]
+        fn regular_response_with_trailing_ok() {
+            let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
+            let (mut at_pars, mut res_c, _urc_c) = setup!(conf);
+
+            assert_eq!(at_pars.get_state(), State::Idle);
+
+            at_pars.set_state(State::ReceivingResponse);
+                                                                 //  A   T   \r   \n
+            let response = &[0xAAu8,0x00,0x06,0x00,0x45,0x41,0x54,0x0D,0x0a,0x55];
+            // Data = response + trailing OK message
+            let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x41,0x54,0x0D,0x0a,0x55,0xAA,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
+
+            at_pars.write(data);
+            assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+
+            at_pars.digest();
+            assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+            assert_eq!(res_c.dequeue(), Some(Ok(Vec::<u8, TestRxBufLen>::from_slice(response).unwrap())));
+        }
+
+        #[test]
+        fn urc() {
+            let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
+            let (mut at_pars, _res_c, mut urc_c) = setup!(conf);
+
+            assert_eq!(at_pars.get_state(), State::Idle);
+
+            let type_byte = PayloadType::ATEvent as u8;
+                                                              //  O   K   \r   \n
+            let data = &[0xAAu8, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
+            at_pars.write(data);
+            assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+            at_pars.digest();
+            assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+            assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(data).unwrap()));
+        }
+    
     }
 }
 
@@ -513,7 +472,7 @@ mod test {
     fn parse_at_commands(){
         let parse = EdmAtCmdWrapper::new(&AT);
 
-        // AT-command:"at"
+        // AT-command:"AT"
         let correct = atat::heapless::Vec::<u8, atat::heapless::consts::U10>::from_slice(&[
                 0xAAu8,
                 0x00,
