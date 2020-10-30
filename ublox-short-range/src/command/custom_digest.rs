@@ -22,6 +22,11 @@ pub(crate) fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
     // Handle commands
     ingress.handle_com();
 
+    // TODO Handle module restart
+    // if ingress.buf.windows(10).position(|window| window.contains(b"+STARTUP\r\n")) != None{
+    //     //Handle module restart
+    // }
+
     let end_byte = ingress.get_line_term_char();
     let start_byte = ingress.get_format_char();
     // Echo is currently not suported in EDM

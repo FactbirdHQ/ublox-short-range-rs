@@ -16,7 +16,7 @@ pub mod custom_digest;
 use atat::atat_derive::{AtatCmd, AtatResp, AtatUrc};
 use heapless::{consts, String};
 
-#[derive(Clone, AtatResp)]
+#[derive(Debug, Clone, AtatResp, PartialEq)]
 pub struct NoResponse;
 
 #[derive(Debug, Clone, AtatCmd)]

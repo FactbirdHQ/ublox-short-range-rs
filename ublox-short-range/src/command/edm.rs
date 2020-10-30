@@ -1,6 +1,7 @@
 /// Containing EDM structs with custom serialaization and deserilaisation.
 use atat::{AtatCmd, AtatLen, AtatResp, AtatUrc};
-use super::Urc;
+use crate::command::{data_mode::ChangeMode, data_mode};
+use crate::command::{Urc, NoResponse};
 
 /// Start byte, Length: u16, Id+Type: u16, Endbyte
 // type EdmAtCmdOverhead = (u8, u16, u16, u8);
@@ -168,10 +169,12 @@ where
 
 #[derive(Debug, PartialEq)]
 pub enum EdmUrc{
-    ConnectEvent(),
-    DisconnectEvent(),
-    DataEvent(),
-    ATEvent(Urc)
+    ConnectEvent,
+    DisconnectEvent,
+    DataEvent,
+    ATEvent(Urc),
+    // TODO: Handle modlue restart. Especially to Digest
+    StartUp,
 }
 
 impl AtatUrc for EdmUrc{
@@ -201,11 +204,37 @@ impl AtatUrc for EdmUrc{
     }
 }
 
+pub struct SwitchToEdmCommand;
+
+impl atat::AtatCmd for SwitchToEdmCommand{
+    type Response = NoResponse;
+    type CommandLen = <ChangeMode as atat::AtatCmd>::CommandLen;
+
+    fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
+        return ChangeMode{mode: data_mode::types::Mode::ExtendedDataMode}.as_bytes();
+    }
+
+    // TODO: handle NoResponse in form of empty payload. Should do already
+    fn parse(&self, resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
+        let correct = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
+        if resp.len() != correct.len() {
+            return Err(atat::Error::InvalidResponse)
+        } else if resp.windows(correct.len()).position(|window| window == correct) != Some(0){
+            return Err(atat::Error::InvalidResponse)
+        }
+        Ok(NoResponse)
+    }
+
+    fn force_receive_state(&self) -> bool {
+        true
+    }
+}
+
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use atat::{AtatCmd, AtatLen, AtatResp, AtatUrc};
+    use atat::{AtatCmd, AtatLen, AtatResp, AtatUrc, heapless::{Vec, consts}};
     use crate::command::{
         Urc, 
         AT,
@@ -221,7 +250,7 @@ mod test {
         let parse = EdmAtCmdWrapper::new(AT);
 
         // AT-command:"AT"
-        let correct = atat::heapless::Vec::<u8, atat::heapless::consts::U10>::from_slice(&[
+        let correct = Vec::<u8, consts::U10>::from_slice(&[
                 0xAAu8,
                 0x00,
                 0x06,
@@ -238,7 +267,7 @@ mod test {
         let parse = EdmAtCmdWrapper::new(SystemStatus{status_id: Some(StatusID::SavedStatus)});
 
         // AT-command:"at+umstat=1"
-        let correct = atat::heapless::Vec::<u8, atat::heapless::consts::U19>::from_slice(&[
+        let correct = Vec::<u8, consts::U19>::from_slice(&[
                 0xAAu8,
                 0x00,
                 0x0F,
@@ -288,9 +317,14 @@ mod test {
         );    
         let parsed_urc = EdmUrc::parse(resp).unwrap();
         assert_eq!(parsed_urc, urc, "Parsing URC failed");
-        
-        
-        // assert_eq!(1,2, "resp.len: {}", resp.len());
+    }
+
+    #[test]
+    fn change_to_edm_cmd(){
+        let resp = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
+        let correct = Vec::<u8, <ChangeMode as atat::AtatCmd>::CommandLen>::from_slice(b"ATO=2\r\n").unwrap();
+        assert_eq!(SwitchToEdmCommand.as_bytes(), correct);
+        assert_eq!(SwitchToEdmCommand.parse(resp).unwrap(), NoResponse);
     }
 }
 
