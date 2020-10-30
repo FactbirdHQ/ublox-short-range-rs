@@ -4,6 +4,7 @@ use core::cell::{Cell, RefCell};
 use embedded_hal::timer::CountDown;
 use crate::{
     command::{
+        edm::EdmAtCmdWrapper,
         system::{
             SetRS232Settings,
             StoreCurrentConfig,
@@ -120,17 +121,17 @@ where
 
         // self.state.set(State::Initializing);
 
-        self.send_internal(&SetRS232Settings {
+        self.send_internal(&EdmAtCmdWrapper::new(SetRS232Settings {
             baud_rate: BaudRate::B115200,
             flow_control: FlowControl::Off,
             data_bits: 8,
             stop_bits: StopBits::One,
             parity: Parity::None,
             change_after_confirm: ChangeAfterConfirm::ChangeAfterOK,
-        }, false)?;
+        }), false)?;
 
         
-        self.send_internal(&StoreCurrentConfig, false)?;
+        self.send_internal(&EdmAtCmdWrapper::new(StoreCurrentConfig), false)?;
         
         // TODO: Wait for connect
         
@@ -158,7 +159,7 @@ where
     #[inline]
     fn autosense(&self) -> Result<(), Error> {
         for _ in 0..15 {
-            match self.client.try_borrow_mut()?.send(&AT) {
+            match self.client.try_borrow_mut()?.send(&EdmAtCmdWrapper::new(AT)) {
                 Ok(_) => {
                     return Ok(());
                 }

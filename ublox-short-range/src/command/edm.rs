@@ -98,11 +98,11 @@ where
     <T as atat::AtatCmd>::Response: atat::serde_at::serde::Deserialize<'static>,
     // <T as atat::AtatCmd>::Response: atat::serde_at::serde::Deserialize<'b>,
 {
-    fn new(at_command: T) -> Self{
+    pub fn new(at_command: T) -> Self{
         EdmAtCmdWrapper{ at_command }
     }
 
-    fn get_at(&self) -> &T{
+    pub fn get_at(&self) -> &T{
         &self.at_command
     }
 }

@@ -2,6 +2,7 @@ use atat::AtatClient;
 use crate::{
     client::{UbloxClient, State},
     command::{*, 
+        edm::EdmAtCmdWrapper,
         wifi::{types::*, *, responses::*}},
     error::{WifiConnectionError, WifiError},
     // wait_for_unsolicited,
@@ -49,39 +50,39 @@ where
 
         // Network part
         // Deactivate network id 0
-        self.send_internal(&ExecWifiStationAction{
+        self.send_internal(&EdmAtCmdWrapper::new(ExecWifiStationAction{
             config_id: config_id,
             action: WifiStationAction::Deactivate,
-        }, true)?;
+        }), true)?;
 
         // Disable DHCP Client (static IP address will be used)
         if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
-            self.send_internal(&SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::IPv4Mode(IPv4Mode::Static)
-            }, true)?;
+            }), true)?;
         }
 
         // Network IP address
         if let Some(ip) = options.ip {
-            self.send_internal(&SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::IPv4Address(ip),
-            }, true)?;
+            }), true)?;
         }
         // Network Subnet mask
         if let Some(subnet) = options.subnet{
-            self.send_internal(&SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::SubnetMask(subnet),
-            }, true)?;
+            }), true)?;
         }
         // Network Default gateway
         if let Some(gateway) = options.gateway{
-            self.send_internal(&SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::DefaultGateway(gateway),
-            }, true)?;
+            }), true)?;
         }
 
         // Active on startup
@@ -92,23 +93,23 @@ where
 
         // Wifi part
         // Set the Network SSID to connect to
-        self.send_internal(&SetWifiStationConfig{
+        self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
             config_id: config_id,
             config_param: WifiStationConfig::SSID(&options.ssid),
-        }, true)?;
+        }), true)?;
 
         if let Some(pass) = options.password{
             // Use WPA2 as authentication type
-            self.send_internal(&SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::Authentication(Authentication::WPA_WAP2_PSK)
-            }, true)?;
+            }), true)?;
 
             // Input passphrase
-            self.send_internal(&SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::WPA_PSKOrPassphrase(&pass),
-            }, true)?;
+            }), true)?;
         }
 
         *self.wifi_connection.try_borrow_mut()? = Some(
@@ -128,10 +129,10 @@ where
                 config_id,
             )
         );
-        self.send_internal(&ExecWifiStationAction{
+        self.send_internal(&EdmAtCmdWrapper::new(ExecWifiStationAction{
             config_id: config_id,
             action: WifiStationAction::Activate,
-        }, true)?;
+        }), true)?;
 
         // TODO: Await connected event?
         // block!(wait_for_unsolicited!(self, UnsolicitedResponse::NetworkUp { .. })).unwrap();
@@ -140,9 +141,9 @@ where
     }
 
     fn scan(&self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError> {
-        match self.send_internal(&WifiScan{
+        match self.send_internal(&EdmAtCmdWrapper::new(WifiScan{
             ssid: None,
-        }, true){
+        }), true){
             Ok(resp) => resp.network_list
                 .into_iter()
                 .map(WifiNetwork::try_from)
@@ -156,10 +157,10 @@ where
             match con.wifi_state {
                 WiFiState::Connected | WiFiState::Connecting => {
                     con.wifi_state = WiFiState::Disconnecting;
-                    self.send_internal(&ExecWifiStationAction{
+                    self.send_internal(&EdmAtCmdWrapper::new(ExecWifiStationAction{
                         config_id: 0,
                         action: WifiStationAction::Deactivate,
-                    }, true)?;
+                    }), true)?;
                 }
                 _ => {}
             }
