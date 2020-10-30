@@ -11,6 +11,7 @@ pub mod security;
 pub mod system;
 pub mod wifi;
 pub mod edm;
+pub mod custom_digest;
 
 use atat::atat_derive::{AtatCmd, AtatResp, AtatUrc};
 use heapless::{consts, String};
