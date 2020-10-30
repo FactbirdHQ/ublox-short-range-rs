@@ -376,7 +376,7 @@ pub(crate) mod custom_digest {
         #[test]
         fn ok_response() {
             let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-            let (mut at_pars, mut res_c, _urc_c) = setup!(conf);
+            let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
 
             assert_eq!(at_pars.get_state(), State::Idle);
 
@@ -392,12 +392,13 @@ pub(crate) mod custom_digest {
             at_pars.digest();
             assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
             assert_eq!(res_c.dequeue(), Some(Ok(empty_ok_response)));
+            assert_eq!(urc_c.dequeue(), None);
         }
 
         #[test]
         fn error_response() {
             let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-            let (mut at_pars, mut res_c, _urc_c) = setup!(conf);
+            let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
 
             assert_eq!(at_pars.get_state(), State::Idle);
 
@@ -411,12 +412,13 @@ pub(crate) mod custom_digest {
             at_pars.digest();
             assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
             assert_eq!(res_c.dequeue(), Some(Err(Error::InvalidResponse)));
+            assert_eq!(urc_c.dequeue(), None);
         }
 
         #[test]
         fn regular_response_with_trailing_ok() {
             let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-            let (mut at_pars, mut res_c, _urc_c) = setup!(conf);
+            let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
 
             assert_eq!(at_pars.get_state(), State::Idle);
 
@@ -432,12 +434,13 @@ pub(crate) mod custom_digest {
             at_pars.digest();
             assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
             assert_eq!(res_c.dequeue(), Some(Ok(Vec::<u8, TestRxBufLen>::from_slice(response).unwrap())));
+            assert_eq!(urc_c.dequeue(), None);
         }
 
         #[test]
         fn urc() {
             let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-            let (mut at_pars, _res_c, mut urc_c) = setup!(conf);
+            let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
 
             assert_eq!(at_pars.get_state(), State::Idle);
 
@@ -449,6 +452,25 @@ pub(crate) mod custom_digest {
             at_pars.digest();
             assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
             assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(data).unwrap()));
+            assert_eq!(res_c.dequeue(), None);
+        }
+
+        #[test]
+        fn wrong_type_packet() {
+            let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
+            let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
+
+            assert_eq!(at_pars.get_state(), State::Idle);
+
+            let type_byte = PayloadType::Unknown as u8;
+                                                              //  O   K   \r   \n
+            let data = &[0xAAu8, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
+            at_pars.write(data);
+            assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+            at_pars.digest();
+            assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+            assert_eq!(urc_c.dequeue(), None);
+            assert_eq!(res_c.dequeue(), None);
         }
     
     }
