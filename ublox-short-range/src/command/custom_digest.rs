@@ -25,9 +25,9 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
     ingress.handle_com();
     
     #[cfg(feature = "logging")]
-    if ingress.buf.len() != 0 {
-        log::error!("Recived: {:?}, state: {:?}", ingress.buf, ingress.get_state());
-    }
+    // if ingress.buf.len() != 0 {
+    //     log::debug!("Recived: {:?}, state: {:?}", ingress.buf, ingress.get_state());
+    // }
 
     // TODO Handle module restart, tests and set default startupmessage in client, and optimiz this!
     //Handle module restart. "+STARTUP\r\n" is the default startupmessage. 
@@ -107,12 +107,13 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
                         remaining = &remaining[edm_len_remaining .. remaining.len()];
 
                     } // else next response not OK?... TODO: Handle this case
-                    return_val = Some(Ok(ByteVec::<BufLen>::from_slice(resp).unwrap()))
+                    return_val = Some(Ok(ByteVec::<BufLen>::from_slice(resp).unwrap()));
                 }
             }
             ingress.buf = Vec::from_slice(remaining).unwrap();
             if let Some(resp) = return_val {
-                ingress.notify_response(resp)
+                ingress.notify_response(resp);
+                ingress.set_state(State::Idle);
             }
         },
         PayloadType::StartEvent => {
@@ -123,7 +124,9 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
             }
             ingress.buf = Vec::from_slice(remaining).unwrap();
             if let Some(resp) = return_val {
-                ingress.notify_response(resp)
+                ingress.notify_response(resp);
+                ingress.set_state(State::Idle);
+
             }
         },
         PayloadType::ATEvent=> {
