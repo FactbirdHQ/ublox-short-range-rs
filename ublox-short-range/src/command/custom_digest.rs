@@ -5,12 +5,12 @@ use atat::ingress_manager::{
 };
 use atat::queues::{ComItem, ResItem, UrcItem};
 use atat::heapless::{ArrayLength, Vec};
-use crate::command::edm::{EDM_OVERHEAD, EDM_FULL_SIZE_FILTER, PayloadType};
+use crate::command::edm::{AT_COMMAND_POSITION, EDM_OVERHEAD, EDM_FULL_SIZE_FILTER, STARTUPMESSAGE, STARTBYTE, ENDBYTE, PayloadType, calc_payload_len};
 
 /// Custom function to process the receive buffer, checking for AT responses, URC's or errors
 ///
 /// This function should be called regularly for the ingress manager to work
-pub(crate) fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
+pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
     ingress: &mut IngressManager<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>,
 ) where
     U: UrcMatcher<BufLen>,
@@ -19,24 +19,34 @@ pub(crate) fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
     ResCapacity: ArrayLength<ResItem<BufLen>>,
     UrcCapacity: ArrayLength<UrcItem<BufLen>>,
 {
+    
+    
     // Handle commands
     ingress.handle_com();
+    
+    #[cfg(feature = "logging")]
+    if ingress.buf.len() != 0 {
+        log::error!("Recived: {:?}, state: {:?}", ingress.buf, ingress.get_state());
+    }
 
-    // TODO Handle module restart
-    // if ingress.buf.windows(10).position(|window| window.contains(b"+STARTUP\r\n")) != None{
-    //     //Handle module restart
-    // }
+    // TODO Handle module restart, tests and set default startupmessage in client, and optimiz this!
+    //Handle module restart. "+STARTUP\r\n" is the default startupmessage. 
+    if ingress.buf.windows(STARTUPMESSAGE.len()).position(|window| window == STARTUPMESSAGE) == Some(0){
+        let (resp, mut remaining) = ingress.buf.split_at(STARTUPMESSAGE.len());
+        let resp = ByteVec::<BufLen>::from_slice(resp).unwrap();
+        ingress.buf = Vec::from_slice(remaining).unwrap();
+        ingress.notify_urc(resp);
+        return;
+    }
 
-    let end_byte = ingress.get_line_term_char();
-    let start_byte = ingress.get_format_char();
     // Echo is currently not suported in EDM
     if ingress.get_echo_enabled() {
         unimplemented!("Enabeling echo is currently unsupported for EDM");
     }
 
-    let start_pos = match ingress.buf.windows(1).position(|byte| byte[0] == start_byte){
+    let start_pos = match ingress.buf.windows(1).position(|byte| byte[0] == STARTBYTE){
         Some(pos) => pos,
-        None => return,
+        None => return, //handle leading error data.
     };
 
     // Trim leading invalid data.
@@ -48,17 +58,17 @@ pub(crate) fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
     if ingress.buf.len() < EDM_OVERHEAD{
         return;
     }
-    let payload_len = (((ingress.buf[1] as u16) << 8 | ingress.buf[2] as u16) & EDM_FULL_SIZE_FILTER) as usize;
+    let payload_len = calc_payload_len(&ingress.buf);
 
     let edm_len = payload_len + EDM_OVERHEAD;
     if ingress.buf.len() < edm_len {
         return;
-    } else if ingress.buf[edm_len -1] != end_byte{
+    } else if ingress.buf[edm_len -1] != ENDBYTE{
         return;
     }
 
     match PayloadType::from(ingress.buf[4]) {
-        PayloadType::ATConfirmation => {
+        PayloadType::ATConfirmation  => {
             let (resp, mut remaining) = ingress.buf.split_at(edm_len);
             let mut return_val: Option<Result<ByteVec<BufLen>, Error>> = None;
             if ingress.get_state() == State::ReceivingResponse {    
@@ -66,18 +76,13 @@ pub(crate) fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
                     //Recieved Error response
                     return_val = Some(Err(Error::InvalidResponse));
                 } else if let Some(_) = resp.windows(b"OK".len()).position(|window| window == b"OK" ) {
-                    //Recieved OK response
+                    //Recieved OK response in form of empty EDM response
                     return_val = Some(Ok(ByteVec::<BufLen>::from_slice(&[
-                        0xAAu8,
-                        0x00,
-                        0x02,
-                        0x00,
-                        PayloadType::ATConfirmation as u8,
-                        0x55,
+                        0xAAu8, 0x00, 0x02, 0x00, PayloadType::ATConfirmation as u8, 0x55,
                         ]).unwrap()));
                 } else {
                     //Normal response check if OK recived at end? else return to wait for OK to be received at end.
-                    let start_pos_remaining = match remaining.windows(1).position(|byte| byte == &[start_byte]){
+                    let start_pos_remaining = match remaining.windows(1).position(|byte| byte == &[STARTBYTE]){
                         Some(pos) => pos,
                         None => return,
                     };
@@ -89,11 +94,11 @@ pub(crate) fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
                     if remaining.len() < EDM_OVERHEAD{
                         return;
                     }
-                    let payload_len_remaining = (((remaining[1] as u16) << 8 | remaining[2] as u16) & EDM_FULL_SIZE_FILTER) as usize;
+                    let payload_len_remaining = calc_payload_len(remaining);
                     let edm_len_remaining = payload_len_remaining + EDM_OVERHEAD;
                     if remaining.len() < edm_len_remaining {
                         return;
-                    } else if remaining[edm_len_remaining -1] != end_byte{
+                    } else if remaining[edm_len_remaining -1] != ENDBYTE{
                         return;
                     }
                     if PayloadType::from(remaining[4]) == PayloadType::ATConfirmation 
@@ -110,10 +115,28 @@ pub(crate) fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
                 ingress.notify_response(resp)
             }
         },
+        PayloadType::StartEvent => {
+            let (resp, mut remaining) = ingress.buf.split_at(edm_len);
+            let mut return_val: Option<Result<ByteVec<BufLen>, Error>> = None;
+            if ingress.get_state() == State::ReceivingResponse {
+                return_val = Some(Ok(ByteVec::<BufLen>::from_slice(resp).unwrap()));
+            }
+            ingress.buf = Vec::from_slice(remaining).unwrap();
+            if let Some(resp) = return_val {
+                ingress.notify_response(resp)
+            }
+        },
         PayloadType::ATEvent=> {
             // Recived URC
             let (resp, remaining) = ingress.buf.split_at(edm_len);
-            let resp = ByteVec::<BufLen>::from_slice(resp).unwrap();
+            let (header, urc) = resp.split_at(AT_COMMAND_POSITION);
+
+            let urc_trimmed = urc.trim_start(&[b'\n', b'\r']);
+            
+            let mut resp = ByteVec::<BufLen>::from_slice(header).unwrap();
+            resp.extend(urc_trimmed);
+            resp[2] -= (urc.len() - urc_trimmed.len()) as u8;
+
             ingress.buf = Vec::from_slice(remaining).unwrap();
             ingress.notify_urc(resp);
         }
@@ -179,7 +202,7 @@ mod test {
         assert_eq!(at_pars.get_state(), State::Idle);
 
         at_pars.set_state(State::ReceivingResponse);
-                                                            //  O   K   \r   \n
+        //Payload: "OK\r\n"
         let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
         let empty_ok_response = 
             Vec::<u8, TestRxBufLen>::from_slice(&[ 0xAAu8, 0x00, 0x02, 0x00, PayloadType::ATConfirmation as u8, 0x55]).unwrap();
@@ -201,7 +224,7 @@ mod test {
         assert_eq!(at_pars.get_state(), State::Idle);
 
         at_pars.set_state(State::ReceivingResponse);
-                                                        //  E    R    R    O    R   \r   \n
+        //Payload: "ERROR\r\n"
         let data = &[0xAAu8,0x00,0x09,0x00,0x45,0x45,0x52,0x52,0x4f,0x52,0x0D,0x0a,0x55];
 
         at_pars.write(data);
@@ -221,7 +244,7 @@ mod test {
         assert_eq!(at_pars.get_state(), State::Idle);
 
         at_pars.set_state(State::ReceivingResponse);
-                                                                //  A   T   \r   \n
+        //Payload: AT\r\n
         let response = &[0xAAu8,0x00,0x06,0x00,0x45,0x41,0x54,0x0D,0x0a,0x55];
         // Data = response + trailing OK message
         let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x41,0x54,0x0D,0x0a,0x55,0xAA,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
@@ -235,6 +258,8 @@ mod test {
         assert_eq!(urc_c.dequeue(), None);
     }
 
+    // Regular response with traling regular response..
+
     #[test]
     fn urc() {
         let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
@@ -243,13 +268,18 @@ mod test {
         assert_eq!(at_pars.get_state(), State::Idle);
 
         let type_byte = PayloadType::ATEvent as u8;
-                                                            //  O   K   \r   \n
-        let data = &[0xAAu8, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
+        //Payload: "OK\r\n"
+        let data = &[
+            0xAAu8, 0x00, 0x0E, 0x00, PayloadType::ATEvent as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        let result  = &[
+            0xAAu8, 0x00, 0x0C, 0x00, PayloadType::ATEvent as u8, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
         at_pars.write(data);
         assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
         at_pars.digest();
         assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(data).unwrap()));
+        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
         assert_eq!(res_c.dequeue(), None);
     }
 
@@ -261,7 +291,7 @@ mod test {
         assert_eq!(at_pars.get_state(), State::Idle);
 
         let type_byte = PayloadType::Unknown as u8;
-                                                            //  O   K   \r   \n
+        //Payload: "OK\r\n"
         let data = &[0xAAu8, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
         at_pars.write(data);
         assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());

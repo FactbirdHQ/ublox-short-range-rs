@@ -16,7 +16,7 @@ use super::NoResponse;
 /// After executing the data mode command or the extended data mode command, a delay of 50 ms is
 /// required before start of data transmission.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("O", NoResponse, timeout_ms = 10000)]
+#[at_cmd("O", NoResponse, timeout_ms = 10000, value_sep = false)]
 pub struct ChangeMode {
     #[at_arg(position = 0)]
     pub mode: Mode,
