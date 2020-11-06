@@ -11,9 +11,10 @@ use crate::{
 
 #[derive(Debug, PartialEq)]
 pub enum WiFiState{
-    Disconnecting,
-    Disconnected,
-    Connecting,
+    /// Disconnected, Wifi off
+    Inactive,
+    /// Searching for Wifi
+    Active,
     Connected,
 }
 

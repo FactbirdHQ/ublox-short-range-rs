@@ -55,6 +55,12 @@ where
             action: WifiStationAction::Deactivate,
         }), true)?;
 
+        if let Some(ref con) = *self.wifi_connection.try_borrow()? {
+            if con.wifi_state != WiFiState::Inactive{
+                return Err(WifiConnectionError::WaitingForWifiDeactivation)
+            }
+        }
+
         // Disable DHCP Client (static IP address will be used)
         if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
             self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
@@ -125,7 +131,7 @@ where
                     group_ciphers: 0,
                     mode: WifiMode::AccessPoint
                 },
-                WiFiState::Connecting,
+                WiFiState::Inactive,
                 config_id,
             )
         );
@@ -155,14 +161,14 @@ where
     fn disconnect(&self) -> Result<(), WifiConnectionError> {
         if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
             match con.wifi_state {
-                WiFiState::Connected | WiFiState::Connecting => {
-                    con.wifi_state = WiFiState::Disconnecting;
+                WiFiState::Connected | WiFiState::Active => {
+                    // con.wifi_state = WiFiState::Inactive;
                     self.send_internal(&EdmAtCmdWrapper::new(ExecWifiStationAction{
                         config_id: 0,
                         action: WifiStationAction::Deactivate,
                     }), true)?;
                 }
-                _ => {}
+                WiFiState::Inactive => {}
             }
         } else {
             return Err(WifiConnectionError::FailedToDisconnect);

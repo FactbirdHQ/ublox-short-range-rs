@@ -4,7 +4,11 @@ use core::cell::{Cell, RefCell};
 use embedded_hal::timer::CountDown;
 use crate::{
     command::{
-        edm::EdmAtCmdWrapper,
+        edm::{
+            EdmAtCmdWrapper,
+            SwitchToEdmCommand,
+            EdmUrc,
+        },
         system::{
             SetRS232Settings,
             StoreCurrentConfig,
@@ -17,8 +21,14 @@ use crate::{
                 ChangeAfterConfirm,
             },
         },
+        data_mode::{ChangeMode, types::Mode},
         AT,
         Urc,
+        wifi::{
+            urc::{WifiLinkConnected, WifiLinkDisconnected},
+            types::DisconnectReason,
+        },
+
     },
     wifi::connection::{WifiConnection, WiFiState, NetworkState},
     error::Error,
@@ -79,12 +89,13 @@ macro_rules! size_of {
 
 pub struct UbloxClient<C, N, L>
 where
-    C: AtatClient,
+    C: atat::AtatClient,
     N: 'static + ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
     L: 'static + ArrayLength<u8>,
 {
     // pub(crate) state: Cell<State>,
     initialized: Cell<bool>,
+    edm_mode: Cell<bool>,
     serial_mode: Cell<SerialMode>,
     pub(crate) wifi_connection: RefCell<Option<WifiConnection>>,
     pub(crate) client: RefCell<C>,
@@ -93,7 +104,7 @@ where
 
 impl<C, N, L> UbloxClient<C, N, L>
 where
-    C: AtatClient,
+    C: atat::AtatClient,
     N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
     L: ArrayLength<u8>,
 {
@@ -103,6 +114,7 @@ where
     ) -> Self {
         UbloxClient {
             // state: Cell::new(State::Uninitialized),
+            edm_mode: Cell::new(false),
             initialized: Cell::new(false),
             serial_mode: Cell::new(SerialMode::Cmd),
             wifi_connection: RefCell::new(None),
@@ -120,6 +132,14 @@ where
         // size_of!(Packet);
 
         // self.state.set(State::Initializing);
+
+        //Switch to EDM on Init. If in EDM, fail and check with autosense
+        if self.edm_mode.get() != true {
+            self.send_internal(&SwitchToEdmCommand, true)?;
+            self.edm_mode.set(true);
+        }
+        //TODO: handle error
+        // self.autosense()?;
 
         self.send_internal(&EdmAtCmdWrapper::new(SetRS232Settings {
             baud_rate: BaudRate::B115200,
@@ -298,91 +318,128 @@ where
     }
 
     fn handle_urc(&self) -> Result<(), Error> {
-        let urc = self.client.try_borrow_mut()?.check_urc::<Urc>();
+        let edm_urc = self.client.try_borrow_mut()?.check_urc::<EdmUrc>();
 
-        match urc {
-            Some(Urc::PeerConnected(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] PeerConnected");
-                Ok(())
-            }
-            Some(Urc::PeerDisconnected(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] PeerDisconnected");
-                Ok(())
-            }
-            Some(Urc::WifiLinkConnected(msg)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] WifiLinkConnected");
-                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                        con.wifi_state = WiFiState::Connected;
-                        con.network.bssid = msg.bssid;
-                        con.network.channel = msg.channel;
+        match edm_urc {
+            Some(EdmUrc::ATEvent(urc)) => {
+                match urc {
+                    Urc::PeerConnected(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] PeerConnected");
+                        Ok(())
+                    }
+                    Urc::PeerDisconnected(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] PeerDisconnected");
+                        Ok(())
+                    }
+                    Urc::WifiLinkConnected(msg) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] WifiLinkConnected");
+                        if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+                                con.wifi_state = WiFiState::Connected;
+                                con.network.bssid = msg.bssid;
+                                con.network.channel = msg.channel;
+                        }
+                        Ok(())
+                    }
+                    Urc::WifiLinkDisconnected(msg) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] WifiLinkDisconnected");
+                        if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+                            // con.sockets.prune();
+                            match msg.reason{
+                                DisconnectReason::NetworkDisabled => {
+                                    con.wifi_state = WiFiState::Inactive;
+                                }
+                                DisconnectReason::SecurityProblems => {
+                                    #[cfg(feature = "logging")]
+                                    log::error!("Wifi Security Problems");
+                                }
+                                _ => {
+                                    con.wifi_state = WiFiState::Active;
+                                }
+                            }
+                        }
+                        Ok(())
+                    }
+                    Urc::WifiAPUp(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] WifiAPUp");
+                        Ok(())
+                    }
+                    Urc::WifiAPDown(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] WifiAPDown");
+                        Ok(())
+                    }
+                    Urc::WifiAPStationConnected(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] WifiAPStationConnected");
+                        Ok(())
+                    }
+                    Urc::WifiAPStationDisconnected(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] WifiAPStationDisconnected");
+                        Ok(())
+                    }
+                    Urc::EthernetLinkUp(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] EthernetLinkUp");
+                        Ok(())
+                    }
+                    Urc::EthernetLinkDown(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] EthernetLinkDown");
+                        Ok(())
+                    }
+                    Urc::NetworkUp(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] NetworkUp");
+                        if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+                            con.network_state = NetworkState::Attached;
+                        }
+                        Ok(())
+                    }
+                    Urc::NetworkDown(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] NetworkDown");
+                        if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+                            con.network_state = NetworkState::Unattached;
+                        }
+                        Ok(())
+                    }
+                    Urc::NetworkError(_) => {
+                        #[cfg(feature = "logging")]
+                        log::debug!("[URC] NetworkError");
+                        Ok(())
+                    }
                 }
+            }, // end match urc
+            Some(EdmUrc::StartUp) => {
+                #[cfg(feature = "logging")]
+                log::debug!("[URC] STARTUP");
+                self.initialized.set(false);
+                self.edm_mode.set(false);
+                Ok(())
+            },
+            Some(EdmUrc::ConnectEvent) => {
+                #[cfg(feature = "logging")]
+                log::debug!("[EDM_URC] ConnectError");
                 Ok(())
             }
-            Some(Urc::WifiLinkDisconnected(_)) => {
+            Some(EdmUrc::DisconnectEvent) => {
                 #[cfg(feature = "logging")]
-                log::info!("[URC] WifiLinkDisconnected");
-                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                    // con.sockets.prune();
-                    con.wifi_state = WiFiState::Disconnected;
-                }
+                log::debug!("[EDM_URC] DisconnectEvent");
                 Ok(())
             }
-            Some(Urc::WifiAPUp(_)) => {
+            Some(EdmUrc::DataEvent) => {
                 #[cfg(feature = "logging")]
-                log::info!("[URC] WifiAPUp");
-                Ok(())
-            }
-            Some(Urc::WifiAPDown(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] WifiAPDown");
-                Ok(())
-            }
-            Some(Urc::WifiAPStationConnected(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] WifiAPStationConnected");
-                Ok(())
-            }
-            Some(Urc::WifiAPStationDisconnected(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] WifiAPStationDisconnected");
-                Ok(())
-            }
-            Some(Urc::EthernetLinkUp(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] EthernetLinkUp");
-                Ok(())
-            }
-            Some(Urc::EthernetLinkDown(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] EthernetLinkDown");
-                Ok(())
-            }
-            Some(Urc::NetworkUp(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] NetworkUp");
-                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                    con.network_state = NetworkState::Attached;
-                }
-                Ok(())
-            }
-            Some(Urc::NetworkDown(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] NetworkDown");
-                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                    con.network_state = NetworkState::Unattached;
-                }
-                Ok(())
-            }
-            Some(Urc::NetworkError(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] NetworkError");
+                log::debug!("[EDM_URC] NetworkError");
                 Ok(())
             }
             None => Ok(()),
-        }
+        }// end match emd-urc
     }
 
         pub fn send_at<A: atat::AtatCmd>(&mut self, cmd: &A) -> Result<A::Response, Error> {

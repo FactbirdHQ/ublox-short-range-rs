@@ -154,6 +154,10 @@ where
     fn force_receive_state(&self) -> bool {
         true
     }
+
+    fn max_timeout_ms(&self) -> u32 {
+        self.at_command.max_timeout_ms()
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -172,8 +176,8 @@ impl AtatUrc for EdmUrc{
 
     /// Parse the response into a `Self::Response` instance.
     fn parse(resp: &[u8]) -> Result<Self::Response, atat::Error>{
-        #[cfg(feature = "logging")]
-        log::info!("[Parse URC] {:?}", resp);
+        // #[cfg(feature = "logging")]
+        // log::info!("[Parse URC] {:?}", resp);
         //Startup message?
         if resp.windows(STARTUPMESSAGE.len()).position(|window| window == STARTUPMESSAGE) == Some(0){
             return Ok(EdmUrc::StartUp);
@@ -182,28 +186,28 @@ impl AtatUrc for EdmUrc{
         if resp.len() < PAYLOAD_OVERHEAD
             || !resp.starts_with(&[STARTBYTE])
             || !resp.ends_with(&[ENDBYTE]) {
-            #[cfg(feature = "logging")]
-            log::info!("[Parse URC Error] {:?}", resp);
+            // #[cfg(feature = "logging")]
+            // log::info!("[Parse URC Error] {:?}", resp);
             return Err(atat::Error::InvalidResponse);
         };
         let payload_len = calc_payload_len(resp);
         if resp.len() != payload_len + EDM_OVERHEAD {
-            #[cfg(feature = "logging")]
-            log::info!("[Parse URC Error] {:?}", resp);
+            // #[cfg(feature = "logging")]
+            // log::info!("[Parse URC Error] {:?}", resp);
             return Err(atat::Error::InvalidResponse);
         }
 
         match resp[4].into() {
             PayloadType::ATEvent => {
-                #[cfg(feature = "logging")]
-                log::info!("[Parse URC AT-CMD]: {:?}", &resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len]);
+                // #[cfg(feature = "logging")]
+                // log::info!("[Parse URC AT-CMD]: {:?}", &resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len]);
                 let cmd = Urc::parse(&resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len])?;
                 Ok(EdmUrc::ATEvent(cmd))
             }
             
             _ => {
-                #[cfg(feature = "logging")]
-                log::info!("[Parse URC Error] {:?}", resp);
+                // #[cfg(feature = "logging")]
+                // log::info!("[Parse URC Error] {:?}", resp);
                 Err(atat::Error::InvalidResponse)
             }
         }
@@ -323,8 +327,9 @@ mod test {
         // AT-urc: +UUDPD:3
         let resp = &[ 
             // 0xAAu8, 0x00, 0x0E, 0x00, PayloadType::ATEvent as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-            0xAAu8, 0x00, 0x0C, 0x00, PayloadType::ATEvent as u8, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-        ];
+            // 0xAAu8, 0x00, 0x0C, 0x00, PayloadType::ATEvent as u8, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+            0xAAu8, 0x00, 0x1B, 0x00, 0x41, 0x2B, 0x55, 0x55, 0x57, 0x4C, 0x45, 0x3A, 0x30, 0x2C, 0x33, 0x32, 0x41, 0x42, 0x36, 0x41, 0x37, 0x41, 0x34, 0x30, 0x34, 0x34, 0x2C, 0x31, 0x0D, 0x0A, 0x55,
+            ];
         let urc = EdmUrc::ATEvent(
             Urc::PeerDisconnected(PeerDisconnected{ handle: 3 })
         );    

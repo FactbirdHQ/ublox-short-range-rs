@@ -16,7 +16,7 @@ pub enum OnOff {
 #[repr(u16)]
 pub enum WifiStationConfigParameter {
     /// <param_val1> decides if the station is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     ActiveOnStartup = 0,
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default value is an
@@ -119,7 +119,7 @@ pub enum WifiStationConfigParameter {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum WifiStationConfig<'a> {
     /// <param_val1> decides if the station is active on start up.
-    /// • Off (default): inactive
+    /// • Off (default): Inactive
     /// • On: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
@@ -253,7 +253,7 @@ pub enum WifiStationConfig<'a> {
 #[repr(u8)]
 pub enum WifiStationConfigR {
     /// <param_val1> decides if the station is active on start up.
-    /// • Off (default): inactive
+    /// • Off (default): Inactive
     /// • On: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
@@ -915,7 +915,7 @@ pub enum AccessPointId {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum AccessPointConfig<'a> {
     /// <param_val1> decides if the access point is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
@@ -1071,7 +1071,7 @@ pub enum AccessPointConfig<'a> {
 #[repr(u16)]
 pub enum AccessPointConfigParameter {
     /// <param_val1> decides if the access point is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     ActiveOnStartup = 0,
     /// SSID - <param_val1> is the Service Set identification of the access point. The
@@ -1196,7 +1196,7 @@ pub enum AccessPointConfigParameter {
 #[repr(u16)]
 pub enum AccessPointConfigResponse {
     /// <param_val1> decides if the access point is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),

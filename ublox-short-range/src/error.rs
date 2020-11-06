@@ -60,7 +60,7 @@ pub enum WifiConnectionError {
     Other {
         kind: WifiError,
     },
-
+    WaitingForWifiDeactivation,
     BufferOverflow,
     // SsidNotFound,
     BorrowError(core::cell::BorrowError),

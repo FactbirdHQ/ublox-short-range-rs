@@ -15,7 +15,7 @@ pub enum OnOff {
 #[repr(u8)]
 pub enum EthernetConfigParameter {
     /// <param_val> decides if the network is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     ActiveOnStartup = 0,
     /// <param_val> Phy support mode
@@ -67,7 +67,7 @@ pub enum EthernetConfigParameter {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum EthernetConfig {
     /// <param_val> decides if the network is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
@@ -132,7 +132,7 @@ pub enum EthernetConfig {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum EthernetConfigR {
     /// <param_val> decides if the network is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
