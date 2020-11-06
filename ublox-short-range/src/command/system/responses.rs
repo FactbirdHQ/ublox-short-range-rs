@@ -4,7 +4,7 @@ use atat::atat_derive::AtatResp;
 use heapless::{consts, String};
 
 /// 4.11 Software update +UFWUPD
-#[derive(Clone, AtatResp)]
+#[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct SoftwareUpdateResponse {
     /// Should contain CCC and then the software updater boots up
     #[at_arg(position = 0)]
@@ -12,7 +12,7 @@ pub struct SoftwareUpdateResponse {
 }
 
 /// 4.14 Read Local address +UMLA
-#[derive(Clone, AtatResp)]
+#[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct LocalAddressResponse {
     /// MAC address of the interface id. If the address is set to 000000000000, the local
     /// address will be restored to factory-programmed value.
@@ -21,7 +21,7 @@ pub struct LocalAddressResponse {
 }
 
 /// 4.15 System status +UMSTAT
-#[derive(Clone, AtatResp)]
+#[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct SystemStatusResponse {
     #[at_arg(position = 0)]
     pub status_id: StatusID,
@@ -29,7 +29,7 @@ pub struct SystemStatusResponse {
     pub status_val: u32,
 }
 /// 4.19 LPO detection +UMLPO
-#[derive(Clone, AtatResp)]
+#[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct LPODetectionResponse {
     #[at_arg(position = 0)]
     pub lpo_detection: LPODetection,

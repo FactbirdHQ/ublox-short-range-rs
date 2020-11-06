@@ -3,7 +3,7 @@
 use atat::atat_derive::AtatEnum;
 use heapless::{consts, String, Vec};
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum Mode {
     /// Turn off
@@ -13,7 +13,7 @@ pub enum Mode {
 }
 
 /// DTR behavior
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum DTRMode {
     /// DTR line is ignored.
@@ -29,7 +29,7 @@ pub enum DTRMode {
     DisconnectPeers = 2,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum DSRAssertMode {
     /// ASSERT DSR
@@ -45,7 +45,7 @@ pub enum DSRAssertMode {
 }
 
 /// Echo on
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum EchoOn {
     ///  Unit does not echo the characters in command mode
@@ -54,14 +54,14 @@ pub enum EchoOn {
     On = 1,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum SoftwareUpdateMode {
     ///  u-connect software update using serial port
     SoftwareUpdate = 0,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[at_enum(u32)]
 pub enum SoftwareUpdateBaudRate {
     /// Default
@@ -70,7 +70,7 @@ pub enum SoftwareUpdateBaudRate {
     B460800 = 460800,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum ModuleStartMode {
     /// Default
@@ -80,7 +80,7 @@ pub enum ModuleStartMode {
     PPPMode = 3,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum InserfaceID {
     Bluetooth = 0,
@@ -88,7 +88,7 @@ pub enum InserfaceID {
     Ethernet = 2,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum StatusID {
     /// The <status_val>is the uptime in seconds. That is, the seconds since last reboot
@@ -99,7 +99,7 @@ pub enum StatusID {
     SavedStatus = 1,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[at_enum(u32)]
 /// ODIN-W2:
 /// 19200 - 5250000. The module will set a baud rate as close as possible to the
@@ -122,7 +122,7 @@ pub enum BaudRate {
     B5250000 = 5250000,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum FlowControl {
     /// (Default) CTS/RTS used for flow control
@@ -131,7 +131,7 @@ pub enum FlowControl {
     Off = 2,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum StopBits {
     /// (Default): 1 stop bit
@@ -140,7 +140,7 @@ pub enum StopBits {
     Two = 2,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum Parity {
     /// (Default) no parity
@@ -151,7 +151,7 @@ pub enum Parity {
     Even = 3,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 /// When operating in the extended data mode, the change_after_confirm has no
 /// direct effect. Settings must be stored to the profile and the module must be
@@ -164,7 +164,7 @@ pub enum ChangeAfterConfirm {
     ChangeAfterOK = 1,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum PowerRegulatorSettings {
     /// Switch automatically between DC/DC and LDO regulators.
@@ -173,7 +173,7 @@ pub enum PowerRegulatorSettings {
     LDO = 1,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum LPODetection {
     Detected = 1,
