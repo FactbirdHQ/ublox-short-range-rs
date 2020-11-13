@@ -4,6 +4,7 @@ use atat::atat_derive::AtatResp;
 use heapless::{consts, String};
 use super::types::*;
 use no_std_net::IpAddr;
+use atat::serde_at::CharVec;
 
 /// 7.15 Wi-Fi Link connected +UUWLE
 #[derive(Debug, PartialEq, Clone, AtatResp)]
@@ -11,7 +12,7 @@ pub struct WifiLinkConnected {
     #[at_arg(position = 0)]
     pub connection_id: u32,
     #[at_arg(position = 1)]
-    pub bssid: String<consts::U64>,
+    pub bssid: CharVec<consts::U20>,
     #[at_arg(position = 2)]
     pub channel: u8,
 }

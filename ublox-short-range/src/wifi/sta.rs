@@ -1,4 +1,5 @@
 use atat::AtatClient;
+use atat::serde_at::CharVec;
 use crate::{
     client::{UbloxClient, State},
     command::{*, 
@@ -121,7 +122,7 @@ where
         *self.wifi_connection.try_borrow_mut()? = Some(
             WifiConnection::new(
                 WifiNetwork {
-                    bssid: String::new(),
+                    bssid: CharVec::new(),
                     op_mode: wifi::types::OperationMode::AdHoc,
                     ssid: options.ssid,
                     channel: 0,

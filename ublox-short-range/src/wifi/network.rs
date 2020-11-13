@@ -1,3 +1,4 @@
+use atat::serde_at::CharVec;
 use crate::command::{
     wifi::types::{
         OperationMode,
@@ -18,7 +19,7 @@ pub enum WifiMode {
 
 #[derive(Debug)]
 pub struct WifiNetwork {
-    pub bssid: String<consts::U64>,
+    pub bssid: CharVec<consts::U20>,
     pub op_mode: OperationMode,
     pub ssid: String<consts::U64>,
     pub channel: u8,
