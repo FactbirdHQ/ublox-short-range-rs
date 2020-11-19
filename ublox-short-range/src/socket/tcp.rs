@@ -1,7 +1,8 @@
 use heapless::ArrayLength;
+use embedded_nal::{SocketAddr, SocketAddrV4, Ipv4Addr};
 
 use super::{Error, Result};
-use crate::socket::{RingBuffer, Socket, SocketHandle, SocketMeta};
+use crate::socket::{RingBuffer, Socket, SocketHandle, SocketMeta, ChannelId};
 
 /// A TCP socket ring buffer.
 pub type SocketBuffer<N> = RingBuffer<u8, N>;
@@ -29,6 +30,7 @@ impl Default for State {
 /// attempts will be reset.
 pub struct TcpSocket<L: ArrayLength<u8>> {
     pub(crate) meta: SocketMeta,
+    pub(crate) endpoint: SocketAddr,
     state: State,
     rx_buffer: SocketBuffer<L>,
 }
@@ -37,10 +39,11 @@ impl<L: ArrayLength<u8>> TcpSocket<L> {
     #[allow(unused_comparisons)] // small usize platforms always pass rx_capacity check
     /// Create a socket using the given buffers.
     pub fn new(socket_id: usize) -> TcpSocket<L> {
+        let mut meta = SocketMeta::default();
+        meta.handle.0 = socket_id;
         TcpSocket {
-            meta: SocketMeta {
-                handle: SocketHandle(socket_id),
-            },
+            meta,
+            endpoint: SocketAddrV4::new(Ipv4Addr::unspecified(), 0).into(),
             state: State::Closed,
             rx_buffer: SocketBuffer::new(),
         }
@@ -50,6 +53,18 @@ impl<L: ArrayLength<u8>> TcpSocket<L> {
     #[inline]
     pub fn handle(&self) -> SocketHandle {
         self.meta.handle
+    }
+
+    /// Return the socket channel id.
+    #[inline]
+    pub fn channel_id(&self) -> ChannelId {
+        self.meta.channel_id
+    }
+
+    /// Return the socket endpoint.
+    #[inline]
+    pub fn endpoint(&self) -> SocketAddr {
+        self.endpoint
     }
 
     /// Return the connection state, in terms of the TCP state machine.

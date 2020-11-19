@@ -1,4 +1,4 @@
-use super::SocketHandle;
+use super::{SocketHandle, ChannelId};
 
 /// Network socket metadata.
 ///
@@ -9,4 +9,5 @@ pub struct Meta {
     /// Handle of this socket within its enclosing `SocketSet`.
     /// Mainly useful for debug output.
     pub(crate) handle: SocketHandle,
+    pub(crate) channel_id: ChannelId,
 }

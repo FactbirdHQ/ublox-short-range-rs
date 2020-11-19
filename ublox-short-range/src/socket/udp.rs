@@ -22,10 +22,10 @@ pub struct UdpSocket<L: ArrayLength<u8>> {
 impl<L: ArrayLength<u8>> UdpSocket<L> {
     /// Create an UDP socket with the given buffers.
     pub fn new(socket_id: usize) -> UdpSocket<L> {
+        let mut meta = SocketMeta::default();
+        meta.handle.0 = socket_id;
         UdpSocket {
-            meta: SocketMeta {
-                handle: SocketHandle(socket_id),
-            },
+            meta,
             endpoint: SocketAddrV4::new(Ipv4Addr::unspecified(), 0).into(),
             rx_buffer: SocketBuffer::new(),
         }

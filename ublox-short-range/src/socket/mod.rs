@@ -8,13 +8,14 @@ pub mod udp;
 pub(crate) use self::meta::Meta as SocketMeta;
 pub use self::ring_buffer::RingBuffer;
 use heapless::ArrayLength;
+use embedded_nal::SocketAddr;
 
 #[cfg(feature = "socket-tcp")]
 pub use tcp::{State as TcpState, TcpSocket};
 #[cfg(feature = "socket-udp")]
 pub use udp::UdpSocket;
 
-pub use self::set::{Handle as SocketHandle, Item as SocketSetItem, Set as SocketSet};
+pub use self::set::{Handle as SocketHandle, Item as SocketSetItem, Set as SocketSet, ChannelId};
 
 pub use self::ref_::Ref as SocketRef;
 pub(crate) use self::ref_::Session as SocketSession;
@@ -107,8 +108,18 @@ impl<L: ArrayLength<u8>> Socket<L> {
         self.meta().handle
     }
 
+    /// Return the socket channel id.
+    #[inline]
+    pub fn channel_id(&self) -> ChannelId {
+        self.meta().channel_id
+    }
+
     pub(crate) fn meta(&self) -> &SocketMeta {
         dispatch_socket!(self, |socket| &socket.meta)
+    }
+
+    pub(crate) fn endpoint(&self) -> &SocketAddr {
+        dispatch_socket!(self, |socket| &socket.endpoint)
     }
 
     // pub(crate) fn meta_mut(&mut self) -> &mut SocketMeta {
