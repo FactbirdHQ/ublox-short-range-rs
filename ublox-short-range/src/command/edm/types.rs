@@ -7,6 +7,7 @@ use super::calc_payload_len;
 
 pub type EdmAtCmdOverhead = atat::heapless::consts::U6;
 pub type ChannelId = u8;
+pub type DataPackageSize = consts::U256;
 
 pub const STARTBYTE: u8 = 0xAA;
 pub const ENDBYTE: u8 = 0x55;
@@ -103,7 +104,7 @@ pub struct IPv6ConnectEvent{
 #[derive(Debug, PartialEq)]
 pub struct DataEvent{
     pub channel_id: ChannelId,
-    pub data: Vec<u8, consts::U256>,
+    pub data: Vec<u8, DataPackageSize>,
 }
 
 #[derive(Debug, PartialEq)]

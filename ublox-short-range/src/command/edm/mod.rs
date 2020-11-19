@@ -9,6 +9,7 @@ use atat::{AtatCmd, AtatLen, AtatResp};
 use crate::command::{data_mode::ChangeMode, data_mode};
 use crate::command::{Urc, NoResponse};
 use types::*;
+use heapless::{consts, Vec};
 
 #[inline]
 pub(crate) fn calc_payload_len(resp: &[u8]) -> usize{
@@ -105,7 +106,7 @@ pub struct EdmDataCommand<'a>{
 
 impl<'a> atat::AtatCmd for EdmDataCommand<'a>{
     type Response = NoResponse;
-    type CommandLen = atat::heapless::consts::U256;
+    type CommandLen = <DataPackageSize as core::ops::Add<consts::U7>>::Output;
 
     fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
         let mut s: atat::heapless::Vec<u8, Self::CommandLen> = atat::heapless::Vec::new();

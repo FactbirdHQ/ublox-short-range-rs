@@ -4,7 +4,7 @@ use atat::ingress_manager::{
     get_line, IngressManager, SliceExt, State, UrcMatcher, UrcMatcherResult, ByteVec,
 };
 use atat::queues::{ComItem, ResItem, UrcItem};
-use atat::heapless::{ArrayLength, Vec};
+use heapless::{ArrayLength, Vec};
 use crate::command::edm::{
     calc_payload_len,
     types::{AT_COMMAND_POSITION, EDM_OVERHEAD, EDM_FULL_SIZE_FILTER, STARTUPMESSAGE, STARTBYTE, ENDBYTE, PayloadType},
@@ -161,7 +161,7 @@ mod test {
     use atat::ingress_manager::{NoopUrcMatcher, ByteVec};
     use atat::queues::{ComQueue, ResQueue, UrcQueue};
     use atat::{Mode, Config};
-    use atat::heapless::{consts, spsc::Queue};
+    use heapless::{consts, spsc::Queue};
 
     type TestRxBufLen = consts::U256;
     type TestComCapacity = consts::U3;

@@ -116,8 +116,8 @@ impl AtatUrc for EdmEvent{
                 if payload_len < 4  {
                     return Err(atat::Error::InvalidResponse)
                 }
-                // Vec<u8, consts::U256> 
-                let vec:  Vec<u8, consts::U256> = Vec::from_slice(&resp[6..payload_len + 3]).map_err(|_e| atat::Error::InvalidResponse)?;
+                 
+                let vec:  Vec<u8, DataPackageSize> = Vec::from_slice(&resp[6..payload_len + 3]).map_err(|_e| atat::Error::InvalidResponse)?;
                 let event = DataEvent{channel_id: resp[5], data: vec};
                 Ok(EdmEvent::DataEvent(event))
             }
