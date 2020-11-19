@@ -7,7 +7,7 @@ use crate::{
         edm::{
             EdmAtCmdWrapper,
             SwitchToEdmCommand,
-            EdmUrc,
+            urc::EdmEvent,
         },
         system::{
             SetRS232Settings,
@@ -138,9 +138,9 @@ where
             self.send_internal(&SwitchToEdmCommand, true)?;
             self.edm_mode.set(true);
         }
-        //TODO: handle error
         // self.autosense()?;
-
+        
+        //TODO: handle EDM settings quirk see EDM datasheet: 2.2.5.1 AT Request Serial settings
         self.send_internal(&EdmAtCmdWrapper::new(SetRS232Settings {
             baud_rate: BaudRate::B115200,
             flow_control: FlowControl::Off,
@@ -318,10 +318,10 @@ where
     }
 
     fn handle_urc(&self) -> Result<(), Error> {
-        let edm_urc = self.client.try_borrow_mut()?.check_urc::<EdmUrc>();
+        let edm_urc = self.client.try_borrow_mut()?.check_urc::<EdmEvent>();
 
         match edm_urc {
-            Some(EdmUrc::ATEvent(urc)) => {
+            Some(EdmEvent::ATEvent(urc)) => {
                 match urc {
                     Urc::PeerConnected(_) => {
                         #[cfg(feature = "logging")]
@@ -416,26 +416,36 @@ where
                     }
                 }
             }, // end match urc
-            Some(EdmUrc::StartUp) => {
+            Some(EdmEvent::StartUp) => {
                 #[cfg(feature = "logging")]
                 log::debug!("[URC] STARTUP");
                 self.initialized.set(false);
                 self.edm_mode.set(false);
                 Ok(())
             },
-            Some(EdmUrc::ConnectEvent) => {
+            Some(EdmEvent::IPv4ConnectEvent(event)) => {
                 #[cfg(feature = "logging")]
-                log::debug!("[EDM_URC] ConnectError");
+                log::debug!("[EDM_URC] IPv4ConnectEvent");
                 Ok(())
             }
-            Some(EdmUrc::DisconnectEvent) => {
+            Some(EdmEvent::IPv6ConnectEvent(event)) => {
+                #[cfg(feature = "logging")]
+                log::debug!("[EDM_URC] IPv6ConnectEvent");
+                Ok(())
+            }
+            Some (EdmEvent::BluetoothConnectEvent(_)) => {
+                #[cfg(feature = "logging")]
+                log::debug!("[EDM_URC] BluetoothConnectEvent");
+                Ok(())
+            }
+            Some(EdmEvent::DisconnectEvent(channel_id)) => {
                 #[cfg(feature = "logging")]
                 log::debug!("[EDM_URC] DisconnectEvent");
                 Ok(())
             }
-            Some(EdmUrc::DataEvent) => {
+            Some(EdmEvent::DataEvent(event)) => {
                 #[cfg(feature = "logging")]
-                log::debug!("[EDM_URC] NetworkError");
+                log::debug!("[EDM_URC] DataEvent");
                 Ok(())
             }
             None => Ok(()),

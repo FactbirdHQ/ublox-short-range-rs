@@ -5,7 +5,10 @@ use atat::ingress_manager::{
 };
 use atat::queues::{ComItem, ResItem, UrcItem};
 use atat::heapless::{ArrayLength, Vec};
-use crate::command::edm::{AT_COMMAND_POSITION, EDM_OVERHEAD, EDM_FULL_SIZE_FILTER, STARTUPMESSAGE, STARTBYTE, ENDBYTE, PayloadType, calc_payload_len};
+use crate::command::edm::{
+    calc_payload_len,
+    types::{AT_COMMAND_POSITION, EDM_OVERHEAD, EDM_FULL_SIZE_FILTER, STARTUPMESSAGE, STARTBYTE, ENDBYTE, PayloadType},
+};
 
 /// Custom function to process the receive buffer, checking for AT responses, URC's or errors
 ///
@@ -154,7 +157,7 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::command::edm::{STARTBYTE, ENDBYTE};
+    use crate::command::edm::types::{STARTBYTE, ENDBYTE};
     use atat::ingress_manager::{NoopUrcMatcher, ByteVec};
     use atat::queues::{ComQueue, ResQueue, UrcQueue};
     use atat::{Mode, Config};
