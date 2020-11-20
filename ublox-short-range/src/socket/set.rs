@@ -18,7 +18,7 @@ pub struct Handle(pub usize);
 
 /// A channel id, identifying a socket in a set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
-pub struct ChannelId(pub usize);
+pub struct ChannelId(pub u8);
 
 /// An extensible set of sockets.
 #[derive(Default)]
@@ -66,6 +66,46 @@ where
         match self.sockets.iter().find_map(|i| {
             if let Some(ref s) = i {
                 if s.socket.handle().0 == handle.0 {
+                    Some(s)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }) {
+            Some(item) => Some(item.socket.get_type()),
+            None => None,
+        }
+    }
+
+    /// Get the type of a specific socket in the set.
+    ///
+    /// Returned as a [`SocketType`]
+    pub fn socket_type_by_channel_id(&self, channel_id: ChannelId) -> Option<SocketType> {
+        match self.sockets.iter().find_map(|i| {
+            if let Some(ref s) = i {
+                if s.socket.channel_id().0 == channel_id.0 {
+                    Some(s)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }) {
+            Some(item) => Some(item.socket.get_type()),
+            None => None,
+        }
+    }
+
+    /// Get the type of a specific socket in the set.
+    ///
+    /// Returned as a [`SocketType`]
+    pub fn socket_type_by_endpoint(&self, endpoint: &SocketAddr) -> Option<SocketType> {
+        match self.sockets.iter().find_map(|i| {
+            if let Some(ref s) = i {
+                if s.socket.endpoint() == endpoint {
                     Some(s)
                 } else {
                     None
