@@ -100,8 +100,8 @@ where
 
 #[derive(Debug, Clone)]
 pub struct EdmDataCommand<'a>{
-    channel: u8,
-    data: &'a[u8],
+    pub channel: u8,
+    pub data: &'a[u8],
 }
 
 impl<'a> atat::AtatCmd for EdmDataCommand<'a>{

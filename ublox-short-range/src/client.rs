@@ -2,6 +2,7 @@ use atat::AtatClient;
 use atat::atat_derive::{AtatCmd, AtatResp};
 use core::cell::{Cell, RefCell};
 use embedded_hal::timer::CountDown;
+use embedded_nal::{SocketAddr, IpAddr};
 use crate::{
     command::{
         edm::{
@@ -33,6 +34,7 @@ use crate::{
     wifi::connection::{WifiConnection, WiFiState, NetworkState},
     error::Error,
     sockets::SocketSet,
+    socket::{ChannelId, SocketType, TcpSocket, UdpSocket, SocketHandle},
 };
 use heapless::{consts, ArrayLength, String};
     
@@ -77,15 +79,15 @@ pub enum SerialMode {
     ExtendedData,
 }
 
-macro_rules! size_of {
-    ($type:ident) => {
-        log::info!(
-            "Size of {}: {:?}",
-            stringify!($type),
-            core::mem::size_of::<$type>()
-        );
-    };
-}
+// macro_rules! size_of {
+//     ($type:ident) => {
+//         log::info!(
+//             "Size of {}: {:?}",
+//             stringify!($type),
+//             core::mem::size_of::<$type>()
+//         );
+//     };
+// }
 
 pub struct UbloxClient<C, N, L>
 where
@@ -94,7 +96,7 @@ where
     L: 'static + ArrayLength<u8>,
 {
     // pub(crate) state: Cell<State>,
-    initialized: Cell<bool>,
+    pub(crate) initialized: Cell<bool>,
     edm_mode: Cell<bool>,
     serial_mode: Cell<SerialMode>,
     pub(crate) wifi_connection: RefCell<Option<WifiConnection>>,
@@ -426,14 +428,42 @@ where
             Some(EdmEvent::IPv4ConnectEvent(event)) => {
                 #[cfg(feature = "logging")]
                 log::debug!("[EDM_URC] IPv4ConnectEvent");
+                let mut sockets = self.sockets.try_borrow_mut()?;
+                let endpoint = SocketAddr::new(IpAddr::V4(event.remote_ip), event.remote_port);
+                match sockets.socket_type_by_endpoint(&endpoint) {
+                    Some(SocketType::Tcp) => {
+                        let mut tcp = sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint)?;
+                        tcp.meta.channel_id.0 = event.channel_id;
+                    }
+                    Some(SocketType::Udp) => {
+                        let mut udp = sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)?;
+                        udp.meta.channel_id.0 = event.channel_id;
+                        
+                    }
+                    _ => return Ok(()),
+                }
                 Ok(())
             }
             Some(EdmEvent::IPv6ConnectEvent(event)) => {
                 #[cfg(feature = "logging")]
                 log::debug!("[EDM_URC] IPv6ConnectEvent");
+                let mut sockets = self.sockets.try_borrow_mut()?;
+                let endpoint = SocketAddr::new(IpAddr::V6(event.remote_ip), event.remote_port);
+                match sockets.socket_type_by_endpoint(&endpoint) {
+                    Some(SocketType::Tcp) => {
+                        let mut tcp = sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint)?;
+                        tcp.meta.channel_id.0 = event.channel_id;
+                    }
+                    Some(SocketType::Udp) => {
+                        let mut udp = sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)?;
+                        udp.meta.channel_id.0 = event.channel_id;
+                        
+                    }
+                    _ => return Ok(()),
+                }
                 Ok(())
             }
-            Some (EdmEvent::BluetoothConnectEvent(_)) => {
+            Some(EdmEvent::BluetoothConnectEvent(_)) => {
                 #[cfg(feature = "logging")]
                 log::debug!("[EDM_URC] BluetoothConnectEvent");
                 Ok(())
@@ -441,18 +471,35 @@ where
             Some(EdmEvent::DisconnectEvent(channel_id)) => {
                 #[cfg(feature = "logging")]
                 log::debug!("[EDM_URC] DisconnectEvent");
+                let mut sockets = self.sockets.try_borrow_mut()?;
+                let mut handle = SocketHandle(0);
+                match sockets.socket_type_by_channel_id(ChannelId(channel_id)) {
+                    Some(SocketType::Tcp) => {
+                        let mut tcp = sockets.get_by_channel::<TcpSocket<_>>(ChannelId(channel_id))?;
+                        handle = tcp.handle();
+                        tcp.close();
+                    }
+                    Some(SocketType::Udp) => {
+                        let mut udp = sockets.get_by_channel::<UdpSocket<_>>(ChannelId(channel_id))?;
+                        handle = udp.handle();
+                        udp.close();
+                    }
+                    _ => return Ok(()),
+                }
+                sockets.remove(handle)?;
                 Ok(())
             }
             Some(EdmEvent::DataEvent(event)) => {
                 #[cfg(feature = "logging")]
                 log::debug!("[EDM_URC] DataEvent");
+                self.socket_ingress(ChannelId(event.channel_id), &event.data).ok();
                 Ok(())
             }
             None => Ok(()),
         }// end match emd-urc
     }
 
-        pub fn send_at<A: atat::AtatCmd>(&mut self, cmd: &A) -> Result<A::Response, Error> {
+    pub fn send_at<A: atat::AtatCmd>(&mut self, cmd: &A) -> Result<A::Response, Error> {
         if !self.initialized.get() {
             self.init()?;
         }

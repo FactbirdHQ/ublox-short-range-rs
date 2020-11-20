@@ -41,7 +41,7 @@ pub struct ConnectPeer <'a> {
 #[at_cmd("+UDCPC", NoResponse, timeout_ms = 10000)]
 pub struct ClosePeerConnection {
     #[at_arg(position = 0)]
-    pub peer_handle: u32,
+    pub peer_handle: usize,
 }
 
 /// 5.4 Default remote peer +UDDRP

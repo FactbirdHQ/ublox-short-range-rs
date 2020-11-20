@@ -48,6 +48,10 @@ impl WifiConnection
         }
     }
 
+    pub(crate) fn is_connected(&self) -> bool {
+        self.network_state == NetworkState::Attached && self.wifi_state == WiFiState::Connected
+    }
+
     pub fn is_station(&self) -> bool {
         self.network.mode == WifiMode::Station
     }
