@@ -21,6 +21,7 @@ pub enum Error {
     Busy,
     InvalidHex,
     Dns,
+    NoWiFiSetup,
     _Unknown,
 }
 
