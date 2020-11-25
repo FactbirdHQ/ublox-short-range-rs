@@ -85,7 +85,14 @@ where
             return Err(atat::Error::InvalidResponse);
         }
         // Isolate the AT_response
-        let at_resp = &resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len];
+        let mut at_resp = &resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len];
+
+        //Recieved OK response code in EDM response?
+        if let Some(pos) = resp.windows(b"\r\nOK".len()).position(|window| window == b"\r\nOK" ) {
+            //Cutting OK out leaves an empth string for NoResponse, for other responses just removes "\r\nOK\r\n"
+            at_resp = &resp[AT_COMMAND_POSITION .. pos];
+        }
+
         self.at_command.parse(at_resp)
     }
 

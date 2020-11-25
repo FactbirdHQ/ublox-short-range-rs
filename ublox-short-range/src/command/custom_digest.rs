@@ -28,9 +28,9 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
     ingress.handle_com();
     
     #[cfg(feature = "logging")]
-    // if ingress.buf.len() != 0 {
-    //     log::debug!("Recived: {:?}, state: {:?}", ingress.buf, ingress.get_state());
-    // }
+    if ingress.buf.len() != 0 {
+        log::debug!("Recived: {:?}, state: {:?}", ingress.buf, ingress.get_state());
+    }
 
     // TODO Handle module restart, tests and set default startupmessage in client, and optimiz this!
     //Handle module restart. "+STARTUP\r\n" is the default startupmessage. 
@@ -78,38 +78,38 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
                 if let Some(_) = resp.windows(b"ERROR".len()).position(|window| window == b"ERROR" ) {
                     //Recieved Error response
                     return_val = Some(Err(Error::InvalidResponse));
-                } else if let Some(_) = resp.windows(b"OK".len()).position(|window| window == b"OK" ) {
-                    //Recieved OK response in form of empty EDM response
-                    return_val = Some(Ok(ByteVec::<BufLen>::from_slice(&[
-                        0xAAu8, 0x00, 0x02, 0x00, PayloadType::ATConfirmation as u8, 0x55,
-                        ]).unwrap()));
+                // } else if let Some(AT_COMMAND_POSITION) = resp.windows(b"\r\nOK".len()).position(|window| window == b"\r\nOK" ) {
+                //     //Recieved OK response in form of empty EDM response
+                //     return_val = Some(Ok(ByteVec::<BufLen>::from_slice(&[
+                //         0xAAu8, 0x00, 0x02, 0x00, PayloadType::ATConfirmation as u8, 0x55,
+                //         ]).unwrap()));
                 } else {
                     //Normal response check if OK recived at end? else return to wait for OK to be received at end.
-                    let start_pos_remaining = match remaining.windows(1).position(|byte| byte == &[STARTBYTE]){
-                        Some(pos) => pos,
-                        None => return,
-                    };
+                    // let start_pos_remaining = match remaining.windows(1).position(|byte| byte == &[STARTBYTE]){
+                    //     Some(pos) => pos,
+                    //     None => return,
+                    // };
             
-                    if start_pos_remaining != 0 {
-                        remaining = &remaining[start_pos_remaining .. remaining.len()];
-                    }
+                    // if start_pos_remaining != 0 {
+                    //     remaining = &remaining[start_pos_remaining .. remaining.len()];
+                    // }
             
-                    if remaining.len() < EDM_OVERHEAD{
-                        return;
-                    }
-                    let payload_len_remaining = calc_payload_len(remaining);
-                    let edm_len_remaining = payload_len_remaining + EDM_OVERHEAD;
-                    if remaining.len() < edm_len_remaining {
-                        return;
-                    } else if remaining[edm_len_remaining -1] != ENDBYTE{
-                        return;
-                    }
-                    if PayloadType::from(remaining[4]) == PayloadType::ATConfirmation 
-                        && remaining.windows(b"OK".len()).position(|window| window == b"OK" ) != None {
-                        // Found trailing OK response remove from remaining
-                        remaining = &remaining[edm_len_remaining .. remaining.len()];
+                    // if remaining.len() < EDM_OVERHEAD{
+                    //     return;
+                    // }
+                    // let payload_len_remaining = calc_payload_len(remaining);
+                    // let edm_len_remaining = payload_len_remaining + EDM_OVERHEAD;
+                    // if remaining.len() < edm_len_remaining {
+                    //     return;
+                    // } else if remaining[edm_len_remaining -1] != ENDBYTE{
+                    //     return;
+                    // }
+                    // if PayloadType::from(remaining[4]) == PayloadType::ATConfirmation 
+                    //     && remaining.windows(b"OK".len()).position(|window| window == b"OK" ) != None {
+                    //     // Found trailing OK response remove from remaining
+                    //     remaining = &remaining[edm_len_remaining .. remaining.len()];
 
-                    } // else next response not OK?... TODO: Handle this case
+                    // } // else next response not OK?... TODO: Handle this case
                     return_val = Some(Ok(ByteVec::<BufLen>::from_slice(resp).unwrap()));
                 }
             }
