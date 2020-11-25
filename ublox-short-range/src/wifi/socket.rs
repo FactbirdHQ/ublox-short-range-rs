@@ -2,7 +2,7 @@
 // implements TCP and UDP for WiFi client
 
 use embedded_hal::digital::v2::OutputPin;
-pub use embedded_nal::{SocketAddr, IpAddr, Mode, SocketAddrV4};
+pub use embedded_nal::{SocketAddr, IpAddr, Mode, SocketAddrV4, SocketAddrV6};
 pub use no_std_net::{Ipv4Addr, Ipv6Addr};
 use heapless::{consts, ArrayLength, String};
 // use serde::{Serialize};
@@ -142,7 +142,7 @@ where
             }
             _ => {
                 #[cfg(feature = "logging")]
-                log::error!("SocketNotFound {:?}", socket);
+                log::error!("SocketNotFound {:?}", channel_id);
                 Err(Error::SocketNotFound)
             }
         }
@@ -330,36 +330,50 @@ where
             return Err(Error::Network);
         }
 
+        //TODO: Optimize! and when possible rewrite to ufmt!
         // self.enable_ssl(socket, 0)?;
         let mut url = String::<consts::U128>::from("tcp://");
-
-
+        let dud = String::<consts::U1>::new();
+        let mut workspace = String::<consts::U43>::new();
+        let mut ip_str = String::<consts::U43>::from("[");
+        let mut port = String::<consts::U8>::new();
+        // #[cfg(feature = "logging")]
+        // log::info!("[Connecting] URL1! {:?}", url);
         match remote.ip() {
             IpAddr::V4(ip) => {
-                url = to_string(
+                ip_str = to_string(
                     &ip,
-                    url,
-                    SerializeOptions::default(),
+                    String::<consts::U1>::new(),
+                    SerializeOptions{value_sep: false,  cmd_prefix: &"", termination: &""},
                 ).map_err(|_e| Self::Error::BadLength)?;
+                url.push_str(&ip_str[1 .. ip_str.len()-1]).map_err(|_e| Self::Error::BadLength)?;
             },
             IpAddr::V6(ip) => {
-                url = to_string(
+                workspace = to_string(
                     &ip,
-                    url,
+                    String::<consts::U1>::new(),
                     SerializeOptions::default(),
                 ).map_err(|_e| Self::Error::BadLength)?;
+
+                ip_str.push_str(&workspace[1..workspace.len()-1]).map_err(|_e| Self::Error::BadLength)?;
+                ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
+                url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
             }
         }
-        
         url.push(':').map_err(|_e| Self::Error::BadLength)?;
-        url = to_string(
+        // #[cfg(feature = "logging")]
+        // log::info!("[Connecting] ip! {:?}", ip_str);
+        
+        port = to_string(
             &remote.port(),
-            url,
+            String::<consts::U1>::new(),
             SerializeOptions::default(),
         ).map_err(|_e| Self::Error::BadLength)?;
+        url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
         url.push('/').map_err(|_e| Self::Error::BadLength)?;
 
-
+        #[cfg(feature = "logging")]
+        log::info!("[Connecting] url! {:?}", url);
 
         let resp = self.handle_socket_error(
             || {
