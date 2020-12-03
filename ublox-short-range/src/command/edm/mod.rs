@@ -113,7 +113,7 @@ pub struct EdmDataCommand<'a>{
 
 impl<'a> atat::AtatCmd for EdmDataCommand<'a>{
     type Response = NoResponse;
-    type CommandLen = <DataPackageSize as core::ops::Add<consts::U7>>::Output;
+    type CommandLen = <DataPackageSize as core::ops::Add<consts::U4>>::Output;
 
     fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
         let mut s: atat::heapless::Vec<u8, Self::CommandLen> = atat::heapless::Vec::new();
