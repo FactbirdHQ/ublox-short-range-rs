@@ -145,7 +145,7 @@ where
         //TODO: handle EDM settings quirk see EDM datasheet: 2.2.5.1 AT Request Serial settings
         self.send_internal(&EdmAtCmdWrapper::new(SetRS232Settings {
             baud_rate: BaudRate::B115200,
-            flow_control: FlowControl::Off,
+            flow_control: FlowControl::On,
             data_bits: 8,
             stop_bits: StopBits::One,
             parity: Parity::None,
@@ -204,6 +204,11 @@ where
     }
 
     pub fn spin(&self) -> Result<(), Error> {
+        // #[cfg(feature = "logging")]
+        // log::debug!("SPIN");
+        if !self.initialized.get(){
+            return Err(Error::Uninitialized)
+        }
         self.handle_urc()?;
         
         if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
@@ -211,9 +216,9 @@ where
                 return Err(Error::Network)
             }
         } else {
-            return Err(Error::NoWiFiSetup)
+            return Err(Error::Uninitialized)
         }
-        
+
         // match self.state.get() {
         //     State::Attached => {}
         //     State::Sending => {
@@ -329,6 +334,8 @@ where
 
     fn handle_urc(&self) -> Result<(), Error> {
         while let Some(edm_urc) = self.client.try_borrow_mut()?.check_urc::<EdmEvent>(){
+            // #[cfg(feature = "logging")]
+            // log::debug!("Handle URC");
             match edm_urc {
                 EdmEvent::ATEvent(urc) => {
                     match urc {
@@ -434,13 +441,15 @@ where
                 },
                 EdmEvent::IPv4ConnectEvent(event) => {
                     #[cfg(feature = "logging")]
-                    log::debug!("[EDM_URC] IPv4ConnectEvent");
+                    log::debug!("[EDM_URC] IPv4ConnectEvent! Channel_id: {:?}", event.channel_id);
                     let mut sockets = self.sockets.try_borrow_mut()?;
                     let endpoint = SocketAddr::new(IpAddr::V4(event.remote_ip), event.remote_port);
                     match sockets.socket_type_by_endpoint(&endpoint) {
                         Some(SocketType::Tcp) => {
                             let mut tcp = sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint)?;
                             tcp.meta.channel_id.0 = event.channel_id;
+                            //maybe
+                            tcp.set_state(crate::socket::TcpState::Established);
                         }
                         Some(SocketType::Udp) => {
                             let mut udp = sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)?;
@@ -453,7 +462,7 @@ where
                 }
                 EdmEvent::IPv6ConnectEvent(event) => {
                     #[cfg(feature = "logging")]
-                    log::debug!("[EDM_URC] IPv6ConnectEvent");
+                    log::debug!("[EDM_URC] IPv6ConnectEvent! Channel_id: {:?}", event.channel_id);
                     let mut sockets = self.sockets.try_borrow_mut()?;
                     let endpoint = SocketAddr::new(IpAddr::V6(event.remote_ip), event.remote_port);
                     match sockets.socket_type_by_endpoint(&endpoint) {

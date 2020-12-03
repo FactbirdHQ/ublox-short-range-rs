@@ -13,7 +13,8 @@ pub enum Error {
     SocketClosed,
     WrongSocketType,
     SocketNotFound,
-    // NetworkState(crate::State),
+    NetworkState(crate::wifi::connection::NetworkState),
+    WifiState(crate::wifi::connection::WiFiState),
     Socket(socket::Error),
     BorrowError(core::cell::BorrowError),
     BorrowMutError(core::cell::BorrowMutError),
@@ -21,7 +22,7 @@ pub enum Error {
     Busy,
     InvalidHex,
     Dns,
-    NoWiFiSetup,
+    Uninitialized,
     _Unknown,
 }
 
