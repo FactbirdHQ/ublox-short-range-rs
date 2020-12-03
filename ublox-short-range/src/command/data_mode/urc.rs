@@ -9,7 +9,7 @@ use no_std_net::IpAddr;
 #[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct PeerConnected {
     #[at_arg(position = 0)]
-    pub handle: u32,
+    pub handle: u8,
     #[at_arg(position = 1)]
     pub connection_type: ConnectionType,
     #[at_arg(position = 2)]

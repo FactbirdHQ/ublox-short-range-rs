@@ -7,7 +7,7 @@ use super::calc_payload_len;
 
 pub type EdmAtCmdOverhead = atat::heapless::consts::U6;
 pub type ChannelId = u8;
-pub type DataPackageSize = consts::U256;
+pub type DataPackageSize = consts::U540;
 
 pub const STARTBYTE: u8 = 0xAA;
 pub const ENDBYTE: u8 = 0x55;
