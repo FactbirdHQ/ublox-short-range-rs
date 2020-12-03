@@ -390,7 +390,7 @@ where
 
         let mut sockets = self.sockets.try_borrow_mut()?;
         let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
-        tcp.set_state(TcpState::Established);
+        tcp.set_state(TcpState::SynSent);
         tcp.endpoint = remote;
         tcp.meta.handle = SocketHandle(resp.peer_handle);
         Ok(tcp.handle())
@@ -407,7 +407,8 @@ where
         }
 
         let mut sockets = self.sockets.try_borrow_mut()?;
-        Ok(sockets.get::<TcpSocket<_>>(*socket)?.is_active())
+        let socket_ref = sockets.get::<TcpSocket<_>>(*socket)?;
+        Ok(socket_ref.state() == TcpState::Established)
     }
 
     /// Write to the stream. Returns the number of bytes written is returned

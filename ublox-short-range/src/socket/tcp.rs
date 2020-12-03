@@ -11,6 +11,7 @@ pub type SocketBuffer<N> = RingBuffer<u8, N>;
 pub enum State {
     Closed,
     Listen,
+    SynSent,
     Established,
     CloseWait,
     TimeWait,
