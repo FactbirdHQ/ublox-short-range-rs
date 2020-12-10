@@ -20,6 +20,8 @@ pub enum SecurityOperation {
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum SecurityDataType {
+    // This is undocumented..
+    TrustedRootCA = 0,
     ClientCertificate = 1,
     ClientPrivateKey = 2,
 }
