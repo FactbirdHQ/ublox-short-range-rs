@@ -97,7 +97,6 @@ where
 {
     // pub(crate) state: Cell<State>,
     pub(crate) initialized: Cell<bool>,
-    edm_mode: Cell<bool>,
     serial_mode: Cell<SerialMode>,
     pub(crate) wifi_connection: RefCell<Option<WifiConnection>>,
     pub(crate) client: RefCell<C>,
@@ -116,7 +115,6 @@ where
     ) -> Self {
         UbloxClient {
             // state: Cell::new(State::Uninitialized),
-            edm_mode: Cell::new(false),
             initialized: Cell::new(false),
             serial_mode: Cell::new(SerialMode::Cmd),
             wifi_connection: RefCell::new(None),
@@ -136,14 +134,14 @@ where
         // self.state.set(State::Initializing);
 
         //Switch to EDM on Init. If in EDM, fail and check with autosense
-        if self.edm_mode.get() != true {
+        if self.serial_mode.get() != SerialMode::ExtendedData {
             self.send_internal(&SwitchToEdmCommand, true)?;
-            self.edm_mode.set(true);
+            self.serial_mode.set(SerialMode::ExtendedData);
         }
         // self.autosense()?;
         
         //TODO: handle EDM settings quirk see EDM datasheet: 2.2.5.1 AT Request Serial settings
-        self.send_internal(&EdmAtCmdWrapper::new(SetRS232Settings {
+        self.send_internal(&EdmAtCmdWrapper(SetRS232Settings {
             baud_rate: BaudRate::B115200,
             flow_control: FlowControl::On,
             data_bits: 8,
@@ -153,7 +151,7 @@ where
         }), false)?;
 
         
-        self.send_internal(&EdmAtCmdWrapper::new(StoreCurrentConfig), false)?;
+        self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
         
         // TODO: Wait for connect
         
@@ -181,7 +179,7 @@ where
     #[inline]
     fn autosense(&self) -> Result<(), Error> {
         for _ in 0..15 {
-            match self.client.try_borrow_mut()?.send(&EdmAtCmdWrapper::new(AT)) {
+            match self.client.try_borrow_mut()?.send(&EdmAtCmdWrapper(AT)) {
                 Ok(_) => {
                     return Ok(());
                 }
@@ -303,10 +301,7 @@ where
         match self.serial_mode.get() {
             SerialMode::Cmd => {},
             SerialMode::Data => return Err(Error::AT(atat::Error::Write)),
-            SerialMode::ExtendedData => {
-                // edm::Packet::new(edm::Identifier::AT, edm::Type::Request, cmd.get_cmd().into_bytes());
-                return Err(Error::AT(atat::Error::Write))
-            }
+            SerialMode::ExtendedData => {}
         }
 
         if check_urc {
@@ -436,7 +431,7 @@ where
                     #[cfg(feature = "logging")]
                     log::debug!("[URC] STARTUP");
                     self.initialized.set(false);
-                    self.edm_mode.set(false);
+                    self.serial_mode.set(SerialMode::Cmd);
                     
                 },
                 EdmEvent::IPv4ConnectEvent(event) => {
@@ -514,11 +509,22 @@ where
         Ok(())
     }
 
-    pub fn send_at<A: atat::AtatCmd>(&mut self, cmd: &A) -> Result<A::Response, Error> {
+    /// Send AT command 
+    /// Automaticaly waraps commands in EDM context
+    pub fn send_at<A>(&self, cmd: A) -> Result<A::Response, Error> 
+    where
+        A: atat::AtatCmd,
+        <A as atat::AtatCmd>::CommandLen: core::ops::Add<crate::command::edm::types::EdmAtCmdOverhead>,
+        <<A as atat::AtatCmd>::CommandLen as core::ops::Add<crate::command::edm::types::EdmAtCmdOverhead>>::Output:
+            atat::heapless::ArrayLength<u8>,
+    {
         if !self.initialized.get() {
             self.init()?;
         }
-
-        self.send_internal(cmd, true)
+        if self.serial_mode.get() == SerialMode::ExtendedData {
+            self.send_internal(&EdmAtCmdWrapper(cmd), true)
+        } else {
+            self.send_internal(&cmd, true)
+        }
     }
 }

@@ -2,7 +2,7 @@
 // implements TCP and UDP for WiFi client
 
 use embedded_hal::digital::v2::OutputPin;
-pub use embedded_nal::{SocketAddr, IpAddr, Mode, SocketAddrV4, SocketAddrV6};
+pub use embedded_nal::{SocketAddr, IpAddr, Mode, SocketAddrV4, SocketAddrV6, AddrType};
 pub use no_std_net::{Ipv4Addr, Ipv6Addr};
 use heapless::{consts, ArrayLength, String};
 // use serde::{Serialize};
@@ -378,7 +378,7 @@ where
         let resp = self.handle_socket_error(
             || {
                 self.send_internal(
-                    &EdmAtCmdWrapper::new(ConnectPeer {
+                    &EdmAtCmdWrapper(ConnectPeer {
                         url: &url
                     }),
                     false,
@@ -501,7 +501,7 @@ where
         self.handle_socket_error(
             || {
                 self.send_internal(
-                    &EdmAtCmdWrapper::new(
+                    &EdmAtCmdWrapper(
                         ClosePeerConnection{
                             peer_handle: tcp.handle().0
                         }

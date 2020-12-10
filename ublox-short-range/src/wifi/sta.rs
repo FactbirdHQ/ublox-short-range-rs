@@ -51,7 +51,7 @@ where
 
         // Network part
         // Deactivate network id 0
-        self.send_internal(&EdmAtCmdWrapper::new(ExecWifiStationAction{
+        self.send_internal(&EdmAtCmdWrapper(ExecWifiStationAction{
             config_id: config_id,
             action: WifiStationAction::Deactivate,
         }), true)?;
@@ -64,7 +64,7 @@ where
 
         // Disable DHCP Client (static IP address will be used)
         if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
-            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::IPv4Mode(IPv4Mode::Static)
             }), true)?;
@@ -72,21 +72,21 @@ where
 
         // Network IP address
         if let Some(ip) = options.ip {
-            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::IPv4Address(ip),
             }), true)?;
         }
         // Network Subnet mask
         if let Some(subnet) = options.subnet{
-            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::SubnetMask(subnet),
             }), true)?;
         }
         // Network Default gateway
         if let Some(gateway) = options.gateway{
-            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::DefaultGateway(gateway),
             }), true)?;
@@ -100,20 +100,20 @@ where
 
         // Wifi part
         // Set the Network SSID to connect to
-        self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
+        self.send_internal(&EdmAtCmdWrapper(SetWifiStationConfig{
             config_id: config_id,
             config_param: WifiStationConfig::SSID(&options.ssid),
         }), true)?;
 
         if let Some(pass) = options.password{
             // Use WPA2 as authentication type
-            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::Authentication(Authentication::WPA_WAP2_PSK)
             }), true)?;
 
             // Input passphrase
-            self.send_internal(&EdmAtCmdWrapper::new(SetWifiStationConfig{
+            self.send_internal(&EdmAtCmdWrapper(SetWifiStationConfig{
                 config_id: config_id,
                 config_param: WifiStationConfig::WPA_PSKOrPassphrase(&pass),
             }), true)?;
@@ -136,7 +136,7 @@ where
                 config_id,
             )
         );
-        self.send_internal(&EdmAtCmdWrapper::new(ExecWifiStationAction{
+        self.send_internal(&EdmAtCmdWrapper(ExecWifiStationAction{
             config_id: config_id,
             action: WifiStationAction::Activate,
         }), true)?;
@@ -148,7 +148,7 @@ where
     }
 
     fn scan(&self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError> {
-        match self.send_internal(&EdmAtCmdWrapper::new(WifiScan{
+        match self.send_internal(&EdmAtCmdWrapper(WifiScan{
             ssid: None,
         }), true){
             Ok(resp) => resp.network_list
@@ -164,7 +164,7 @@ where
             match con.wifi_state {
                 WiFiState::Connected | WiFiState::Active => {
                     // con.wifi_state = WiFiState::Inactive;
-                    self.send_internal(&EdmAtCmdWrapper::new(ExecWifiStationAction{
+                    self.send_internal(&EdmAtCmdWrapper(ExecWifiStationAction{
                         config_id: 0,
                         action: WifiStationAction::Deactivate,
                     }), true)?;

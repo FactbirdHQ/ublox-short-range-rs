@@ -22,25 +22,7 @@ pub(crate) fn calc_payload_len(resp: &[u8]) -> usize{
 // using the <change_after_confirm> parameter. Instead the <change_after_confirm> parameter must
 // be set to 0 and the serial settings will take effect when the module is reset.
 #[derive(Debug, Clone)]
-pub struct EdmAtCmdWrapper<T>
-where
-    T: AtatCmd,
-{
-    at_command: T,
-}
-
-impl <T> EdmAtCmdWrapper<T> 
-where
-    T: AtatCmd,
-{
-    pub fn new(at_command: T) -> Self{
-        EdmAtCmdWrapper{ at_command }
-    }
-
-    pub fn get_at(&self) -> &T{
-        &self.at_command
-    }
-}
+pub(crate) struct EdmAtCmdWrapper<T: AtatCmd> ( pub T );
 
 impl<T> atat::AtatCmd for EdmAtCmdWrapper<T>
 where
@@ -55,7 +37,7 @@ where
 
     fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
         let mut s: atat::heapless::Vec<u8, Self::CommandLen> = atat::heapless::Vec::new();
-        let at_vec = self.at_command.as_bytes();
+        let at_vec = self.0.as_bytes();
         let payload_len = (at_vec.len() + 2) as u16;
         s.extend(
             [
@@ -93,7 +75,7 @@ where
             at_resp = &resp[AT_COMMAND_POSITION .. pos];
         }
 
-        self.at_command.parse(at_resp)
+        self.0.parse(at_resp)
     }
 
     fn force_receive_state(&self) -> bool {
@@ -101,7 +83,7 @@ where
     }
 
     fn max_timeout_ms(&self) -> u32 {
-        self.at_command.max_timeout_ms()
+        self.0.max_timeout_ms()
     }
 }
 
