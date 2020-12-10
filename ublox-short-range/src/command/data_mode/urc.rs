@@ -1,6 +1,7 @@
 //! Unsolicited responses for Data mode Commands
 use crate::socket::SocketHandle;
 use atat::atat_derive::AtatResp;
+use atat::serde_at::CharVec;
 use heapless::{consts, String};
 use super::types::*;
 use no_std_net::IpAddr;
@@ -14,12 +15,16 @@ pub struct PeerConnected {
     pub connection_type: ConnectionType,
     #[at_arg(position = 2)]
     pub protocol: IPProtocol,
+    // #[at_arg(position = 3)]
+    // pub local_address: IpAddr,
     #[at_arg(position = 3)]
-    pub local_address: IpAddr,
+    pub local_address: CharVec<consts::U40>,
     #[at_arg(position = 4)]
     pub local_port: u16,
+    // #[at_arg(position = 5)]
+    // pub remote_address: IpAddr,
     #[at_arg(position = 5)]
-    pub remote_address: IpAddr,
+    pub remote_address: CharVec<consts::U40>,
     #[at_arg(position = 6)]
     pub remote_port: u16,
 }
