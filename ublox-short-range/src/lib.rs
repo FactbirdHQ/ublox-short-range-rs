@@ -1,4 +1,6 @@
 #![no_std]
+// #![allow(dead_code, unused_mut, unused_variables, unused_imports, non_camel_case_types)]
+//TODO: remove this ^ IMPORTANT
 
 extern crate heapless;
 
@@ -36,8 +38,8 @@ pub mod wifi;
 #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
 mod socket;
 
-// #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
-// pub use modules::ssl;
+#[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
+pub use wifi::tls::TLS;
 
 #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
 pub mod sockets {

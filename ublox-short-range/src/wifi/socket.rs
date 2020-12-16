@@ -11,7 +11,6 @@ use serde_at::{to_string, SerializeOptions};
 use crate::command::edm::{EdmAtCmdWrapper, EdmDataCommand};
 use crate::command::data_mode::{types::*, *};
 use crate::{error::Error, socket, socket::ChannelId};
-// use crate::modules::{gprs::GPRS, ssl::SSL};
 use crate::UbloxClient;
 use typenum::marker_traits::Unsigned;
 
@@ -331,7 +330,6 @@ where
         }
 
         //TODO: Optimize! and when possible rewrite to ufmt!
-        // self.enable_ssl(socket, 0)?;
         let mut url = String::<consts::U128>::from("tcp://");
         let dud = String::<consts::U1>::new();
         let mut workspace = String::<consts::U43>::new();
@@ -372,6 +370,31 @@ where
         url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
         url.push('/').map_err(|_e| Self::Error::BadLength)?;
 
+        let mut sockets = self.sockets.try_borrow_mut()?;
+        let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
+
+        if tcp.c_cert_name != None || tcp.c_key_name != None || tcp.ca_cert_name != None {
+            url.push('?').map_err(|_e| Self::Error::BadLength)?;
+            if let Some(ref ca) = tcp.ca_cert_name{
+                url.push_str(&"ca=").map_err(|_e| Self::Error::BadLength)?;
+                url.push_str(ca).map_err(|_e| Self::Error::BadLength)?;
+                url.push('&').map_err(|_e| Self::Error::BadLength)?;
+            }
+
+            if let Some(ref client) = tcp.c_cert_name{
+                url.push_str(&"cert=").map_err(|_e| Self::Error::BadLength)?;
+                url.push_str(client).map_err(|_e| Self::Error::BadLength)?;
+                url.push('&').map_err(|_e| Self::Error::BadLength)?;
+            }
+
+            if let Some(ref key) = tcp.c_key_name {
+                url.push_str(&"privKey=").map_err(|_e| Self::Error::BadLength)?;
+                url.push_str(key).map_err(|_e| Self::Error::BadLength)?;
+                url.push('&').map_err(|_e| Self::Error::BadLength)?;
+            }
+            url.pop();
+        }
+        
         #[cfg(feature = "logging")]
         log::info!("[Connecting] url! {:?}", url);
 
@@ -388,8 +411,7 @@ where
             0,
         )?;
 
-        let mut sockets = self.sockets.try_borrow_mut()?;
-        let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
+        
         tcp.set_state(TcpState::SynSent);
         tcp.endpoint = remote;
         tcp.meta.handle = SocketHandle(resp.peer_handle);

@@ -7,28 +7,31 @@ use crate::{
         *,
         types::*,
     },
-    socket::SocketHandle,
+    socket::{SocketHandle, SocketType, TcpSocket},
 };
 
-pub trait SSL {
+pub trait TLS {
     fn import_certificate(
         &self,
-        profile_id: u8,
         name: &str,
         certificate: &[u8],
     ) -> Result<(), Error>;
-    fn import_root_ca(&self, profile_id: u8, name: &str, root_ca: &[u8]) -> Result<(), Error>;
+    fn import_root_ca(&self, name: &str, root_ca: &[u8]) -> Result<(), Error>;
     fn import_private_key(
         &self,
-        profile_id: u8,
         name: &str,
         private_key: &[u8],
         password: Option<&str>,
     ) -> Result<(), Error>;
-    fn enable_ssl(&self, socket: SocketHandle, profile_id: u8) -> Result<(), Error>;
+    fn enable_tls(&self, 
+        socket: SocketHandle, 
+        ca_cert_name: Option<&str>, 
+        client_cert_name: Option<&str>, 
+        priv_key_name: Option<&str>,
+    ) -> Result<(), Error>;
 }
 
-impl<C, N, L> SSL for UbloxClient<C, N, L>
+impl<C, N, L> TLS for UbloxClient<C, N, L>
 where
     C: atat::AtatClient,
     N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
@@ -36,7 +39,6 @@ where
 {
     fn import_certificate(
         &self,
-        profile_id: u8,
         name: &str,
         certificate: &[u8],
     ) -> Result<(), Error> {
@@ -58,7 +60,7 @@ where
         Ok(())
     }
 
-    fn import_root_ca(&self, profile_id: u8, name: &str, root_ca: &[u8]) -> Result<(), Error> {
+    fn import_root_ca(&self, name: &str, root_ca: &[u8]) -> Result<(), Error> {
         assert!(name.len() < 200);
 
         self.send_at(PrepareSecurityDataImport {
@@ -79,7 +81,6 @@ where
 
     fn import_private_key(
         &self,
-        profile_id: u8,
         name: &str,
         private_key: &[u8],
         password: Option<&str>,
@@ -102,10 +103,31 @@ where
         Ok(())
     }
 
-    fn enable_ssl(&self, socket: SocketHandle, profile_id: u8) -> Result<(), Error> {
-        //Change socket handle to do SSL now, 
+    fn enable_tls(
+        &self, 
+        socket: SocketHandle,
+        ca_cert_name: Option<&str>, 
+        client_cert_name: Option<&str>, 
+        priv_key_name: Option<&str>
+    ) -> Result<(), Error> {
+        //Change socket handle to do TLS now, 
         //Needs name of Certificates.
-
+        let mut sockets = self.sockets.try_borrow_mut()?;
+        match sockets.socket_type(socket) {
+            Some(SocketType::Tcp) => {
+                let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
+                if let Some(ca) = ca_cert_name{
+                    tcp.ca_cert_name =  Some(String::from(ca));
+                }
+                if let Some(cert) = client_cert_name{
+                    tcp.c_cert_name =  Some(String::from(cert));
+                }
+                if let Some(key) = priv_key_name{
+                    tcp.c_key_name =  Some(String::from(key));
+                }
+            }
+            _ => return Err(Error::SocketNotFound),
+        }
         Ok(())
     }
 }
