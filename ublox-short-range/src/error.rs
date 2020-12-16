@@ -21,7 +21,7 @@ pub enum Error {
     AT(atat::Error),
     Busy,
     InvalidHex,
-    Dns,
+    Dns(crate::command::ping::types::PingError),
     Uninitialized,
     _Unknown,
 }

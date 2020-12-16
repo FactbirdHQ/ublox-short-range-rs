@@ -29,6 +29,7 @@ use crate::{
             urc::{WifiLinkConnected, WifiLinkDisconnected},
             types::DisconnectReason,
         },
+        ping::types::PingError,
 
     },
     wifi::connection::{WifiConnection, WiFiState, NetworkState},
@@ -79,6 +80,14 @@ pub enum SerialMode {
     ExtendedData,
 }
 
+#[derive(PartialEq, Copy, Clone)]
+pub enum DNSState {
+    NotResolving,
+    Resolving,
+    Resolved(IpAddr),
+    Error(PingError),
+}
+
 // macro_rules! size_of {
 //     ($type:ident) => {
 //         log::info!(
@@ -101,6 +110,7 @@ where
     pub(crate) wifi_connection: RefCell<Option<WifiConnection>>,
     pub(crate) client: RefCell<C>,
     pub(crate) sockets: RefCell<&'static mut SocketSet<N, L>>,
+    pub(crate) dns_state: Cell<DNSState>,
 }
 
 impl<C, N, L> UbloxClient<C, N, L>
@@ -120,6 +130,7 @@ where
             wifi_connection: RefCell::new(None),
             client: RefCell::new(client),
             sockets: RefCell::new(socket_set),
+            dns_state: Cell::new(DNSState::NotResolving),
         }
     }
 
@@ -424,6 +435,20 @@ where
                             #[cfg(feature = "logging")]
                             log::debug!("[URC] NetworkError");
                             
+                        }
+                        Urc::PingResponse(resp) => {
+                            #[cfg(feature = "logging")]
+                            log::debug!("[URC] PingResponse");
+                            if self.dns_state.get() == DNSState::Resolving{
+                                self.dns_state.set(DNSState::Resolved(resp.ip))
+                            }
+                        }
+                        Urc::PingErrorResponse(resp) => {
+                            #[cfg(feature = "logging")]
+                            log::debug!("[URC] PingErrorResponse");
+                            if self.dns_state.get() == DNSState::Resolving{
+                                self.dns_state.set(DNSState::Error(resp.error))
+                            }
                         }
                     }
                 }, // end match urc
