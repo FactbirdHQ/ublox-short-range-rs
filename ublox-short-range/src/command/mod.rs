@@ -64,4 +64,8 @@ pub enum Urc {
     /// 10.8 Network error +UUNERR
     #[at_urc("+UUNERR")]
     NetworkError(network::urc::NetworkError),
+    #[at_urc("+UUPING")]
+    PingResponse(ping::urc::PingResponse),
+    #[at_urc("+UUPINGER")]
+    PingErrorResponse(ping::urc::PingErrorResponse),
 }
