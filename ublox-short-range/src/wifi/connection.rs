@@ -9,12 +9,12 @@ use crate::{
     wifi::network::{WifiMode, WifiNetwork},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WiFiState{
     /// Disconnected, Wifi off
     Inactive,
     /// Searching for Wifi
-    Active,
+    NotConnected,
     Connected,
 }
 

@@ -14,6 +14,7 @@ pub enum Error {
     WrongSocketType,
     SocketNotFound,
     NetworkState(crate::wifi::connection::NetworkState),
+    NoNetworkSetup,
     WifiState(crate::wifi::connection::WiFiState),
     Socket(socket::Error),
     BorrowError(core::cell::BorrowError),
@@ -53,10 +54,8 @@ impl From<core::cell::BorrowError> for Error {
 #[derive(Debug)]
 pub enum WifiConnectionError {
     /// Failed to connect to wireless network.
-    // FailedToConnect(String<U64>),
     FailedToConnect,
     /// Failed to disconnect from wireless network. Try turning the wireless interface down.
-    // FailedToDisconnect(String<U64>),
     FailedToDisconnect,
     /// A wireless error occurred.
     Other {

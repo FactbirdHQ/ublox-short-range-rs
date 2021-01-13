@@ -33,5 +33,5 @@ pub struct PeerConnected {
 #[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct PeerDisconnected {
     #[at_arg(position = 0)]
-    pub handle: u32,
+    pub handle: usize,
 }

@@ -537,7 +537,8 @@ where
 
         tcp.close();
 
-        sockets.remove(socket)?;
+        // This is done in the incomming URC
+        // sockets.remove(socket)?;
 
 
         Ok(())

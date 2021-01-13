@@ -6,7 +6,7 @@ use no_std_net::{Ipv4Addr, Ipv6Addr};
 use super::types::*;
 use super::calc_payload_len;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum EdmEvent{
     BluetoothConnectEvent(BluetoothConnectEvent),
     IPv4ConnectEvent(IPv4ConnectEvent),
@@ -28,6 +28,7 @@ impl AtatUrc for EdmEvent{
         // #[cfg(feature = "logging")]
         // log::info!("[Parse URC] {:?}", resp);
         //Startup message?
+        //TODO: simplify maby no packet check.
         if resp.windows(STARTUPMESSAGE.len()).position(|window| window == STARTUPMESSAGE) == Some(0){
             return Ok(EdmEvent::StartUp);
         }
@@ -140,6 +141,7 @@ mod test {
     use crate::command::{
         Urc,
         data_mode::urc::PeerDisconnected,
+        edm::types::DataPackageSize,
     };
 
     #[test]
@@ -207,7 +209,7 @@ mod test {
     fn parse_data_event(){
         // AT-event: +UUDPD:3
         let resp = &[ 0xAA, 0x00, 0x05, 0x00, 0x31, 0x03, 0x12, 0x34, 0x55 ];
-        let event = EdmEvent::DataEvent(DataEvent{channel_id: 3, data: Vec::<u8, consts::U256>::from_slice(&[0x12, 0x34]).unwrap()});    
+        let event = EdmEvent::DataEvent(DataEvent{channel_id: 3, data: Vec::<u8, DataPackageSize>::from_slice(&[0x12, 0x34]).unwrap()});    
         let parsed_event = EdmEvent::parse(resp);
         assert_eq!(parsed_event, Ok(event), "Parsing Data Event failed");
     }

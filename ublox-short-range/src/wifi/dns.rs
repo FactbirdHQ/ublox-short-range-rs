@@ -43,7 +43,7 @@ where
             retry_num: 1,
         })?;
         while self.dns_state.get() == DNSState::Resolving { 
-            self.spin();
+            self.spin()?;
         }
 
         match self.dns_state.get(){

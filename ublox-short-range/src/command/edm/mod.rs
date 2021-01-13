@@ -180,7 +180,7 @@ impl atat::AtatCmd for SwitchToEdmCommand{
         let correct = &[0xAAu8, 0x00, 0x02, 0x00, 0x71, 0x55];      // &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]; //AA 00 06 00 44 41 54 0D 0A 0D 0A 4F 4B 0D 0A 55 ?
         if resp.len() != correct.len() {
             return Err(atat::Error::InvalidResponse)
-        } else if resp.windows(correct.len()).position(|window| window == correct) != Some(0){
+        } else if resp.windows(correct.len()).position(|window| window == correct) != Some(0){ //TODO: check this
             return Err(atat::Error::InvalidResponse)
         }
         Ok(NoResponse)
@@ -209,7 +209,7 @@ mod test {
     
     #[test]
     fn parse_at_commands(){
-        let parse = EdmAtCmdWrapper::new(AT);
+        let parse = EdmAtCmdWrapper(AT);
         let correct_response = NoResponse;
 
         // AT-command: "AT"
@@ -223,7 +223,7 @@ mod test {
         assert_eq!(parse.as_bytes(), correct_cmd);
         assert_eq!(parse.parse(response), Ok(correct_response));
         
-        let parse = EdmAtCmdWrapper::new(SystemStatus{status_id: StatusID::SavedStatus});
+        let parse = EdmAtCmdWrapper(SystemStatus{status_id: StatusID::SavedStatus});
         let correct_response = SystemStatusResponse{status_id: StatusID::SavedStatus, status_val: 100};
         // AT-command: "at+umstat=1"
         let correct = Vec::<u8, consts::U19>::from_slice(&[
@@ -240,7 +240,7 @@ mod test {
 
     #[test]
     fn parse_wrong_at_responses(){
-        let parse = EdmAtCmdWrapper::new(AT);
+        let parse = EdmAtCmdWrapper(AT);
         let correct_response = NoResponse;
         // AT-response: NoResponse
         let response = &[
@@ -248,7 +248,7 @@ mod test {
             ];
         assert_eq!(parse.parse(response), Err(Error::InvalidResponse), "Response shorter than indicated not invalid");
 
-        let parse = EdmAtCmdWrapper::new(SystemStatus{status_id: StatusID::SavedStatus});
+        let parse = EdmAtCmdWrapper(SystemStatus{status_id: StatusID::SavedStatus});
         // AT-response: "at+umstat:1,100"
         let response =&[
                 0xAAu8,0x00,0x01,0x00,PayloadType::ATConfirmation as u8,0x2B,0x55, 0x4D, 0x53, 0x54, 0x41, 0x54, 0x3A, 0x31, 0x2C, 

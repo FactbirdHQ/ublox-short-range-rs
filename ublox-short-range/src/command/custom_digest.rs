@@ -49,7 +49,7 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
     
         let start_pos = match ingress.buf.windows(1).position(|byte| byte[0] == STARTBYTE){
             Some(pos) => pos,
-            None => return, //handle leading error data.
+            None => return, //handle leading error data. //TODO handle error input before messagestart.
         };
     
         // Trim leading invalid data.
@@ -75,7 +75,7 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
                 let (resp, mut remaining) = ingress.buf.split_at(edm_len);
                 let mut return_val: Option<Result<ByteVec<BufLen>, Error>> = None;
                 if ingress.get_state() == State::ReceivingResponse {    
-                    if let Some(b"ERROR") = resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION+2) {
+                    if let Some(b"ERROR") = resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION) {
                     // if let Some(_) = resp.windows(b"ERROR".len()).position(|window| window == b"ERROR" ) {
                         //Recieved Error response
                         return_val = Some(Err(Error::InvalidResponse));
@@ -208,27 +208,28 @@ mod test {
         }};
     }
     
-    #[test]
-    fn ok_response() {
-        let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-        let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
+    // Removed functionality used to change OK responses to empty responses.
+    // #[test]
+    // fn ok_response() {
+    //     let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
+    //     let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
 
-        assert_eq!(at_pars.get_state(), State::Idle);
+    //     assert_eq!(at_pars.get_state(), State::Idle);
 
-        at_pars.set_state(State::ReceivingResponse);
-        //Payload: "OK\r\n"
-        let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
-        let empty_ok_response = 
-            Vec::<u8, TestRxBufLen>::from_slice(&[ 0xAAu8, 0x00, 0x02, 0x00, PayloadType::ATConfirmation as u8, 0x55]).unwrap();
+    //     at_pars.set_state(State::ReceivingResponse);
+    //     //Payload: "OK\r\n"
+    //     let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
+    //     let empty_ok_response = 
+    //         Vec::<u8, TestRxBufLen>::from_slice(&[ 0xAAu8, 0x00, 0x02, 0x00, PayloadType::ATConfirmation as u8, 0x55]).unwrap();
 
-        at_pars.write(data);
-        assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+    //     at_pars.write(data);
+    //     assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
 
-        at_pars.digest();
-        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-        assert_eq!(res_c.dequeue(), Some(Ok(empty_ok_response)));
-        assert_eq!(urc_c.dequeue(), None);
-    }
+    //     at_pars.digest();
+    //     assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+    //     assert_eq!(res_c.dequeue(), Some(Ok(empty_ok_response)));
+    //     assert_eq!(urc_c.dequeue(), None);
+    // }
 
     #[test]
     fn error_response() {
@@ -275,7 +276,7 @@ mod test {
     // Regular response with traling regular response..
 
     #[test]
-    fn urc() {
+    fn at_urc() {
         let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
         let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
 
@@ -284,10 +285,73 @@ mod test {
         let type_byte = PayloadType::ATEvent as u8;
         //Payload: "OK\r\n"
         let data = &[
-            0xAAu8, 0x00, 0x0E, 0x00, PayloadType::ATEvent as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
         ];
         let result  = &[
-            0xAAu8, 0x00, 0x0C, 0x00, PayloadType::ATEvent as u8, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+            0xAAu8, 0x00, 0x0C, 0x00, type_byte, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        at_pars.write(data);
+        assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+        at_pars.digest();
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(res_c.dequeue(), None);
+    }
+
+    #[test]
+    fn data_event() {
+        let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
+        let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
+
+        assert_eq!(at_pars.get_state(), State::Idle);
+
+        let type_byte = PayloadType::DataEvent as u8;
+        //Payload: "OK\r\n"
+        let data = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        let result  = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        at_pars.write(data);
+        assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+        at_pars.digest();
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(res_c.dequeue(), None);
+    }
+
+    #[test]
+    fn connect_disconnect_events() {
+        let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
+        let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
+
+        assert_eq!(at_pars.get_state(), State::Idle);
+
+        let type_byte = PayloadType::ConnectEvent as u8;
+        //Payload: "OK\r\n"
+        let data = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        let result  = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        at_pars.write(data);
+        assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+        at_pars.digest();
+        assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
+        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(res_c.dequeue(), None);
+
+        assert_eq!(at_pars.get_state(), State::Idle);
+
+        let type_byte = PayloadType::DisconnectEvent as u8;
+        //Payload: "OK\r\n"
+        let data = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        let result  = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
         ];
         at_pars.write(data);
         assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());

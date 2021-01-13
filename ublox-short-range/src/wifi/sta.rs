@@ -132,7 +132,7 @@ where
                     group_ciphers: 0,
                     mode: WifiMode::AccessPoint
                 },
-                WiFiState::Inactive,
+                WiFiState::NotConnected,
                 config_id,
             )
         );
@@ -162,7 +162,7 @@ where
     fn disconnect(&self) -> Result<(), WifiConnectionError> {
         if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
             match con.wifi_state {
-                WiFiState::Connected | WiFiState::Active => {
+                WiFiState::Connected | WiFiState::NotConnected => {
                     // con.wifi_state = WiFiState::Inactive;
                     self.send_internal(&EdmAtCmdWrapper(ExecWifiStationAction{
                         config_id: 0,

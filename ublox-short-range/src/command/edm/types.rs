@@ -74,7 +74,7 @@ impl From<u8> for PayloadType{
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BluetoothConnectEvent{
     pub channel_id: ChannelId,
     pub profile: BluetoothConnectType,
@@ -82,7 +82,7 @@ pub struct BluetoothConnectEvent{
     pub frame_size: u16,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IPv4ConnectEvent{
     pub channel_id: ChannelId,
     pub protocol: Protocol,
@@ -91,7 +91,7 @@ pub struct IPv4ConnectEvent{
     pub local_ip: Ipv4Addr,
     pub local_port: u16,
 }
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct IPv6ConnectEvent{
     pub channel_id: ChannelId,
     pub protocol: Protocol,
@@ -101,13 +101,13 @@ pub struct IPv6ConnectEvent{
     pub local_port: u16,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DataEvent{
     pub channel_id: ChannelId,
     pub data: Vec<u8, DataPackageSize>,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum BluetoothConnectType{
     SSP = 0,
@@ -115,7 +115,7 @@ pub enum BluetoothConnectType{
     SerialPortServiceBLE = 14,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
 pub enum ConnectType{
     Bluetooth = 0x01,
@@ -135,7 +135,7 @@ impl From<u8> for ConnectType{
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 #[repr(u8)]
 pub enum Protocol{
     TCP = 0x00,

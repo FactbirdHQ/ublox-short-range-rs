@@ -16,7 +16,10 @@ pub trait TLS {
         name: &str,
         certificate: &[u8],
     ) -> Result<(), Error>;
-    fn import_root_ca(&self, name: &str, root_ca: &[u8]) -> Result<(), Error>;
+    fn import_root_ca(&self,
+        name: &str,
+        root_ca: &[u8]
+    ) -> Result<(), Error>;
     fn import_private_key(
         &self,
         name: &str,
