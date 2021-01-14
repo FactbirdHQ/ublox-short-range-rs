@@ -23,6 +23,7 @@ pub enum WiFiState{
 #[derive(Debug, PartialEq)]
 pub enum NetworkState{
     Attached,
+    AlmostAttached,
     Unattached,
 }
 

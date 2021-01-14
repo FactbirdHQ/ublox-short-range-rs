@@ -378,7 +378,12 @@ where
                             defmt::debug!("[URC] NetworkUp");
                             if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
                                 if let Some (ref mut con) = *some {
-                                    con.network_state = NetworkState::Attached;
+                                    match con.network_state {
+                                        NetworkState::Attached => (),
+                                        NetworkState::AlmostAttached => con.network_state = NetworkState::Attached,
+                                        NetworkState::Unattached => con.network_state = NetworkState::AlmostAttached,
+                                    }
+                                    // con.network_state = NetworkState::Attached;
                                 }
                                 true
                             } else {
@@ -390,7 +395,7 @@ where
                             defmt::debug!("[URC] NetworkDown");
                             if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
                                 if let Some(ref mut con) = *some {
-                                    con.network_state = NetworkState::Attached;
+                                    con.network_state = NetworkState::Unattached;
                                 }
                                 true
                             } else {
