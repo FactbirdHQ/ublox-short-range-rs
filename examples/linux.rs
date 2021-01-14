@@ -16,7 +16,7 @@ use ublox_short_range::wifi;
 
 use heapless::{consts::*, spsc::Queue, String};
 #[allow(unused_imports)]
-use log::{error, info, warn};
+use defmt::{error, info, warn};
 
 #[derive(Clone, Copy)]
 struct MilliSeconds(u32);
@@ -73,7 +73,7 @@ static mut WIFI_RES_Q: Option<Queue<Result<ResponseType, at::Error>, ATResponseQ
 
 fn main() {
     env_logger::builder()
-        .filter_level(log::LevelFilter::Trace)
+        .filter_level(defmt::LevelFilter::Trace)
         .init();
 
     // Serial port settings

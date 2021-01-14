@@ -20,7 +20,7 @@ use heapless::{Vec, String, consts, ArrayLength};
 use core::convert::TryFrom;
 
 #[cfg(feature = "logging")]
-use log::info;
+use defmt::info;
 
 /// Wireless network connectivity functionality.
 pub trait WifiConnectivity{

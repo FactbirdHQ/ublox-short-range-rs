@@ -10,7 +10,7 @@ macro_rules! setup_test_env {
 
         use heapless::{consts::*, spsc::Queue, String};
         #[allow(unused_imports)]
-        use log::{error, info, warn};
+        use defmt::{error, info, warn};
 
         use crate::wifi;
         use env_logger::Env;

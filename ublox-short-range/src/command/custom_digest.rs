@@ -29,7 +29,7 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
         
         // #[cfg(feature = "logging")]
         // if ingress.buf.len() != 0 {
-        //     log::debug!("Recived: {:?}, state: {:?}", ingress.buf, ingress.get_state());
+        //     defmt::debug!("Recived: {:?}, state: {:?}", ingress.buf, ingress.get_state());
         // }
     
         // TODO Handle module restart, tests and set default startupmessage in client, and optimiz this!

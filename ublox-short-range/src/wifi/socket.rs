@@ -67,7 +67,7 @@ where
             Err(e @ Error::AT(atat::Error::Timeout)) => {
                 if attempt < 3 {
                     #[cfg(feature = "logging")]
-                    log::error!("[RETRY] Retrying! {:?}", attempt);
+                    defmt::error!("[RETRY] Retrying! {:?}", attempt);
                     self.handle_socket_error(f, socket, attempt + 1)
                 } else {
                     Err(e)
@@ -141,7 +141,7 @@ where
             }
             _ => {
                 #[cfg(feature = "logging")]
-                log::error!("SocketNotFound {:?}", channel_id);
+                defmt::error!("SocketNotFound {:?}", channel_id);
                 Err(Error::SocketNotFound)
             }
         }
@@ -207,7 +207,7 @@ where
 
         for chunk in buffer.chunks(EgressChunkSize::to_usize()) {
             // #[cfg(feature = "logging")]
-            // log::debug!("Sending: {} bytes, {:?}", chunk.len(), chunk);
+            // defmt::debug!("Sending: {} bytes, {:?}", chunk.len(), chunk);
             // self.handle_socket_error(
             //     || {
             //         self.send_internal(
@@ -336,7 +336,7 @@ where
         let mut ip_str = String::<consts::U43>::from("[");
         let mut port = String::<consts::U8>::new();
         // #[cfg(feature = "logging")]
-        // log::info!("[Connecting] URL1! {:?}", url);
+        // defmt::info!("[Connecting] URL1! {:?}", url);
         match remote.ip() {
             IpAddr::V4(ip) => {
                 ip_str = to_string(
@@ -360,7 +360,7 @@ where
         }
         url.push(':').map_err(|_e| Self::Error::BadLength)?;
         // #[cfg(feature = "logging")]
-        // log::info!("[Connecting] ip! {:?}", ip_str);
+        // defmt::info!("[Connecting] ip! {:?}", ip_str);
         
         port = to_string(
             &remote.port(),
@@ -396,7 +396,7 @@ where
         }
         
         #[cfg(feature = "logging")]
-        log::info!("[Connecting] url! {:?}", url);
+        defmt::info!("[Connecting] url! {:?}", url);
 
         let resp = self.handle_socket_error(
             || {

@@ -41,7 +41,7 @@ use heapless::{consts, ArrayLength, String};
     
     
 #[cfg(feature = "logging")]
-use log::info;
+use defmt::info;
 // use edm::Packet;
 
 #[macro_export]
@@ -90,7 +90,7 @@ pub enum DNSState {
 
 // macro_rules! size_of {
 //     ($type:ident) => {
-//         log::info!(
+//         defmt::info!(
 //             "Size of {}: {:?}",
 //             stringify!($type),
 //             core::mem::size_of::<$type>()
@@ -217,7 +217,7 @@ where
 
     pub fn spin(&self) -> Result<(), Error> {
         // #[cfg(feature = "logging")]
-        // log::debug!("SPIN");
+        // defmt::debug!("SPIN");
         if !self.initialized.get(){
             return Err(Error::Uninitialized)
         }
@@ -250,7 +250,7 @@ where
         if check_urc {
             if let Err(_e) = self.handle_urc() {
                 #[cfg(features = "logging")]
-                log::error!("Failed handle URC: {:?}", _e);
+                defmt::error!("Failed handle URC: {:?}", _e);
             }
         }
 
@@ -261,8 +261,8 @@ where
                 nb::Error::Other(ate) => {
                     #[cfg(feature = "logging")]
                     match core::str::from_utf8(&req.as_bytes()) {
-                        Ok(s) => log::error!("{:?}: [{:?}]", ate, s),
-                        Err(_) => log::error!("{:?}: {:02x?}", ate, req.as_bytes()),
+                        Ok(s) => defmt::error!("{:?}: [{:?}]", ate, s),
+                        Err(_) => defmt::error!("{:?}: {:02x?}", ate, req.as_bytes()),
                     };
                     ate.into()
                 }
@@ -273,18 +273,18 @@ where
     fn handle_urc(&self) -> Result<(), Error> {
         self.client.try_borrow_mut()?.peek_urc_with::<EdmEvent, _>(|edm_urc| {
             // #[cfg(feature = "logging")]
-            // log::debug!("Handle URC");
+            // defmt::debug!("Handle URC");
             let res = match edm_urc {
                 EdmEvent::ATEvent(urc) => {
                     match urc {
                         Urc::PeerConnected(_) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] PeerConnected");
+                            defmt::debug!("[URC] PeerConnected");
                             true
                         }
                         Urc::PeerDisconnected(msg) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] PeerDisconnected");
+                            defmt::debug!("[URC] PeerDisconnected");
                             if let Ok(ref mut sockets) = self.sockets.try_borrow_mut(){
                                 let mut handle = SocketHandle(msg.handle);
                                 match sockets.socket_type(handle) {
@@ -311,7 +311,7 @@ where
                         }
                         Urc::WifiLinkConnected(msg) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] WifiLinkConnected");
+                            defmt::debug!("[URC] WifiLinkConnected");
                             if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
                                 if let Some(ref mut con) = *some {
                                         con.wifi_state = WiFiState::Connected;
@@ -326,7 +326,7 @@ where
                         }
                         Urc::WifiLinkDisconnected(msg) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] WifiLinkDisconnected");
+                            defmt::debug!("[URC] WifiLinkDisconnected");
                             if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
                                 if let Some(ref mut con) = *some {
                                     // con.sockets.prune();
@@ -336,7 +336,7 @@ where
                                         }
                                         DisconnectReason::SecurityProblems => {
                                             #[cfg(feature = "logging")]
-                                            log::error!("Wifi Security Problems");
+                                            defmt::error!("Wifi Security Problems");
                                         }
                                         _ => {
                                             con.wifi_state = WiFiState::NotConnected;
@@ -351,41 +351,41 @@ where
                         }
                         Urc::WifiAPUp(_) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] WifiAPUp");
+                            defmt::debug!("[URC] WifiAPUp");
                             true
                         }
                         Urc::WifiAPDown(_) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] WifiAPDown");
+                            defmt::debug!("[URC] WifiAPDown");
                             true
                         }
                         Urc::WifiAPStationConnected(_) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] WifiAPStationConnected");
+                            defmt::debug!("[URC] WifiAPStationConnected");
                             true
                             
                         }
                         Urc::WifiAPStationDisconnected(_) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] WifiAPStationDisconnected");
+                            defmt::debug!("[URC] WifiAPStationDisconnected");
                             true
                             
                         }
                         Urc::EthernetLinkUp(_) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] EthernetLinkUp");
+                            defmt::debug!("[URC] EthernetLinkUp");
                             true
                             
                         }
                         Urc::EthernetLinkDown(_) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] EthernetLinkDown");
+                            defmt::debug!("[URC] EthernetLinkDown");
                             true
                             
                         }
                         Urc::NetworkUp(_) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] NetworkUp");
+                            defmt::debug!("[URC] NetworkUp");
                             if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
                                 if let Some (ref mut con) = *some {
                                     con.network_state = NetworkState::Attached;
@@ -398,7 +398,7 @@ where
                         }
                         Urc::NetworkDown(_) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] NetworkDown");
+                            defmt::debug!("[URC] NetworkDown");
                             if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
                                 if let Some(ref mut con) = *some {
                                     con.network_state = NetworkState::Attached;
@@ -410,12 +410,12 @@ where
                         }
                         Urc::NetworkError(_) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] NetworkError");
+                            defmt::debug!("[URC] NetworkError");
                             true
                         }
                         Urc::PingResponse(resp) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] PingResponse");
+                            defmt::debug!("[URC] PingResponse");
                             if self.dns_state.get() == DNSState::Resolving{
                                 self.dns_state.set(DNSState::Resolved(resp.ip))
                             }
@@ -423,7 +423,7 @@ where
                         }
                         Urc::PingErrorResponse(resp) => {
                             #[cfg(feature = "logging")]
-                            log::debug!("[URC] PingErrorResponse");
+                            defmt::debug!("[URC] PingErrorResponse");
                             if self.dns_state.get() == DNSState::Resolving{
                                 self.dns_state.set(DNSState::Error(resp.error))
                             }
@@ -433,7 +433,7 @@ where
                 }, // end match urc
                 EdmEvent::StartUp => {
                     #[cfg(feature = "logging")]
-                    log::debug!("[EDM_URC] STARTUP");
+                    defmt::debug!("[EDM_URC] STARTUP");
                     // self.initialized.set(false);
                     // self.serial_mode.set(SerialMode::Cmd);
                     true
@@ -441,7 +441,7 @@ where
                 },
                 EdmEvent::IPv4ConnectEvent(event) => {
                     #[cfg(feature = "logging")]
-                    log::debug!("[EDM_URC] IPv4ConnectEvent! Channel_id: {:?}", event.channel_id);
+                    defmt::debug!("[EDM_URC] IPv4ConnectEvent! Channel_id: {:?}", event.channel_id);
 
                     if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
                         let endpoint = SocketAddr::new(IpAddr::V4(event.remote_ip), event.remote_port);
@@ -472,7 +472,7 @@ where
                 }
                 EdmEvent::IPv6ConnectEvent(event) => {
                     #[cfg(feature = "logging")]
-                    log::debug!("[EDM_URC] IPv6ConnectEvent! Channel_id: {:?}", event.channel_id);
+                    defmt::debug!("[EDM_URC] IPv6ConnectEvent! Channel_id: {:?}", event.channel_id);
                     if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
                         let endpoint = SocketAddr::new(IpAddr::V6(event.remote_ip), event.remote_port);
                         match sockets.socket_type_by_endpoint(&endpoint) {
@@ -500,17 +500,17 @@ where
                 }
                 EdmEvent::BluetoothConnectEvent(_) => {
                     #[cfg(feature = "logging")]
-                    log::debug!("[EDM_URC] BluetoothConnectEvent"); 
+                    defmt::debug!("[EDM_URC] BluetoothConnectEvent"); 
                     true
                 }
                 EdmEvent::DisconnectEvent(channel_id) => {
                     #[cfg(feature = "logging")]
-                    log::debug!("[EDM_URC] DisconnectEvent");
+                    defmt::debug!("[EDM_URC] DisconnectEvent");
                     true
                 }
                 EdmEvent::DataEvent(mut event) => {
                     #[cfg(feature = "logging")]
-                    log::debug!("[EDM_URC] DataEvent");
+                    defmt::debug!("[EDM_URC] DataEvent");
                     if let Ok(digested) = self.socket_ingress(ChannelId(event.channel_id), &event.data){
                         if digested < event.data.len() {
                             //resize packet and return false
@@ -528,12 +528,12 @@ where
                 let a = self.urc_attempts.get();
                 if a < self.max_urc_attempts {
                     #[cfg(feature = "logging")]
-                    log::debug!("[EDM_URC] URC handeling failed");
+                    defmt::debug!("[EDM_URC] URC handeling failed");
                     self.urc_attempts.set(a + 1);
                     return false;
                 }
                 #[cfg(feature = "logging")]
-                log::debug!("[EDM_URC] URC thrown away");
+                defmt::debug!("[EDM_URC] URC thrown away");
             }
             self.urc_attempts.set(0);
             true
