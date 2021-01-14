@@ -1,7 +1,7 @@
 // Handles reciving data from sockets
 // implements TCP and UDP for WiFi client
 
-use embedded_hal::digital::v2::OutputPin;
+// use embedded_hal::digital::v2::OutputPin;
 pub use embedded_nal::{SocketAddr, IpAddr, Mode, SocketAddrV4, SocketAddrV6, AddrType};
 pub use no_std_net::{Ipv4Addr, Ipv6Addr};
 use heapless::{consts, ArrayLength, String};
@@ -66,7 +66,6 @@ where
             Ok(r) => Ok(r),
             Err(e @ Error::AT(atat::Error::Timeout)) => {
                 if attempt < 3 {
-                    #[cfg(feature = "logging")]
                     defmt::error!("[RETRY] Retrying! {:?}", attempt);
                     self.handle_socket_error(f, socket, attempt + 1)
                 } else {
@@ -140,7 +139,6 @@ where
                 Ok(udp.rx_enqueue_slice(data))                
             }
             _ => {
-                #[cfg(feature = "logging")]
                 defmt::error!("SocketNotFound {:?}", channel_id);
                 Err(Error::SocketNotFound)
             }
@@ -206,7 +204,7 @@ where
         }
 
         for chunk in buffer.chunks(EgressChunkSize::to_usize()) {
-            // #[cfg(feature = "logging")]
+        
             // defmt::debug!("Sending: {} bytes, {:?}", chunk.len(), chunk);
             // self.handle_socket_error(
             //     || {
@@ -335,7 +333,7 @@ where
         let mut workspace = String::<consts::U43>::new();
         let mut ip_str = String::<consts::U43>::from("[");
         let mut port = String::<consts::U8>::new();
-        // #[cfg(feature = "logging")]
+    
         // defmt::info!("[Connecting] URL1! {:?}", url);
         match remote.ip() {
             IpAddr::V4(ip) => {
@@ -359,7 +357,7 @@ where
             }
         }
         url.push(':').map_err(|_e| Self::Error::BadLength)?;
-        // #[cfg(feature = "logging")]
+    
         // defmt::info!("[Connecting] ip! {:?}", ip_str);
         
         port = to_string(
@@ -395,8 +393,7 @@ where
             url.pop();
         }
         
-        #[cfg(feature = "logging")]
-        defmt::info!("[Connecting] url! {:?}", url);
+        defmt::info!("[Connecting] url! {:str}", url);
 
         let resp = self.handle_socket_error(
             || {
@@ -404,7 +401,7 @@ where
                     &EdmAtCmdWrapper(ConnectPeer {
                         url: &url
                     }),
-                    false,
+                    true,
                 )
             },
             Some(socket),
@@ -463,7 +460,7 @@ where
                             channel: tcp.channel_id().0,
                             data: chunk,
                         },
-                        false,
+                        true,
                     )
                 },
                 Some(*socket),
@@ -528,7 +525,7 @@ where
                             peer_handle: tcp.handle().0
                         }
                     ),
-                    false,
+                    true,
                 )
                 },
             Some(socket),

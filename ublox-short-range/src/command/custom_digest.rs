@@ -27,10 +27,18 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
         // Handle commands
         ingress.handle_com();
         
-        // #[cfg(feature = "logging")]
-        // if ingress.buf.len() != 0 {
-        //     defmt::debug!("Recived: {:?}, state: {:?}", ingress.buf, ingress.get_state());
-        // }
+        /// Debug statement for trace properly
+        if ingress.buf.len() != 0 {
+            match core::str::from_utf8(&ingress.buf) {
+                Ok(s) => defmt::debug!("Recived: {:str}, state: {:?}", s, ingress.get_state()),
+                Err(_) => defmt::debug!(
+                    "Recived: {:?}, state: {:?}",
+                    core::convert::AsRef::<[u8]>::as_ref(&ingress.buf),
+                    ingress.get_state(),
+                ),
+            };
+            // defmt::debug!("Recived: {:?}, state: {:?}", ingress.buf, ingress.get_state());
+        }
     
         // TODO Handle module restart, tests and set default startupmessage in client, and optimiz this!
         //Handle module restart. "+STARTUP\r\n" is the default startupmessage. 
@@ -75,7 +83,8 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
                 let (resp, mut remaining) = ingress.buf.split_at(edm_len);
                 let mut return_val: Option<Result<ByteVec<BufLen>, Error>> = None;
                 if ingress.get_state() == State::ReceivingResponse {    
-                    if let Some(b"ERROR") = resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION) {
+                    if resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION) == Some(b"ERROR") ||
+                        resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION+2) == Some(b"ERROR") {
                     // if let Some(_) = resp.windows(b"ERROR".len()).position(|window| window == b"ERROR" ) {
                         //Recieved Error response
                         return_val = Some(Err(Error::InvalidResponse));

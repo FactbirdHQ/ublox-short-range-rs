@@ -19,7 +19,6 @@ use embedded_hal::timer::{Cancel, CountDown};
 use heapless::{Vec, String, consts, ArrayLength};
 use core::convert::TryFrom;
 
-#[cfg(feature = "logging")]
 use defmt::info;
 
 /// Wireless network connectivity functionality.

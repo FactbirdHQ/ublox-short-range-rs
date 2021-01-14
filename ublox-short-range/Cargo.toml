@@ -16,18 +16,27 @@ doctest = false
 
 [dependencies]
 heapless = { version = "^0.5", features = ["serde"] }
-no-std-net = { version = "0.3.0", features = ["serde"] }
-embedded-hal = "0.2.3"
+no-std-net = { version = "0.4.0", features = ["serde"] }
 nb = "0.1.2"
-# atat = { version = "^0.4.1", features = ["derive"] }
-atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "d140569", features = ["derive", "custom-digest"]}
-# atat = { path = "../../atat/atat", features = ["derive", "custom-digest"] }
+serde = { version = "^1", default-features = false, features = ["derive"] }
+typenum = "^1"
+defmt = "0.1"
+# log = { version = "0.4", default-features = false, optional = true }
+
+
+
+# embedded-hal = "0.2.3"
+embedded-hal = { version = "1.0.0-alpha.4" }
+
 # serde_at = { version = "^0.4.1" }
 serde_at = { git = "https://github.com/BlackbirdHQ/atat", rev = "3b53261"}
-serde = { version = "^1", default-features = false, features = ["derive"] }
-embedded-nal = { git = "https://github.com/MathiasKoch/embedded-nal", branch = "factbird_mini" }
-log = { version = "0.4", default-features = false, optional = true }
-typenum = "^1"
+
+embedded-nal = { git = "https://github.com/BlackbirdHQ/embedded-nal", branch = "factbird-mini-1.0" }
+# embedded-nal = { git = "https://github.com/MathiasKoch/embedded-nal", branch = "factbird_mini" }
+
+# atat = { version = "^0.4.1", features = ["derive"] }
+# atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "d140569", features = ["derive", "custom-digest"]}
+atat = { path = "../../atat/atat", features = ["derive", "custom-digest", "defmt-debug"] }
 
 [dependencies.packed_struct_codegen]
 version = "0.3"
@@ -62,7 +71,14 @@ nina_b3xx = []
 
 socket-tcp = []
 socket-udp = []
-logging = ["log"]
+# logging = ["defmt"]
+
+defmt-default = []
+defmt-trace = []
+defmt-debug = []
+defmt-info = []
+defmt-warn = []
+defmt-error = []
 
 wifi_ap = []
 wifi_sta = []

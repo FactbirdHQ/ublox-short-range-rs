@@ -25,7 +25,7 @@ impl AtatUrc for EdmEvent{
 
     /// Parse the response into a `Self::Response` instance.
     fn parse(resp: &[u8]) -> Result<Self::Response, atat::Error>{
-        // #[cfg(feature = "logging")]
+        // 
         // defmt::info!("[Parse URC] {:?}", resp);
         //Startup message?
         //TODO: simplify maby no packet check.
@@ -36,20 +36,20 @@ impl AtatUrc for EdmEvent{
         if resp.len() < PAYLOAD_OVERHEAD
             || !resp.starts_with(&[STARTBYTE])
             || !resp.ends_with(&[ENDBYTE]) {
-            // #[cfg(feature = "logging")]
+            // 
             // defmt::info!("[Parse URC Error] {:?}", resp);
             return Err(atat::Error::InvalidResponse);
         };
         let payload_len = calc_payload_len(resp);
         if resp.len() != payload_len + EDM_OVERHEAD {
-            // #[cfg(feature = "logging")]
+            // 
             // defmt::info!("[Parse URC Error] {:?}", resp);
             return Err(atat::Error::InvalidResponse);
         }
 
         match resp[4].into() {
             PayloadType::ATEvent => {
-                // #[cfg(feature = "logging")]
+                // 
                 // defmt::info!("[Parse URC AT-CMD]: {:?}", &resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len]);
                 let cmd = Urc::parse(&resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len])?;
                 Ok(EdmEvent::ATEvent(cmd))
@@ -124,7 +124,7 @@ impl AtatUrc for EdmEvent{
             }
             
             _ => {
-                // #[cfg(feature = "logging")]
+                // 
                 // defmt::info!("[Parse URC Error] {:?}", resp);
                 Err(atat::Error::InvalidResponse)
             }
