@@ -27,7 +27,7 @@ pub type TTL = (u8, Option<Inteval>);
 /// • Default value: 1000
 pub type Inteval = u16;
 
-#[derive(Debug, PartialEq, Clone, Copy, AtatEnum)]
+#[derive(Debug, PartialEq, Clone, Copy, AtatEnum, defmt::Format)]
 #[repr(u8)]
 pub enum PingError{
     /// 1 - 6: Internal error (ping level)

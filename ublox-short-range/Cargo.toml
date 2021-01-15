@@ -37,6 +37,7 @@ embedded-nal = { git = "https://github.com/BlackbirdHQ/embedded-nal", branch = "
 # atat = { version = "^0.4.1", features = ["derive"] }
 # atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "d140569", features = ["derive", "custom-digest"]}
 atat = { path = "../../atat/atat", features = ["derive", "custom-digest", "defmt-debug"] }
+# atat = { path = "../../atat/atat", features = ["derive", "custom-digest"] }
 
 [dependencies.packed_struct_codegen]
 version = "0.3"

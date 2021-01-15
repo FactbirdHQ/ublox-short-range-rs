@@ -301,16 +301,24 @@ where
     fn open(&self, _mode: Mode) -> Result<Self::TcpSocket, Self::Error> {
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected(){
+                defmt::debug!("[Opening socket] Not connected or initialized");
                 return Err(Error::Network);
             }
         } else {
+            defmt::debug!("[Opening socket] Not able to borrow connection");
             return Err(Error::Network);
         }
-
-        Ok(self
-            .sockets
-            .try_borrow_mut()?
-            .add(TcpSocket::new(0))?)
+        if let Ok(mut sockets) = self.sockets.try_borrow_mut(){
+            if let Ok (h) = sockets                .add(TcpSocket::new(0)){
+                Ok(h)
+            } else {
+                // defmt::debug!("[Opening socket] Socket set full");
+                Err(Error::Network)
+            }
+        } else {
+            defmt::debug!("[Opening socket] Not able to borrow sockets");
+            Err(Error::Network)
+        }
     }
 
     /// Connect to the given remote host and port.
@@ -327,91 +335,104 @@ where
             return Err(Error::Network);
         }
 
-        //TODO: Optimize! and when possible rewrite to ufmt!
-        let mut url = String::<consts::U128>::from("tcp://");
-        let dud = String::<consts::U1>::new();
-        let mut workspace = String::<consts::U43>::new();
-        let mut ip_str = String::<consts::U43>::from("[");
-        let mut port = String::<consts::U8>::new();
-    
-        // defmt::info!("[Connecting] URL1! {:?}", url);
-        match remote.ip() {
-            IpAddr::V4(ip) => {
-                ip_str = to_string(
-                    &ip,
-                    String::<consts::U1>::new(),
-                    SerializeOptions{value_sep: false,  cmd_prefix: &"", termination: &""},
-                ).map_err(|_e| Self::Error::BadLength)?;
-                url.push_str(&ip_str[1 .. ip_str.len()-1]).map_err(|_e| Self::Error::BadLength)?;
-            },
-            IpAddr::V6(ip) => {
-                workspace = to_string(
-                    &ip,
-                    String::<consts::U1>::new(),
-                    SerializeOptions::default(),
-                ).map_err(|_e| Self::Error::BadLength)?;
+        let handle;
 
-                ip_str.push_str(&workspace[1..workspace.len()-1]).map_err(|_e| Self::Error::BadLength)?;
-                ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
-                url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
-            }
-        }
-        url.push(':').map_err(|_e| Self::Error::BadLength)?;
-    
-        // defmt::info!("[Connecting] ip! {:?}", ip_str);
+        {
+            //TODO: Optimize! and when possible rewrite to ufmt!
+            let mut url = String::<consts::U128>::from("tcp://");
+            let dud = String::<consts::U1>::new();
+            let mut workspace = String::<consts::U43>::new();
+            let mut ip_str = String::<consts::U43>::from("[");
+            let mut port = String::<consts::U8>::new();
         
-        port = to_string(
-            &remote.port(),
-            String::<consts::U1>::new(),
-            SerializeOptions::default(),
-        ).map_err(|_e| Self::Error::BadLength)?;
-        url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
-        url.push('/').map_err(|_e| Self::Error::BadLength)?;
+            // defmt::info!("[Connecting] URL1! {:?}", url);
+            match remote.ip() {
+                IpAddr::V4(ip) => {
+                    ip_str = to_string(
+                        &ip,
+                        String::<consts::U1>::new(),
+                        SerializeOptions{value_sep: false,  cmd_prefix: &"", termination: &""},
+                    ).map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&ip_str[1 .. ip_str.len()-1]).map_err(|_e| Self::Error::BadLength)?;
+                },
+                IpAddr::V6(ip) => {
+                    workspace = to_string(
+                        &ip,
+                        String::<consts::U1>::new(),
+                        SerializeOptions::default(),
+                    ).map_err(|_e| Self::Error::BadLength)?;
 
+                    ip_str.push_str(&workspace[1..workspace.len()-1]).map_err(|_e| Self::Error::BadLength)?;
+                    ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
+                }
+            }
+            url.push(':').map_err(|_e| Self::Error::BadLength)?;
+        
+            // defmt::info!("[Connecting] ip! {:?}", ip_str);
+            
+            port = to_string(
+                &remote.port(),
+                String::<consts::U1>::new(),
+                SerializeOptions::default(),
+            ).map_err(|_e| Self::Error::BadLength)?;
+            url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
+            url.push('/').map_err(|_e| Self::Error::BadLength)?;
+
+            let mut sockets = self.sockets.try_borrow_mut()?;
+            let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
+
+            if tcp.c_cert_name != None || tcp.c_key_name != None || tcp.ca_cert_name != None {
+                url.push('?').map_err(|_e| Self::Error::BadLength)?;
+                if let Some(ref ca) = tcp.ca_cert_name{
+                    url.push_str(&"ca=").map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(ca).map_err(|_e| Self::Error::BadLength)?;
+                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
+                }
+
+                if let Some(ref client) = tcp.c_cert_name{
+                    url.push_str(&"cert=").map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(client).map_err(|_e| Self::Error::BadLength)?;
+                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
+                }
+
+                if let Some(ref key) = tcp.c_key_name {
+                    url.push_str(&"privKey=").map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(key).map_err(|_e| Self::Error::BadLength)?;
+                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
+                }
+                url.pop();
+            }
+            
+            defmt::info!("[Connecting] url! {:str}", url);
+
+            
+            let resp = self.handle_socket_error(
+                || {
+                    self.send_internal(
+                        &EdmAtCmdWrapper(ConnectPeer {
+                            url: &url
+                        }),
+                        false,
+                    )
+                },
+                Some(socket),
+                0,
+            )?;
+            handle = SocketHandle(resp.peer_handle);
+            tcp.set_state(TcpState::SynSent);
+            tcp.endpoint = remote;
+            tcp.meta.handle = handle;
+        }
+        while {
+            let mut sockets = self.sockets.try_borrow_mut()?;
+            let mut tcp = sockets.get::<TcpSocket<_>>(handle)?;
+            tcp.state() == TcpState::SynSent
+        }{
+            self.spin()?;
+        }
         let mut sockets = self.sockets.try_borrow_mut()?;
-        let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
-
-        if tcp.c_cert_name != None || tcp.c_key_name != None || tcp.ca_cert_name != None {
-            url.push('?').map_err(|_e| Self::Error::BadLength)?;
-            if let Some(ref ca) = tcp.ca_cert_name{
-                url.push_str(&"ca=").map_err(|_e| Self::Error::BadLength)?;
-                url.push_str(ca).map_err(|_e| Self::Error::BadLength)?;
-                url.push('&').map_err(|_e| Self::Error::BadLength)?;
-            }
-
-            if let Some(ref client) = tcp.c_cert_name{
-                url.push_str(&"cert=").map_err(|_e| Self::Error::BadLength)?;
-                url.push_str(client).map_err(|_e| Self::Error::BadLength)?;
-                url.push('&').map_err(|_e| Self::Error::BadLength)?;
-            }
-
-            if let Some(ref key) = tcp.c_key_name {
-                url.push_str(&"privKey=").map_err(|_e| Self::Error::BadLength)?;
-                url.push_str(key).map_err(|_e| Self::Error::BadLength)?;
-                url.push('&').map_err(|_e| Self::Error::BadLength)?;
-            }
-            url.pop();
-        }
-        
-        defmt::info!("[Connecting] url! {:str}", url);
-
-        let resp = self.handle_socket_error(
-            || {
-                self.send_internal(
-                    &EdmAtCmdWrapper(ConnectPeer {
-                        url: &url
-                    }),
-                    true,
-                )
-            },
-            Some(socket),
-            0,
-        )?;
-
-        
-        tcp.set_state(TcpState::SynSent);
-        tcp.endpoint = remote;
-        tcp.meta.handle = SocketHandle(resp.peer_handle);
+        let mut tcp = sockets.get::<TcpSocket<_>>(handle)?;
         Ok(tcp.handle())
     }
 

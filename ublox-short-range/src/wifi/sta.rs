@@ -28,6 +28,8 @@ pub trait WifiConnectivity{
 
     fn scan(&self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError>;
 
+    fn is_connected(&self) -> bool;
+
     fn disconnect(&self) -> Result<(), WifiConnectionError>;
 }
 
@@ -156,6 +158,21 @@ where
                 .collect(),
             Err(_) => Err(WifiError::UnexpectedResponse),
         }
+    }
+
+    fn is_connected(&self) -> bool {
+        if !self.initialized.get(){
+            return false
+        }
+
+        if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
+            if let Some(ref mut con) = *some {
+                if con.is_connected(){
+                    return true
+                }
+            }
+        }
+        false
     }
 
     fn disconnect(&self) -> Result<(), WifiConnectionError> {

@@ -442,6 +442,7 @@ where
                                     tcp.set_state(crate::socket::TcpState::Established);
                                     true
                                 } else {
+                                    defmt::debug!("[EDM_URC] Socket not found!");
                                     false
                                 }
                             },
@@ -450,12 +451,17 @@ where
                                     udp.meta.channel_id.0 = event.channel_id;
                                     true
                                 } else {
+                                    defmt::debug!("[EDM_URC] Socket not found!");
                                     false
                                 }
                             },
-                            None => true,
+                            None => {
+                                defmt::debug!("[EDM_URC] Socket type not excisting!");
+                                true
+                            },
                         }
                     } else {
+                        defmt::debug!("[EDM_URC] Could not borrow sockets!");
                         false
                     }
                 }
