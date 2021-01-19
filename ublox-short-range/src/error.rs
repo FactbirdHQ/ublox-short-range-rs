@@ -23,6 +23,7 @@ pub enum Error {
     Busy,
     InvalidHex,
     Dns(crate::command::ping::types::PingError),
+    DublicateCredentials,
     Uninitialized,
     _Unknown,
 }

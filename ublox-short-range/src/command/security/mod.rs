@@ -42,6 +42,7 @@ pub struct PrepareSecurityDataImport<'a> {
     "",
     SecurityDataImport,
     value_sep = false,
+    timeout_ms = 10000,
     cmd_prefix = "",
     termination = "",
     force_receive_state = true

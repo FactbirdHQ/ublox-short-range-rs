@@ -50,6 +50,12 @@ where
     ) -> Result<(), Error> {
         assert!(name.len() < 200);
 
+        if let Some(ref sec) = self.security_credentials{
+            if let Some(_) = sec.c_cert_name{
+                return Err(Error::DublicateCredentials);
+            }
+        }
+
         self.send_at(PrepareSecurityDataImport {
             data_type: SecurityDataType::ClientCertificate,
             data_size: certificate.len(),
@@ -81,6 +87,12 @@ where
 
     fn import_root_ca(&mut self, name: &str, root_ca: &[u8]) -> Result<(), Error> {
         assert!(name.len() < 200);
+
+        if let Some(ref sec) = self.security_credentials{
+            if let Some(_) = sec.ca_cert_name{
+                return Err(Error::DublicateCredentials);
+            }
+        }
 
         self.send_at(PrepareSecurityDataImport {
             data_type: SecurityDataType::TrustedRootCA,
@@ -117,6 +129,12 @@ where
         password: Option<&str>,
     ) -> Result<(), Error> {
         assert!(name.len() < 200);
+
+        if let Some(ref sec) = self.security_credentials{
+            if let Some(_) = sec.c_key_name{
+                return Err(Error::DublicateCredentials);
+            }
+        }
 
         self.send_at(PrepareSecurityDataImport {
             data_type: SecurityDataType::ClientPrivateKey,
