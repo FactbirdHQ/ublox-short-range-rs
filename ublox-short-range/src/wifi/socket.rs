@@ -382,21 +382,26 @@ where
             let mut sockets = self.sockets.try_borrow_mut()?;
             let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
 
-            if tcp.c_cert_name != None || tcp.c_key_name != None || tcp.ca_cert_name != None {
+            // if tcp.c_cert_name != None || tcp.c_key_name != None || tcp.ca_cert_name != None {
+            if let Some(ref credentials) = self.security_credentials {
                 url.push('?').map_err(|_e| Self::Error::BadLength)?;
-                if let Some(ref ca) = tcp.ca_cert_name{
+                
+                // if let Some(ref ca) = tcp.ca_cert_name{
+                if let Some(ref ca) = credentials.ca_cert_name{
                     url.push_str(&"ca=").map_err(|_e| Self::Error::BadLength)?;
                     url.push_str(ca).map_err(|_e| Self::Error::BadLength)?;
                     url.push('&').map_err(|_e| Self::Error::BadLength)?;
                 }
 
-                if let Some(ref client) = tcp.c_cert_name{
+                // if let Some(ref client) = tcp.c_cert_name{
+                if let Some(ref client) = credentials.c_cert_name{
                     url.push_str(&"cert=").map_err(|_e| Self::Error::BadLength)?;
                     url.push_str(client).map_err(|_e| Self::Error::BadLength)?;
                     url.push('&').map_err(|_e| Self::Error::BadLength)?;
                 }
 
-                if let Some(ref key) = tcp.c_key_name {
+                // if let Some(ref key) = tcp.c_key_name {
+                if let Some(ref key) = credentials.c_key_name {
                     url.push_str(&"privKey=").map_err(|_e| Self::Error::BadLength)?;
                     url.push_str(key).map_err(|_e| Self::Error::BadLength)?;
                     url.push('&').map_err(|_e| Self::Error::BadLength)?;

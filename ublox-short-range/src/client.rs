@@ -87,6 +87,13 @@ pub enum DNSState {
     Error(PingError),
 }
 
+#[derive(PartialEq, Clone)]
+pub struct SecurityCredentials{
+    pub ca_cert_name: Option<heapless::String<consts::U16>>,
+    pub c_cert_name: Option<heapless::String<consts::U16>>, //TODO: Make &str with lifetime
+    pub c_key_name: Option<heapless::String<consts::U16>>,
+}
+
 // macro_rules! size_of {
 //     ($type:ident) => {
 //         defmt::info!(
@@ -112,6 +119,7 @@ where
     pub(crate) dns_state: Cell<DNSState>,
     pub(crate) urc_attempts: Cell<u8>,
     pub(crate) max_urc_attempts: u8,
+    pub(crate) security_credentials: Option<SecurityCredentials>,
 }
 
 impl<C, N, L> UbloxClient<C, N, L>
@@ -134,6 +142,7 @@ where
             dns_state: Cell::new(DNSState::NotResolving),
             max_urc_attempts: 5,
             urc_attempts: Cell::new(0),
+            security_credentials: None,
         }
     }
 

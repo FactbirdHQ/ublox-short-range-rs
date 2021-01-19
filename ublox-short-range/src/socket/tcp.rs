@@ -32,9 +32,9 @@ impl Default for State {
 pub struct TcpSocket<L: ArrayLength<u8>> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: SocketAddr,
-    pub(crate) ca_cert_name: Option<heapless::String<consts::U16>>,
-    pub(crate) c_cert_name: Option<heapless::String<consts::U16>>, //TODO: Make &str with lifetime
-    pub(crate) c_key_name: Option<heapless::String<consts::U16>>,
+    // pub(crate) ca_cert_name: Option<heapless::String<consts::U16>>,
+    // pub(crate) c_cert_name: Option<heapless::String<consts::U16>>, //TODO: Make &str with lifetime
+    // pub(crate) c_key_name: Option<heapless::String<consts::U16>>,
     state: State,
     rx_buffer: SocketBuffer<L>,
 }
@@ -50,9 +50,9 @@ impl<L: ArrayLength<u8>> TcpSocket<L> {
             endpoint: SocketAddrV4::new(Ipv4Addr::unspecified(), 0).into(),
             state: State::Closed,
             rx_buffer: SocketBuffer::new(),
-            ca_cert_name: None,
-            c_cert_name: None, //TODO: Make &str with lifetime
-            c_key_name: None,
+            // ca_cert_name: None,
+            // c_cert_name: None, //TODO: Make &str with lifetime
+            // c_key_name: None,
         }
     }
 
