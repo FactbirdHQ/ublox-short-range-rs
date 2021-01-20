@@ -2,12 +2,24 @@ use core::cmp::min;
 
 use heapless::ArrayLength;
 
-use super::{Error, Result};
-use crate::socket::{RingBuffer, Socket, SocketHandle, SocketMeta};
+use super::{Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta, ChannelId};
 pub use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 /// A UDP socket ring buffer.
 pub type SocketBuffer<N> = RingBuffer<u8, N>;
+
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum State {
+    Closed,
+    Established,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        State::Closed
+    }
+}
 
 /// A User Datagram Protocol socket.
 ///
@@ -16,6 +28,8 @@ pub type SocketBuffer<N> = RingBuffer<u8, N>;
 pub struct UdpSocket<L: ArrayLength<u8>> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: SocketAddr,
+    available_data: usize,
+    state: State,
     rx_buffer: SocketBuffer<L>,
 }
 
@@ -27,6 +41,8 @@ impl<L: ArrayLength<u8>> UdpSocket<L> {
         UdpSocket {
             meta,
             endpoint: SocketAddrV4::new(Ipv4Addr::unspecified(), 0).into(),
+            state: State::Closed,
+            available_data: 0,
             rx_buffer: SocketBuffer::new(),
         }
     }
@@ -37,12 +53,27 @@ impl<L: ArrayLength<u8>> UdpSocket<L> {
         self.meta.handle
     }
 
+    /// Return the socket channel id.
+    #[inline]
+    pub fn channel_id(&self) -> ChannelId {
+        self.meta.channel_id
+    }
+
     /// Return the bound endpoint.
     #[inline]
     pub fn endpoint(&self) -> SocketAddr {
         self.endpoint
     }
 
+    /// Return the connection state, in terms of the UDP connection.
+    #[inline]
+    pub fn state(&self) -> State {
+        self.state
+    }
+
+    pub fn set_state(&mut self, state: State) {
+        self.state = state
+    }
     /// Bind the socket to the given endpoint.
     ///
     /// This function returns `Err(Error::Illegal)` if the socket was open
@@ -75,18 +106,9 @@ impl<L: ArrayLength<u8>> UdpSocket<L> {
     #[inline]
     pub fn is_open(&self) -> bool {
         match self.endpoint {
-            SocketAddr::V4(ipv4) => {
-                if ipv4.port() == 0 {
-                    return false;
-                }
-            }
-            SocketAddr::V6(ipv6) => {
-                if ipv6.port() == 0 {
-                    return false;
-                }
-            }
+            SocketAddr::V4(ipv4) => ipv4.port() != 0,
+            SocketAddr::V6(ipv6) => ipv6.port() != 0,
         }
-        true
     }
 
     /// Check whether the receive buffer is full.

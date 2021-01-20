@@ -281,17 +281,6 @@ impl<L: ArrayLength<u8>> TcpSocket<L> {
     }
 
     pub fn set_state(&mut self, state: State) {
-        // if self.state != state {
-        //     if self.remote_endpoint.addr.is_unspecified() {
-        //         net_trace!("{}:{}: state={}=>{}",
-        //                    self.meta.handle, self.local_endpoint,
-        //                    self.state, state);
-        //     } else {
-        //         net_trace!("{}:{}:{}: state={}=>{}",
-        //                    self.meta.handle, self.local_endpoint, self.remote_endpoint,
-        //                    self.state, state);
-        //     }
-        // }
         self.state = state
     }
 }

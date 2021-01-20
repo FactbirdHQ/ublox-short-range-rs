@@ -2,7 +2,7 @@ use atat::AtatClient;
 use atat::atat_derive::{AtatCmd, AtatResp};
 use core::cell::{Cell, RefCell};
 use embedded_hal::timer::CountDown;
-use embedded_nal::{SocketAddr, IpAddr};
+use embedded_nal::{SocketAddr, IpAddr, SocketAddrV4, SocketAddrV6};
 use crate::{
     command::{
         edm::{
@@ -35,7 +35,7 @@ use crate::{
     wifi::connection::{WifiConnection, WiFiState, NetworkState},
     error::Error,
     sockets::SocketSet,
-    socket::{ChannelId, SocketType, TcpSocket, UdpSocket, SocketHandle},
+    socket::{ChannelId, SocketType, TcpSocket, TcpState, UdpSocket, UdpState, SocketHandle},
 };
 use heapless::{consts, ArrayLength, String};
     
@@ -448,7 +448,7 @@ where
                                 if let Ok(mut tcp) = sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint){
                                     tcp.meta.channel_id.0 = event.channel_id;
                                     //maybe
-                                    tcp.set_state(crate::socket::TcpState::Established);
+                                    tcp.set_state(TcpState::Established);
                                     true
                                 } else {
                                     defmt::debug!("[EDM_URC] Socket not found!");
@@ -458,6 +458,8 @@ where
                             Some(SocketType::Udp) => {
                                 if let Ok(mut udp) = sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint){
                                     udp.meta.channel_id.0 = event.channel_id;
+                                    let endpoint = SocketAddrV4::new(event.remote_ip, event.remote_port);
+                                    udp.set_state(UdpState::Established);
                                     true
                                 } else {
                                     defmt::debug!("[EDM_URC] Socket not found!");
@@ -482,6 +484,7 @@ where
                             Some(SocketType::Tcp) => {
                                 if let Ok(mut tcp) = sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint) {
                                     tcp.meta.channel_id.0 = event.channel_id;
+                                    tcp.set_state(TcpState::Established);
                                     true
                                 } else {
                                     false
@@ -490,6 +493,8 @@ where
                             Some(SocketType::Udp) => {
                                 if let Ok(mut udp) = sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint) {
                                     udp.meta.channel_id.0 = event.channel_id;
+                                    let endpoint = SocketAddrV6::new(event.remote_ip, event.remote_port, 0, 0);
+                                    udp.set_state(UdpState::Established);
                                     true
                                 } else {
                                     false

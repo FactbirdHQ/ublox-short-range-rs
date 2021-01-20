@@ -20,7 +20,7 @@ use crate::{
 };
 
 #[cfg(feature = "socket-udp")]
-use crate::socket::UdpSocket;
+use crate::socket::{UdpSocket, UdpState};
 #[cfg(feature = "socket-udp")]
 use embedded_nal::UdpStack;
 
@@ -162,87 +162,126 @@ where
     /// Open a new UDP socket to the given address and port. UDP is connectionless,
     /// so unlike `TcpStack` no `connect()` is required.
     fn open(&self, remote: SocketAddr, _mode: Mode) -> Result<Self::UdpSocket, Self::Error> {
-        // if self.state.get() != crate::client::State::Attached || !self.check_gprs_attachment()? {
-        //     self.state.set(crate::client::State::Detached);
-        //     return Err(Error::Network);
-        // }
+        if let Some(ref con) = *self.wifi_connection.try_borrow()? {
+            if !self.initialized.get() || !con.is_connected(){
+                return Err(Error::Network);
+            }
+        } else {
+            return Err(Error::Network);
+        }
+        let handle;
+        {
+            let mut url = String::<consts::U128>::from("udp://");
+            let dud = String::<consts::U1>::new();
+            let mut workspace = String::<consts::U43>::new();
+            let mut ip_str = String::<consts::U43>::from("[");
+            let mut port = String::<consts::U8>::new();
+        
+            // defmt::info!("[Connecting] URL1! {:?}", url);
+            match remote.ip() {
+                IpAddr::V4(ip) => {
+                    ip_str = to_string(
+                        &ip,
+                        String::<consts::U1>::new(),
+                        SerializeOptions{value_sep: false,  cmd_prefix: &"", termination: &""},
+                    ).map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&ip_str[1 .. ip_str.len()-1]).map_err(|_e| Self::Error::BadLength)?;
+                },
+                IpAddr::V6(ip) => {
+                    workspace = to_string(
+                        &ip,
+                        String::<consts::U1>::new(),
+                        SerializeOptions::default(),
+                    ).map_err(|_e| Self::Error::BadLength)?;
 
-        // let socket_resp = self.handle_socket_error(
-        //     || {
-        //         self.send_internal(
-        //             &CreateSocket {
-        //                 protocol: SocketProtocol::UDP,
-        //                 local_port: None,
-        //             },
-        //             false,
-        //         )
-        //     },
-        //     None,
-        //     0,
-        // )?;
+                    ip_str.push_str(&workspace[1..workspace.len()-1]).map_err(|_e| Self::Error::BadLength)?;
+                    ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
+                }
+            }
+            url.push(':').map_err(|_e| Self::Error::BadLength)?;
+        
+            // defmt::info!("[Connecting] ip! {:?}", ip_str);
+            
+            port = to_string(
+                &remote.port(),
+                String::<consts::U1>::new(),
+                SerializeOptions::default(),
+            ).map_err(|_e| Self::Error::BadLength)?;
+            url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
+            url.push('/').map_err(|_e| Self::Error::BadLength)?;
 
-        // let mut socket = UdpSocket::new(socket_resp.socket.0);
-        let mut socket = UdpSocket::new(0);
-        socket.bind(remote)?;
+            
 
-        Ok(self.sockets.try_borrow_mut()?.add(socket)?)
+            defmt::info!("[Connecting] url! {:str}", url);
+
+                
+            let resp = self.handle_socket_error(
+                || {
+                    self.send_at(
+                        ConnectPeer {
+                            url: &url
+                        }
+                    )
+                },
+                None,
+                0,
+            )?;
+            handle = SocketHandle(resp.peer_handle);
+            let mut udp = UdpSocket::new(resp.peer_handle);
+            udp.endpoint = remote;
+
+            let mut sockets = self.sockets.try_borrow_mut()?;
+            sockets.add(udp).map_err(|e| Error::Network)?;
+        }
+        while {
+            let mut sockets = self.sockets.try_borrow_mut()?;
+            let mut udp = sockets.get::<UdpSocket<_>>(handle)?;
+            udp.state() == UdpState::Closed
+        }{
+            self.spin()?;
+        }
+        let mut sockets = self.sockets.try_borrow_mut()?;
+        let mut udp = sockets.get::<UdpSocket<_>>(handle)?;
+        Ok(udp.handle())
     }
 
     /// Send a datagram to the remote host.
     fn write(&self, socket: &mut Self::UdpSocket, buffer: &[u8]) -> nb::Result<(), Self::Error> {
+        if let Some(ref con) = *self.wifi_connection
+            .try_borrow()
+            .map_err(|e| nb::Error::Other(e.into()))? {
+            if !self.initialized.get() || !con.is_connected(){
+                return Err(nb::Error::Other(Error::Network));
+            }
+        } else {
+            return Err(nb::Error::Other(Error::Network));
+        }
+
         let mut sockets = self
             .sockets
             .try_borrow_mut()
             .map_err(|e| nb::Error::Other(e.into()))?;
 
-        let udp = sockets
+        let mut udp = sockets
             .get::<UdpSocket<_>>(*socket)
-            .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
-
-        if !udp.is_open() {
-            return Err(nb::Error::Other(Error::SocketClosed));
-        }
+            .map_err(|e| nb::Error::Other(e.into()))?;
 
         for chunk in buffer.chunks(EgressChunkSize::to_usize()) {
-        
-            // defmt::debug!("Sending: {} bytes, {:?}", chunk.len(), chunk);
-            // self.handle_socket_error(
-            //     || {
-            //         self.send_internal(
-            //             &PrepareUDPSendToDataBinary {
-            //                 socket: *socket,
-            //                 remote_addr: udp.endpoint.ip(),
-            //                 remote_port: udp.endpoint.port(),
-            //                 length: chunk.len(),
-            //             },
-            //             false,
-            //         )
-            //     },
-            //     Some(*socket),
-            //     0,
-            // )?;
-
-            // let response = self.handle_socket_error(
-            //     || {
-            //         self.send_internal(
-            //             &UDPSendToDataBinary {
-            //                 data: serde_at::ser::Bytes(chunk),
-            //             },
-            //             false,
-            //         )
-            //     },
-            //     Some(*socket),
-            //     0,
-            // )?;
-
-            // if response.length != chunk.len() {
-            //     return Err(nb::Error::Other(Error::BadLength));
-            // }
-            // if &response.socket != socket {
-            //     return Err(nb::Error::Other(Error::WrongSocketType));
-            // }
+            self.handle_socket_error(
+                || {
+                    self.send_internal(
+                        &EdmDataCommand{
+                            channel: udp.channel_id().0,
+                            data: chunk,
+                        },
+                        true,
+                    )
+                },
+                Some(*socket),
+                0,
+            )?;
         }
-
         Ok(())
     }
 
@@ -256,30 +295,36 @@ where
     ) -> nb::Result<usize, Self::Error> {
         // self.spin()?;
 
-        // let mut sockets = self
-        //     .sockets
-        //     .try_borrow_mut()
-        //     .map_err(|e| nb::Error::Other(e.into()))?;
+        let mut sockets = self
+            .sockets
+            .try_borrow_mut()
+            .map_err(|e| nb::Error::Other(e.into()))?;
 
-        // let mut udp = sockets
-        //     .get::<UdpSocket<_>>(*socket)
-        //     .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
+        let mut udp = sockets
+            .get::<UdpSocket<_>>(*socket)
+            .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
 
-        // udp.recv_slice(buffer)
-        //     .map_err(|e| nb::Error::Other(e.into()))
-        Ok(0)
+        udp.recv_slice(buffer)
+            .map_err(|e| nb::Error::Other(e.into()))
     }
 
     /// Close an existing UDP socket.
     fn close(&self, socket: Self::UdpSocket) -> Result<(), Self::Error> {
-        // self.send_internal(&CloseSocket { socket }, false)?;
-
         let mut sockets = self.sockets.try_borrow_mut()?;
         let mut udp = sockets.get::<UdpSocket<_>>(socket)?;
+
+        self.handle_socket_error(
+            || {
+                self.send_at(
+                    ClosePeerConnection{
+                        peer_handle: udp.handle().0
+                    }
+                )
+            },
+            Some(socket),
+            0,
+        )?;
         udp.close();
-
-        sockets.remove(socket)?;
-
         Ok(())
     }
 }
@@ -301,15 +346,13 @@ where
     fn open(&self, _mode: Mode) -> Result<Self::TcpSocket, Self::Error> {
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected(){
-                defmt::debug!("[Opening socket] Not connected or initialized");
                 return Err(Error::Network);
             }
         } else {
-            defmt::debug!("[Opening socket] Not able to borrow connection");
             return Err(Error::Network);
         }
         if let Ok(mut sockets) = self.sockets.try_borrow_mut(){
-            if let Ok (h) = sockets                .add(TcpSocket::new(0)){
+            if let Ok (h) = sockets.add(TcpSocket::new(0)){
                 Ok(h)
             } else {
                 // defmt::debug!("[Opening socket] Socket set full");
