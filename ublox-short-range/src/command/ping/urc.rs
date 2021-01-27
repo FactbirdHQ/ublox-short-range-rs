@@ -39,7 +39,7 @@ pub struct PingResponse {
     pub rtt: i32,
 }
 
-#[derive(Debug, PartialEq, Clone, AtatResp)]
+#[derive(Debug, PartialEq, Clone, AtatResp, defmt::Format)]
 pub struct PingErrorResponse {
     #[at_arg(position = 0)]
     pub error: PingError,

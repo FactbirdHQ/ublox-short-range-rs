@@ -185,6 +185,7 @@ where
         Ok(())
     }
 
+    /// Not in use
     #[inline]
     fn low_power_mode(&self, _enable: bool) -> Result<(), atat::Error> {
         // if let Some(ref _dtr) = self.config.dtr_pin {
@@ -198,6 +199,7 @@ where
         Ok(())
     }
 
+    ///Not in use
     #[inline]
     fn autosense(&self) -> Result<(), Error> {
         for _ in 0..15 {
@@ -211,6 +213,7 @@ where
         Err(Error::BaudDetection)
     }
 
+    ///Not in use
     #[inline]
     fn reset(&self) -> Result<(), Error> {
         // self.send_internal(
@@ -235,12 +238,11 @@ where
                 return Err(Error::WifiState(con.wifi_state))
             }
         } else {
-            return Err(Error::NoNetworkSetup)
+            return Err(Error::NoWifiSetup)
         }
 
         Ok(())
     }
-
 
     pub(crate) fn send_internal<A: atat::AtatCmd>(
         &self,
@@ -299,21 +301,26 @@ where
                                 match sockets.socket_type(handle) {
                                     Some(SocketType::Tcp) => {
                                         if let Ok(mut tcp) = sockets.get::<TcpSocket<_>>(handle){
-                                            tcp.close();
+                                            match tcp.state() {
+                                                TcpState::SynSent => {
+                                                    tcp.close();
+                                                }
+                                                _ => {
+                                                    tcp.close();
+                                                    sockets.remove(handle).ok();
+                                                }
+                                            }
                                         }
                                     }
                                     Some(SocketType::Udp) => {
                                         if let Ok(mut udp) = sockets.get::<UdpSocket<_>>(handle){
                                             udp.close();
                                         }
+                                        sockets.remove(handle).ok();
                                     }
-                                    None => (),
+                                    None => {},
                                 }
-                                if sockets.remove(handle).is_err(){
-                                    false
-                                } else {
-                                    true
-                                }
+                                true
                             } else {
                                 false
                             }
@@ -423,7 +430,7 @@ where
                             true
                         }
                         Urc::PingErrorResponse(resp) => {
-                            defmt::debug!("[URC] PingErrorResponse");
+                            defmt::debug!("[URC] PingErrorResponse: {:?}", resp.error);
                             if self.dns_state.get() == DNSState::Resolving{
                                 self.dns_state.set(DNSState::Error(resp.error))
                             }
@@ -447,7 +454,6 @@ where
                             Some(SocketType::Tcp) => {
                                 if let Ok(mut tcp) = sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint){
                                     tcp.meta.channel_id.0 = event.channel_id;
-                                    //maybe
                                     tcp.set_state(TcpState::Established);
                                     true
                                 } else {

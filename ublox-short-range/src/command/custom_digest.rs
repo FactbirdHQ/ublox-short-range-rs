@@ -30,8 +30,8 @@ pub fn custom_digest<BufLen, U, ComCapacity, ResCapacity, UrcCapacity>(
         /// Debug statement for trace properly
         if ingress.buf.len() != 0 {
             match core::str::from_utf8(&ingress.buf) {
-                Ok(s) => defmt::debug!("Recived: {:str}, state: {:?}", s, ingress.get_state()),
-                Err(_) => defmt::debug!(
+                Ok(s) => defmt::trace!("Recived: {:str}, state: {:?}", s, ingress.get_state()),
+                Err(_) => defmt::trace!(
                     "Recived: {:?}, state: {:?}",
                     core::convert::AsRef::<[u8]>::as_ref(&ingress.buf),
                     ingress.get_state(),

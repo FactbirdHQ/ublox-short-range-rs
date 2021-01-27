@@ -162,6 +162,7 @@ where
     /// Open a new UDP socket to the given address and port. UDP is connectionless,
     /// so unlike `TcpStack` no `connect()` is required.
     fn open(&self, remote: SocketAddr, _mode: Mode) -> Result<Self::UdpSocket, Self::Error> {
+        defmt::debug!("UDP open");
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected(){
                 return Err(Error::Network);
@@ -212,27 +213,35 @@ where
             url.push('/').map_err(|_e| Self::Error::BadLength)?;
 
             
-
+            let udp = UdpSocket::new(0);
+            let mut sockets = self.sockets.try_borrow_mut()?;
+            sockets.add(udp).map_err(|e| Error::Network)?;
+            
             defmt::info!("[Connecting] url! {:str}", url);
-
-                
-            let resp = self.handle_socket_error(
+            match self.handle_socket_error(
                 || {
-                    self.send_at(
-                        ConnectPeer {
-                            url: &url
-                        }
+                    self.send_internal(
+                        &EdmAtCmdWrapper(ConnectPeer {
+                                url: &url
+                            }
+                        ),
+                        false
                     )
                 },
                 None,
                 0,
-            )?;
-            handle = SocketHandle(resp.peer_handle);
-            let mut udp = UdpSocket::new(resp.peer_handle);
-            udp.endpoint = remote;
-
-            let mut sockets = self.sockets.try_borrow_mut()?;
-            sockets.add(udp).map_err(|e| Error::Network)?;
+            ){
+                Ok(resp) => {
+                    handle = SocketHandle(resp.peer_handle);
+                    let mut udp = sockets.get::<UdpSocket<_>>(SocketHandle(0))?;
+                    udp.endpoint = remote;
+                    udp.meta.handle = handle;
+                }
+                Err(e) => {
+                    sockets.remove(SocketHandle(0)).ok();
+                    return Err(e);
+                }
+            }
         }
         while {
             let mut sockets = self.sockets.try_borrow_mut()?;
@@ -310,21 +319,24 @@ where
 
     /// Close an existing UDP socket.
     fn close(&self, socket: Self::UdpSocket) -> Result<(), Self::Error> {
+        defmt::debug!("UDP close: {:?}", socket.0);
         let mut sockets = self.sockets.try_borrow_mut()?;
-        let mut udp = sockets.get::<UdpSocket<_>>(socket)?;
+        //If no sockets excists, nothing to close.
+        if let Some(ref mut udp) = sockets.get::<UdpSocket<_>>(socket).ok(){
+            self.handle_socket_error(
+                || {
+                    self.send_at(
+                        ClosePeerConnection{
+                            peer_handle: udp.handle().0
+                        }
+                    )
+                },
+                Some(socket),
+                0,
+            )?;
+            udp.close();
+        }
 
-        self.handle_socket_error(
-            || {
-                self.send_at(
-                    ClosePeerConnection{
-                        peer_handle: udp.handle().0
-                    }
-                )
-            },
-            Some(socket),
-            0,
-        )?;
-        udp.close();
         Ok(())
     }
 }
@@ -344,6 +356,7 @@ where
 
     /// Open a new TCP socket to the given address and port. The socket starts in the unconnected state.
     fn open(&self, _mode: Mode) -> Result<Self::TcpSocket, Self::Error> {
+        defmt::debug!("TCP open");
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected(){
                 return Err(Error::Network);
@@ -370,17 +383,22 @@ where
         socket: Self::TcpSocket,
         remote: SocketAddr,
     ) -> Result<Self::TcpSocket, Self::Error> {
+        defmt::debug!("TCP connect: {:?}", socket.0);
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected(){
                 return Err(Error::Network);
             }
         } else {
-            return Err(Error::Network);
+            return Err(Error::NoWifiSetup);
         }
 
         let handle;
 
         {
+            let mut sockets = self.sockets.try_borrow_mut()?;
+            //If no socket is found we stop here
+            let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
+
             //TODO: Optimize! and when possible rewrite to ufmt!
             let mut url = String::<consts::U128>::from("tcp://");
             let dud = String::<consts::U1>::new();
@@ -421,9 +439,6 @@ where
             ).map_err(|_e| Self::Error::BadLength)?;
             url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
             url.push('/').map_err(|_e| Self::Error::BadLength)?;
-
-            let mut sockets = self.sockets.try_borrow_mut()?;
-            let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
 
             // if tcp.c_cert_name != None || tcp.c_key_name != None || tcp.ca_cert_name != None {
             if let Some(ref credentials) = self.security_credentials {
@@ -583,30 +598,34 @@ where
 
     /// Close an existing TCP socket.
     fn close(&self, socket: Self::TcpSocket) -> Result<(), Self::Error> {
+        defmt::debug!("TCP close: {:?}", socket.0);
         let mut sockets = self.sockets.try_borrow_mut()?;
-        let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
         
-        self.handle_socket_error(
-            || {
-                self.send_internal(
-                    &EdmAtCmdWrapper(
-                        ClosePeerConnection{
-                            peer_handle: tcp.handle().0
-                        }
-                    ),
-                    true,
-                )
-                },
-            Some(socket),
-            0,
-        )?;
-
-        tcp.close();
-
-        // This is done in the incomming URC
-        // sockets.remove(socket)?;
-
-
+        // If the socket is not found it is already removed
+        if let Some(ref mut tcp) = sockets.get::<TcpSocket<_>>(socket).ok(){
+            //If socket is not closed that means a connection excists which has to be closed
+            if tcp.state() != TcpState::Closed {
+                match self.handle_socket_error(
+                    || {
+                        self.send_at(
+                            ClosePeerConnection{
+                                peer_handle: tcp.handle().0
+                            }
+                        )
+                    },
+                    Some(socket),
+                    0,
+                ) {
+                    Err(Error::AT(atat::Error::InvalidResponse)) | Ok(_) =>  (),
+                    Err(e) => return Err(e.into()),
+                }
+                tcp.close();
+            } else {
+                //No connection exists the socket should be removed from the set here
+                tcp.close();
+                sockets.remove(socket)?;
+            }
+        }
         Ok(())
     }
 }
