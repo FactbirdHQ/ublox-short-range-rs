@@ -35,7 +35,8 @@ embedded-nal = { git = "https://github.com/BlackbirdHQ/embedded-nal", branch = "
 # embedded-nal = { git = "https://github.com/MathiasKoch/embedded-nal", branch = "factbird_mini" }
 
 # atat = { version = "^0.4.1", features = ["derive"] }
-atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "9fbfd11", features = ["derive", "custom-digest", "defmt-debug"]}
+atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "9fbfd11", features = ["derive", "custom-digest"]}
+# atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "9fbfd11", features = ["derive", "custom-digest", "defmt-debug"]}
 # atat = { path = "../../atat/atat", features = ["derive", "custom-digest", "defmt-debug"] }
 # atat = { path = "../../atat/atat", features = ["derive", "custom-digest"] }
 

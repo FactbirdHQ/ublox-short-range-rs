@@ -517,11 +517,11 @@ where
                     true
                 }
                 EdmEvent::DisconnectEvent(channel_id) => {
-                    defmt::debug!("[EDM_URC] DisconnectEvent");
+                    defmt::debug!("[EDM_URC] DisconnectEvent! Channel_id: {:?}", channel_id);
                     true
                 }
                 EdmEvent::DataEvent(mut event) => {
-                    defmt::debug!("[EDM_URC] DataEvent");
+                    defmt::debug!("[EDM_URC] DataEvent! Channel_id: {:?}", event.channel_id);
                     if let Ok(digested) = self.socket_ingress(ChannelId(event.channel_id), &event.data){
                         if digested < event.data.len() {
                             //resize packet and return false
