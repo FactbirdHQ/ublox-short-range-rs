@@ -124,7 +124,7 @@ impl<'a> atat::AtatCmd for EdmDataCommand<'a>{
         10000
     }
 
-    fn expects_response(&self) -> bool {
+    fn expects_response_code(&self) -> bool {
         false
     }
 }
@@ -160,7 +160,7 @@ impl atat::AtatCmd for EdmResendConnectEventsCommand{
         10000
     }
 
-    fn expects_response(&self) -> bool {
+    fn expects_response_code(&self) -> bool {
         false
     }
 }
