@@ -6,7 +6,7 @@ pub use embedded_nal::{SocketAddr, IpAddr, Mode, SocketAddrV4, SocketAddrV6, Add
 pub use no_std_net::{Ipv4Addr, Ipv6Addr};
 use heapless::{consts, ArrayLength, String};
 // use serde::{Serialize};
-use serde_at::{to_string, SerializeOptions};
+use atat::serde_at::{to_string, SerializeOptions};
 
 use crate::command::edm::{EdmAtCmdWrapper, EdmDataCommand};
 use crate::command::data_mode::{types::*, *};

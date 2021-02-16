@@ -106,7 +106,8 @@ impl Digester for EdmDigester {
             PayloadType::ATConfirmation  => {
                 let (resp, mut remaining) = buf.split_at(edm_len);
                 let mut return_val= DigestResult::None;
-                if self.state == State::ReceivingResponse {    
+                if self.state == State::ReceivingResponse {
+                    // Errors can come with and without leading whitespaces
                     if resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION) == Some(b"ERROR") ||
                         resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION+2) == Some(b"ERROR") {
                         return_val = DigestResult::Response(Err(Error::InvalidResponse));

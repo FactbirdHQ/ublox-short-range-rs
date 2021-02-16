@@ -64,7 +64,7 @@ where
         })?;
 
         self.send_at(SendSecurityDataImport {
-            data: serde_at::ser::Bytes(certificate),
+            data: atat::serde_at::ser::Bytes(certificate),
         })?;
 
         match self.security_credentials {
@@ -102,7 +102,7 @@ where
         })?;
 
         self.send_at(SendSecurityDataImport {
-            data: serde_at::ser::Bytes(root_ca),
+            data: atat::serde_at::ser::Bytes(root_ca),
         })?;
 
         match self.security_credentials {
@@ -144,7 +144,7 @@ where
         })?;
 
         self.send_at(SendSecurityDataImport {
-            data: serde_at::ser::Bytes(private_key),
+            data: atat::serde_at::ser::Bytes(private_key),
         })?;
 
         //Check MD5?
