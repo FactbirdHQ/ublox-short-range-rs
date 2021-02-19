@@ -1,27 +1,16 @@
+use crate::{
+    client::SecurityCredentials,
+    command::security::{types::*, *},
+    error::Error,
+    socket::{SocketHandle, SocketType, TcpSocket},
+    UbloxClient,
+};
 use atat::AtatClient;
 use heapless::{consts, ArrayLength, String};
-use crate::{
-    error::Error, 
-    UbloxClient,
-    client::SecurityCredentials,
-    command::security::{
-        *,
-        types::*,
-    },
-    socket::{SocketHandle, SocketType, TcpSocket},
-};
 
 pub trait TLS {
-    fn import_certificate(
-        &mut self,
-        name: &str,
-        certificate: &[u8],
-    ) -> Result<(), Error>;
-    fn import_root_ca(
-        &mut self,
-        name: &str,
-        root_ca: &[u8]
-    ) -> Result<(), Error>;
+    fn import_certificate(&mut self, name: &str, certificate: &[u8]) -> Result<(), Error>;
+    fn import_root_ca(&mut self, name: &str, root_ca: &[u8]) -> Result<(), Error>;
     fn import_private_key(
         &mut self,
         name: &str,
@@ -29,10 +18,10 @@ pub trait TLS {
         password: Option<&str>,
     ) -> Result<(), Error>;
     fn enable_tls(
-        &self, 
-        socket: SocketHandle, 
-        ca_cert_name: Option<&str>, 
-        client_cert_name: Option<&str>, 
+        &self,
+        socket: SocketHandle,
+        ca_cert_name: Option<&str>,
+        client_cert_name: Option<&str>,
         priv_key_name: Option<&str>,
     ) -> Result<(), Error>;
 }
@@ -43,15 +32,11 @@ where
     N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
     L: ArrayLength<u8>,
 {
-    fn import_certificate(
-        &mut self,
-        name: &str,
-        certificate: &[u8],
-    ) -> Result<(), Error> {
+    fn import_certificate(&mut self, name: &str, certificate: &[u8]) -> Result<(), Error> {
         assert!(name.len() < 200);
 
-        if let Some(ref sec) = self.security_credentials{
-            if let Some(_) = sec.c_cert_name{
+        if let Some(ref sec) = self.security_credentials {
+            if let Some(_) = sec.c_cert_name {
                 return Err(Error::DublicateCredentials);
             }
         }
@@ -72,10 +57,10 @@ where
                 creds.c_cert_name = Some(String::from(name));
             }
             None => {
-                self.security_credentials = Some(SecurityCredentials{
-                    c_cert_name: Some(String::from(name)), 
-                    c_key_name: None, 
-                    ca_cert_name: None, 
+                self.security_credentials = Some(SecurityCredentials {
+                    c_cert_name: Some(String::from(name)),
+                    c_key_name: None,
+                    ca_cert_name: None,
                 })
             }
         }
@@ -88,8 +73,8 @@ where
     fn import_root_ca(&mut self, name: &str, root_ca: &[u8]) -> Result<(), Error> {
         assert!(name.len() < 200);
 
-        if let Some(ref sec) = self.security_credentials{
-            if let Some(_) = sec.ca_cert_name{
+        if let Some(ref sec) = self.security_credentials {
+            if let Some(_) = sec.ca_cert_name {
                 return Err(Error::DublicateCredentials);
             }
         }
@@ -110,10 +95,10 @@ where
                 creds.ca_cert_name = Some(String::from(name));
             }
             None => {
-                self.security_credentials = Some(SecurityCredentials{
-                    ca_cert_name: Some(String::from(name)), 
-                    c_key_name: None, 
-                    c_cert_name: None, 
+                self.security_credentials = Some(SecurityCredentials {
+                    ca_cert_name: Some(String::from(name)),
+                    c_key_name: None,
+                    c_cert_name: None,
                 })
             }
         }
@@ -130,8 +115,8 @@ where
     ) -> Result<(), Error> {
         assert!(name.len() < 200);
 
-        if let Some(ref sec) = self.security_credentials{
-            if let Some(_) = sec.c_key_name{
+        if let Some(ref sec) = self.security_credentials {
+            if let Some(_) = sec.c_key_name {
                 return Err(Error::DublicateCredentials);
             }
         }
@@ -154,10 +139,10 @@ where
                 creds.c_key_name = Some(String::from(name));
             }
             None => {
-                self.security_credentials = Some(SecurityCredentials{
-                    c_key_name: Some(String::from(name)), 
-                    ca_cert_name: None, 
-                    c_cert_name: None, 
+                self.security_credentials = Some(SecurityCredentials {
+                    c_key_name: Some(String::from(name)),
+                    ca_cert_name: None,
+                    c_cert_name: None,
                 })
             }
         }
@@ -166,13 +151,13 @@ where
     }
 
     fn enable_tls(
-        &self, 
+        &self,
         socket: SocketHandle,
-        ca_cert_name: Option<&str>, 
-        client_cert_name: Option<&str>, 
-        priv_key_name: Option<&str>
+        ca_cert_name: Option<&str>,
+        client_cert_name: Option<&str>,
+        priv_key_name: Option<&str>,
     ) -> Result<(), Error> {
-        //Change socket handle to do TLS now, 
+        //Change socket handle to do TLS now,
         //Needs name of Certificates.
         // let mut sockets = self.sockets.try_borrow_mut()?;
         // match sockets.socket_type(socket) {

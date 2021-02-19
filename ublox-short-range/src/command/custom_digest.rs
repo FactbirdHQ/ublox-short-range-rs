@@ -1,21 +1,18 @@
 use atat::atat_log;
 use atat::Error;
-use atat::{
-    Digester,
-    DigestResult,
-    UrcMatcher,
-    IngressManager,
-    helpers::SliceExt,
-};
+use atat::{helpers::SliceExt, DigestResult, Digester, IngressManager, UrcMatcher};
 // use atat::ingress_manager::{
 //     get_line, IngressManager, SliceExt, State, UrcMatcher, UrcMatcherResult, ByteVec,
 // };
 // use atat::queues::{ComItem, ResItem, UrcItem};
-use heapless::{ArrayLength, Vec};
 use crate::command::edm::{
     calc_payload_len,
-    types::{AT_COMMAND_POSITION, EDM_OVERHEAD, EDM_FULL_SIZE_FILTER, STARTUPMESSAGE, STARTBYTE, ENDBYTE, PayloadType},
+    types::{
+        PayloadType, AT_COMMAND_POSITION, EDM_FULL_SIZE_FILTER, EDM_OVERHEAD, ENDBYTE, STARTBYTE,
+        STARTUPMESSAGE,
+    },
 };
+use heapless::{ArrayLength, Vec};
 
 /// State of the `DefaultDigester`, used to distiguish URCs from solicited
 /// responses
@@ -47,7 +44,7 @@ impl Digester for EdmDigester {
     const LINE_TERM_CHAR: u8 = ENDBYTE;
 
     /// Response formatting character S4 (Default = b'\n' ASCII: \[010\])
-    const FORMAT_CHAR: u8 =  STARTBYTE;
+    const FORMAT_CHAR: u8 = STARTBYTE;
 
     fn reset(&mut self) {
         self.state = State::Idle;
@@ -63,7 +60,6 @@ impl Digester for EdmDigester {
         buf: &mut Vec<u8, L>,
         urc_matcher: &mut impl UrcMatcher,
     ) -> DigestResult<L> {
-
         // Debug statement for trace properly
         if buf.len() != 0 {
             match core::str::from_utf8(&buf) {
@@ -76,70 +72,72 @@ impl Digester for EdmDigester {
             };
             // defmt::debug!("Recived: {:?}, state: {:?}", buf, ingress.get_state());
         }
-    
+
         // TODO Handle module restart, tests and set default startupmessage in client, and optimiz this!
-    
-        let start_pos = match buf.windows(1).position(|byte| byte[0] == STARTBYTE){
+
+        let start_pos = match buf.windows(1).position(|byte| byte[0] == STARTBYTE) {
             Some(pos) => pos,
             None => return DigestResult::None, //handle leading error data. //TODO handle error input before messagestart.
         };
-    
+
         // Trim leading invalid data.
         if start_pos != 0 {
-            *buf = Vec::from_slice(&buf[start_pos.. buf.len()]).unwrap();
+            *buf = Vec::from_slice(&buf[start_pos..buf.len()]).unwrap();
         }
-    
+
         // Verify payload length and end byte position
-        if buf.len() < EDM_OVERHEAD{
+        if buf.len() < EDM_OVERHEAD {
             return DigestResult::None;
         }
         let payload_len = calc_payload_len(&buf);
-    
+
         let edm_len = payload_len + EDM_OVERHEAD;
         if buf.len() < edm_len {
             return DigestResult::None;
-        } else if buf[edm_len -1] != ENDBYTE{
+        } else if buf[edm_len - 1] != ENDBYTE {
             return DigestResult::None;
         }
-    
+
         match PayloadType::from(buf[4]) {
-            PayloadType::ATConfirmation  => {
+            PayloadType::ATConfirmation => {
                 let (resp, mut remaining) = buf.split_at(edm_len);
-                let mut return_val= DigestResult::None;
+                let mut return_val = DigestResult::None;
                 if self.state == State::ReceivingResponse {
                     // Errors can come with and without leading whitespaces
-                    if resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION) == Some(b"ERROR") ||
-                        resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION+2) == Some(b"ERROR") {
+                    if resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION) == Some(b"ERROR")
+                        || resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION + 2)
+                            == Some(b"ERROR")
+                    {
                         return_val = DigestResult::Response(Err(Error::InvalidResponse));
                     } else {
-                        return_val = DigestResult::Response(Ok(Vec::from_slice(resp).unwrap())); 
+                        return_val = DigestResult::Response(Ok(Vec::from_slice(resp).unwrap()));
                     }
                 }
                 *buf = Vec::from_slice(remaining).unwrap();
                 self.state = State::Idle;
                 return return_val;
-            },
+            }
             PayloadType::StartEvent => {
                 let (resp, mut remaining) = buf.split_at(edm_len);
                 let mut return_val = DigestResult::None;
                 if self.state == State::ReceivingResponse {
                     self.state = State::Idle;
-                    return_val = DigestResult::Response(Ok(Vec::from_slice(resp).unwrap())); 
+                    return_val = DigestResult::Response(Ok(Vec::from_slice(resp).unwrap()));
                 }
                 *buf = Vec::from_slice(remaining).unwrap();
-                return return_val;                
-            },
-            PayloadType::ATEvent=> {
+                return return_val;
+            }
+            PayloadType::ATEvent => {
                 // Recived URC
                 let (resp, remaining) = buf.split_at(edm_len);
                 let (header, urc) = resp.split_at(AT_COMMAND_POSITION);
-    
+
                 let urc_trimmed = urc.trim_start(&[b'\n', b'\r']);
-                
+
                 let mut resp = Vec::from_slice(header).unwrap();
                 resp.extend(urc_trimmed);
                 resp[2] -= (urc.len() - urc_trimmed.len()) as u8;
-    
+
                 *buf = Vec::from_slice(remaining).unwrap();
                 return DigestResult::Urc(resp);
             }
@@ -204,7 +202,7 @@ mod test {
     //         val
     //     }};
     // }
-    
+
     // // Removed functionality used to change OK responses to empty responses.
     // // #[test]
     // // fn ok_response() {
@@ -216,7 +214,7 @@ mod test {
     // //     at_pars.set_state(State::ReceivingResponse);
     // //     //Payload: "OK\r\n"
     // //     let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
-    // //     let empty_ok_response = 
+    // //     let empty_ok_response =
     // //         Vec::<u8, TestRxBufLen>::from_slice(&[ 0xAAu8, 0x00, 0x02, 0x00, PayloadType::ATConfirmation as u8, 0x55]).unwrap();
 
     // //     at_pars.write(data);
@@ -375,5 +373,4 @@ mod test {
     //     assert_eq!(urc_c.dequeue(), None);
     //     assert_eq!(res_c.dequeue(), None);
     // }
-
 }

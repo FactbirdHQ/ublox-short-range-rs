@@ -206,7 +206,7 @@ pub enum PeerConfigParameter {
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum ConnectionType{
+pub enum ConnectionType {
     Bluetooth = 1,
     IPv4 = 2,
     IPv6 = 3,
@@ -224,7 +224,7 @@ pub enum ConnectionType{
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum IPProtocol{
+pub enum IPProtocol {
     TCP = 0,
     UDP = 1,
 }

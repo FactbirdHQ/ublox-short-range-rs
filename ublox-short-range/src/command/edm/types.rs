@@ -1,6 +1,6 @@
-use no_std_net::{Ipv4Addr, Ipv6Addr};
-use heapless::{Vec, consts};
 use super::calc_payload_len;
+use heapless::{consts, Vec};
+use no_std_net::{Ipv4Addr, Ipv6Addr};
 
 /// Start byte, Length: u16, Id+Type: u16, Endbyte
 // type EdmAtCmdOverhead = (u8, u16, u16, u8);
@@ -20,7 +20,6 @@ pub const AT_COMMAND_POSITION: usize = 5;
 /// Index in packet at which payload starts
 pub const PAYLOAD_POSITION: usize = 3;
 pub const STARTUPMESSAGE: &[u8] = b"\r\n+STARTUP\r\n";
-
 
 #[derive(Debug, PartialEq)]
 #[repr(u8)]
@@ -56,8 +55,8 @@ pub(crate) enum PayloadType {
     Unknown = 0x00,
 }
 
-impl From<u8> for PayloadType{
-    fn from(num: u8) -> Self{
+impl From<u8> for PayloadType {
+    fn from(num: u8) -> Self {
         match num {
             0x11u8 => PayloadType::ConnectEvent,
             0x21u8 => PayloadType::DisconnectEvent,
@@ -75,7 +74,7 @@ impl From<u8> for PayloadType{
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct BluetoothConnectEvent{
+pub struct BluetoothConnectEvent {
     pub channel_id: ChannelId,
     pub profile: BluetoothConnectType,
     pub bd_address: Vec<u8, consts::U6>,
@@ -83,7 +82,7 @@ pub struct BluetoothConnectEvent{
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct IPv4ConnectEvent{
+pub struct IPv4ConnectEvent {
     pub channel_id: ChannelId,
     pub protocol: Protocol,
     pub remote_ip: Ipv4Addr,
@@ -92,7 +91,7 @@ pub struct IPv4ConnectEvent{
     pub local_port: u16,
 }
 #[derive(Debug, Clone, PartialEq)]
-pub struct IPv6ConnectEvent{
+pub struct IPv6ConnectEvent {
     pub channel_id: ChannelId,
     pub protocol: Protocol,
     pub remote_ip: Ipv6Addr,
@@ -102,14 +101,14 @@ pub struct IPv6ConnectEvent{
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct DataEvent{
+pub struct DataEvent {
     pub channel_id: ChannelId,
     pub data: Vec<u8, DataPackageSize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum BluetoothConnectType{
+pub enum BluetoothConnectType {
     SSP = 0,
     DUN = 1,
     SerialPortServiceBLE = 14,
@@ -117,15 +116,15 @@ pub enum BluetoothConnectType{
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(u8)]
-pub enum ConnectType{
+pub enum ConnectType {
     Bluetooth = 0x01,
     IPv4 = 0x02,
     IPv6 = 0x03,
     Unknown = 0,
 }
 
-impl From<u8> for ConnectType{
-    fn from(num: u8) -> Self{
+impl From<u8> for ConnectType {
+    fn from(num: u8) -> Self {
         match num {
             1 => ConnectType::Bluetooth,
             2 => ConnectType::IPv4,
@@ -137,14 +136,14 @@ impl From<u8> for ConnectType{
 
 #[derive(Debug, Clone, PartialEq)]
 #[repr(u8)]
-pub enum Protocol{
+pub enum Protocol {
     TCP = 0x00,
     UDP = 0x01,
     Unknown = 0xFF,
 }
 
-impl From<u8> for Protocol{
-    fn from(num: u8) -> Self{
+impl From<u8> for Protocol {
+    fn from(num: u8) -> Self {
         match num {
             0 => Protocol::TCP,
             1 => Protocol::UDP,

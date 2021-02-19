@@ -29,7 +29,7 @@ pub type Inteval = u16;
 
 #[derive(Debug, PartialEq, Clone, Copy, AtatEnum, defmt::Format)]
 #[repr(u8)]
-pub enum PingError{
+pub enum PingError {
     /// 1 - 6: Internal error (ping level)
     InternalError1 = 1,
     /// 1 - 6: Internal error (ping level)

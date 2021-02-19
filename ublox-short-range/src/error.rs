@@ -1,8 +1,7 @@
-use atat::Error as ATError;
-use heapless::{consts::U64, String};
 use crate::socket;
+use atat::Error as ATError;
 use core::cell::{BorrowError, BorrowMutError};
-
+use heapless::{consts::U64, String};
 
 #[derive(Debug, defmt::Format)]
 pub enum Error {
@@ -68,7 +67,7 @@ pub enum WifiConnectionError {
     Internal(Error),
 }
 
-impl From<Error> for WifiConnectionError{
+impl From<Error> for WifiConnectionError {
     fn from(e: Error) -> Self {
         WifiConnectionError::Internal(e)
     }

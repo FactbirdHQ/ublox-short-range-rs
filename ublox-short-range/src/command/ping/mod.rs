@@ -1,14 +1,12 @@
 //! ### 20 - Ping Commands
-pub mod urc;
 pub mod types;
+pub mod urc;
 
 use atat::atat_derive::AtatCmd;
 use heapless::{consts, String};
 use no_std_net::IpAddr;
-use urc::*;
 use types::*;
-
-
+use urc::*;
 
 use super::NoResponse;
 
@@ -47,7 +45,7 @@ pub struct Ping<'a> {
 
 // #[derive(Clone, AtatCmd)]
 // #[at_cmd(
-//     "", 
+//     "",
 //     PingResponse,
 //     value_sep = false,
 //     cmd_prefix = "",

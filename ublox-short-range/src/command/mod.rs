@@ -1,7 +1,9 @@
 //! AT Commands for U-Blox short range module family\
 //! Following the [u-connect ATCommands Manual](https://www.u-blox.com/sites/default/files/u-connect-ATCommands-Manual_(UBX-14044127).pdf)
 
+pub mod custom_digest;
 pub mod data_mode;
+pub mod edm;
 pub mod ethernet;
 pub mod general;
 pub mod gpio;
@@ -10,8 +12,6 @@ pub mod ping;
 pub mod security;
 pub mod system;
 pub mod wifi;
-pub mod edm;
-pub mod custom_digest;
 
 use atat::atat_derive::{AtatCmd, AtatResp, AtatUrc};
 use heapless::{consts, String};

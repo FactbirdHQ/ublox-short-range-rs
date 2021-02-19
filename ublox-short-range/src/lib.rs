@@ -1,5 +1,11 @@
 #![no_std]
-#![allow(dead_code, unused_mut, unused_variables, unused_imports, non_camel_case_types)]
+#![allow(
+    dead_code,
+    unused_mut,
+    unused_variables,
+    unused_imports,
+    non_camel_case_types
+)]
 //TODO: remove this ^ IMPORTANT
 
 extern crate heapless;
@@ -25,8 +31,8 @@ mod test_helpers;
 mod client;
 mod hex;
 
-pub use client::UbloxClient;
 pub use atat;
+pub use client::UbloxClient;
 
 mod traits;
 
@@ -34,7 +40,6 @@ pub mod command;
 pub mod error;
 // pub mod socket;
 pub mod wifi;
-
 
 #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
 mod socket;
@@ -44,16 +49,16 @@ pub use wifi::tls::TLS;
 
 #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
 pub mod sockets {
-    pub use crate::wifi::socket::*;
     pub use crate::socket::*;
+    pub use crate::wifi::socket::*;
 }
 
 /// Prelude - Include traits
-pub mod prelude{
-    #[cfg(any(feature = "wifi_sta"))]
-    pub use crate::wifi::sta::WifiConnectivity;
+pub mod prelude {
     #[cfg(any(feature = "wifi_ap"))]
     pub use crate::wifi::ap::WifiHotspot;
+    #[cfg(any(feature = "wifi_sta"))]
+    pub use crate::wifi::sta::WifiConnectivity;
     #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
     pub use embedded_nal::{TcpStack, UdpStack};
 }

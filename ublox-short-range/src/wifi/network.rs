@@ -1,13 +1,8 @@
-use atat::serde_at::CharVec;
-use crate::command::{
-    wifi::types::{
-        OperationMode,
-        Authentication,
-        ScanedWifiNetwork}
-    };
+use crate::command::wifi::types::{Authentication, OperationMode, ScanedWifiNetwork};
 use crate::error::WifiError;
 use crate::hex::from_hex;
-use heapless::{String, consts};
+use atat::serde_at::CharVec;
+use heapless::{consts, String};
 
 use core::convert::TryFrom;
 
@@ -34,15 +29,16 @@ impl TryFrom<ScanedWifiNetwork> for WifiNetwork {
     type Error = WifiError;
 
     fn try_from(r: ScanedWifiNetwork) -> Result<Self, Self::Error> {
-
         Ok(WifiNetwork {
             bssid: r.bssid,
             op_mode: r.op_mode,
             ssid: r.ssid,
             channel: r.channel,
             rssi: r.rssi,
-            authentication_suites: from_hex(&mut [r.authentication_suites]).map_err(|_| Self::Error::HexError)?[0], //TODO: Better solution
-            unicast_ciphers: from_hex(&mut [r.unicast_ciphers]).map_err(|_| Self::Error::HexError)?[0],
+            authentication_suites: from_hex(&mut [r.authentication_suites])
+                .map_err(|_| Self::Error::HexError)?[0], //TODO: Better solution
+            unicast_ciphers: from_hex(&mut [r.unicast_ciphers])
+                .map_err(|_| Self::Error::HexError)?[0],
             group_ciphers: r.group_ciphers,
             mode: WifiMode::Station,
         })

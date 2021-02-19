@@ -48,7 +48,7 @@ pub struct PrepareSecurityDataImport<'a> {
     force_receive_state = true
 )]
 pub struct SendSecurityDataImport<'a> {
-    #[at_arg(position = 0,  len = 2048)]
+    #[at_arg(position = 0, len = 2048)]
     pub data: atat::serde_at::ser::Bytes<'a>,
 }
 
@@ -81,7 +81,7 @@ pub struct RemoveSecurityData<'a> {
 // #[at_cmd("+USECMNG=3,", ListSecurityDataResponse, value_sep = false, timeout_ms = 10000)]
 pub struct ListSecurityData {
     // #[at_arg(position = 0)]
-    // pub types: SecurityDataType,
+// pub types: SecurityDataType,
 }
 
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG

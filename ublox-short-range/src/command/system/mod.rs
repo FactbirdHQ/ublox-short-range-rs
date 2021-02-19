@@ -229,7 +229,7 @@ pub struct SetRS232Settings {
     #[at_arg(position = 2)]
     pub data_bits: u8,
     #[at_arg(position = 3)]
-    pub stop_bits : StopBits,
+    pub stop_bits: StopBits,
     #[at_arg(position = 4)]
     pub parity: Parity,
     #[at_arg(position = 5)]

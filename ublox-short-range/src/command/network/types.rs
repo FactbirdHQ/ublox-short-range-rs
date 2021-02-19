@@ -247,7 +247,7 @@ pub enum BridgeAction {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
-pub enum Timing{
+pub enum Timing {
     /// 0: Max initial probe delay [ms] (default: 1000 ms)
     #[at_arg(value = 0)]
     InitialProbeDelayMax(u16),
@@ -273,6 +273,6 @@ pub enum Timing{
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum ErrorType{
+pub enum ErrorType {
     IpAddressConflict = 128,
 }

@@ -1,4 +1,4 @@
-use super::{SocketHandle, ChannelId};
+use super::{ChannelId, SocketHandle};
 
 /// Network socket metadata.
 ///

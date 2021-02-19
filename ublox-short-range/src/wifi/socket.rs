@@ -2,16 +2,16 @@
 // implements TCP and UDP for WiFi client
 
 // use embedded_hal::digital::v2::OutputPin;
-pub use embedded_nal::{SocketAddr, IpAddr, Mode, SocketAddrV4, SocketAddrV6, AddrType};
-pub use no_std_net::{Ipv4Addr, Ipv6Addr};
+pub use embedded_nal::{AddrType, IpAddr, Mode, SocketAddr, SocketAddrV4, SocketAddrV6};
 use heapless::{consts, ArrayLength, String};
+pub use no_std_net::{Ipv4Addr, Ipv6Addr};
 // use serde::{Serialize};
 use atat::serde_at::{to_string, SerializeOptions};
 
-use crate::command::edm::{EdmAtCmdWrapper, EdmDataCommand};
 use crate::command::data_mode::{types::*, *};
-use crate::{error::Error, socket, socket::ChannelId};
+use crate::command::edm::{EdmAtCmdWrapper, EdmDataCommand};
 use crate::UbloxClient;
+use crate::{error::Error, socket, socket::ChannelId};
 use typenum::marker_traits::Unsigned;
 
 use crate::{
@@ -126,8 +126,7 @@ where
                     return Err(Error::Busy);
                 }
 
-
-                    Ok(tcp.rx_enqueue_slice(data))
+                Ok(tcp.rx_enqueue_slice(data))
             }
             Some(SocketType::Udp) => {
                 // Handle udp socket
@@ -136,7 +135,7 @@ where
                 if !udp.can_recv() {
                     return Err(Error::Busy);
                 }
-                Ok(udp.rx_enqueue_slice(data))                
+                Ok(udp.rx_enqueue_slice(data))
             }
             _ => {
                 defmt::error!("SocketNotFound {:?}", channel_id);
@@ -164,7 +163,7 @@ where
     fn open(&self, remote: SocketAddr, _mode: Mode) -> Result<Self::UdpSocket, Self::Error> {
         defmt::debug!("UDP open");
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
-            if !self.initialized.get() || !con.is_connected(){
+            if !self.initialized.get() || !con.is_connected() {
                 return Err(Error::Network);
             }
         } else {
@@ -177,60 +176,61 @@ where
             let mut workspace = String::<consts::U43>::new();
             let mut ip_str = String::<consts::U43>::from("[");
             let mut port = String::<consts::U8>::new();
-        
+
             // defmt::info!("[Connecting] URL1! {:?}", url);
             match remote.ip() {
                 IpAddr::V4(ip) => {
                     ip_str = to_string(
                         &ip,
                         String::<consts::U1>::new(),
-                        SerializeOptions{value_sep: false,  cmd_prefix: &"", termination: &""},
-                    ).map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(&ip_str[1 .. ip_str.len()-1]).map_err(|_e| Self::Error::BadLength)?;
-                },
+                        SerializeOptions {
+                            value_sep: false,
+                            cmd_prefix: &"",
+                            termination: &"",
+                        },
+                    )
+                    .map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&ip_str[1..ip_str.len() - 1])
+                        .map_err(|_e| Self::Error::BadLength)?;
+                }
                 IpAddr::V6(ip) => {
                     workspace = to_string(
                         &ip,
                         String::<consts::U1>::new(),
                         SerializeOptions::default(),
-                    ).map_err(|_e| Self::Error::BadLength)?;
+                    )
+                    .map_err(|_e| Self::Error::BadLength)?;
 
-                    ip_str.push_str(&workspace[1..workspace.len()-1]).map_err(|_e| Self::Error::BadLength)?;
+                    ip_str
+                        .push_str(&workspace[1..workspace.len() - 1])
+                        .map_err(|_e| Self::Error::BadLength)?;
                     ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
                     url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
                 }
             }
             url.push(':').map_err(|_e| Self::Error::BadLength)?;
-        
+
             // defmt::info!("[Connecting] ip! {:?}", ip_str);
-            
+
             port = to_string(
                 &remote.port(),
                 String::<consts::U1>::new(),
                 SerializeOptions::default(),
-            ).map_err(|_e| Self::Error::BadLength)?;
+            )
+            .map_err(|_e| Self::Error::BadLength)?;
             url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
             url.push('/').map_err(|_e| Self::Error::BadLength)?;
 
-            
             let udp = UdpSocket::new(0);
             let mut sockets = self.sockets.try_borrow_mut()?;
             sockets.add(udp).map_err(|e| Error::Network)?;
-            
+
             defmt::info!("[Connecting] url! {:str}", url);
             match self.handle_socket_error(
-                || {
-                    self.send_internal(
-                        &EdmAtCmdWrapper(ConnectPeer {
-                                url: &url
-                            }
-                        ),
-                        false
-                    )
-                },
+                || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
                 None,
                 0,
-            ){
+            ) {
                 Ok(resp) => {
                     handle = SocketHandle(resp.peer_handle);
                     let mut udp = sockets.get::<UdpSocket<_>>(SocketHandle(0))?;
@@ -247,7 +247,7 @@ where
             let mut sockets = self.sockets.try_borrow_mut()?;
             let mut udp = sockets.get::<UdpSocket<_>>(handle)?;
             udp.state() == UdpState::Closed
-        }{
+        } {
             self.spin()?;
         }
         let mut sockets = self.sockets.try_borrow_mut()?;
@@ -257,10 +257,12 @@ where
 
     /// Send a datagram to the remote host.
     fn write(&self, socket: &mut Self::UdpSocket, buffer: &[u8]) -> nb::Result<(), Self::Error> {
-        if let Some(ref con) = *self.wifi_connection
+        if let Some(ref con) = *self
+            .wifi_connection
             .try_borrow()
-            .map_err(|e| nb::Error::Other(e.into()))? {
-            if !self.initialized.get() || !con.is_connected(){
+            .map_err(|e| nb::Error::Other(e.into()))?
+        {
+            if !self.initialized.get() || !con.is_connected() {
                 return Err(nb::Error::Other(Error::Network));
             }
         } else {
@@ -280,7 +282,7 @@ where
             self.handle_socket_error(
                 || {
                     self.send_internal(
-                        &EdmDataCommand{
+                        &EdmDataCommand {
                             channel: udp.channel_id().0,
                             data: chunk,
                         },
@@ -322,14 +324,12 @@ where
         defmt::debug!("UDP close: {:?}", socket.0);
         let mut sockets = self.sockets.try_borrow_mut()?;
         //If no sockets excists, nothing to close.
-        if let Some(ref mut udp) = sockets.get::<UdpSocket<_>>(socket).ok(){
+        if let Some(ref mut udp) = sockets.get::<UdpSocket<_>>(socket).ok() {
             self.handle_socket_error(
                 || {
-                    self.send_at(
-                        ClosePeerConnection{
-                            peer_handle: udp.handle().0
-                        }
-                    )
+                    self.send_at(ClosePeerConnection {
+                        peer_handle: udp.handle().0,
+                    })
                 },
                 Some(socket),
                 0,
@@ -358,14 +358,14 @@ where
     fn open(&self, _mode: Mode) -> Result<Self::TcpSocket, Self::Error> {
         defmt::debug!("TCP open");
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
-            if !self.initialized.get() || !con.is_connected(){
+            if !self.initialized.get() || !con.is_connected() {
                 return Err(Error::Network);
             }
         } else {
             return Err(Error::Network);
         }
-        if let Ok(mut sockets) = self.sockets.try_borrow_mut(){
-            if let Ok (h) = sockets.add(TcpSocket::new(0)){
+        if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
+            if let Ok(h) = sockets.add(TcpSocket::new(0)) {
                 Ok(h)
             } else {
                 // defmt::debug!("[Opening socket] Socket set full");
@@ -385,7 +385,7 @@ where
     ) -> Result<Self::TcpSocket, Self::Error> {
         defmt::debug!("TCP connect: {:?}", socket.0);
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
-            if !self.initialized.get() || !con.is_connected(){
+            if !self.initialized.get() || !con.is_connected() {
                 return Err(Error::Network);
             }
         } else {
@@ -405,80 +405,84 @@ where
             let mut workspace = String::<consts::U43>::new();
             let mut ip_str = String::<consts::U43>::from("[");
             let mut port = String::<consts::U8>::new();
-        
+
             // defmt::info!("[Connecting] URL1! {:?}", url);
             match remote.ip() {
                 IpAddr::V4(ip) => {
                     ip_str = to_string(
                         &ip,
                         String::<consts::U1>::new(),
-                        SerializeOptions{value_sep: false,  cmd_prefix: &"", termination: &""},
-                    ).map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(&ip_str[1 .. ip_str.len()-1]).map_err(|_e| Self::Error::BadLength)?;
-                },
+                        SerializeOptions {
+                            value_sep: false,
+                            cmd_prefix: &"",
+                            termination: &"",
+                        },
+                    )
+                    .map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&ip_str[1..ip_str.len() - 1])
+                        .map_err(|_e| Self::Error::BadLength)?;
+                }
                 IpAddr::V6(ip) => {
                     workspace = to_string(
                         &ip,
                         String::<consts::U1>::new(),
                         SerializeOptions::default(),
-                    ).map_err(|_e| Self::Error::BadLength)?;
+                    )
+                    .map_err(|_e| Self::Error::BadLength)?;
 
-                    ip_str.push_str(&workspace[1..workspace.len()-1]).map_err(|_e| Self::Error::BadLength)?;
+                    ip_str
+                        .push_str(&workspace[1..workspace.len() - 1])
+                        .map_err(|_e| Self::Error::BadLength)?;
                     ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
                     url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
                 }
             }
             url.push(':').map_err(|_e| Self::Error::BadLength)?;
-        
+
             // defmt::info!("[Connecting] ip! {:?}", ip_str);
-            
+
             port = to_string(
                 &remote.port(),
                 String::<consts::U1>::new(),
                 SerializeOptions::default(),
-            ).map_err(|_e| Self::Error::BadLength)?;
+            )
+            .map_err(|_e| Self::Error::BadLength)?;
             url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
             url.push('/').map_err(|_e| Self::Error::BadLength)?;
 
             // if tcp.c_cert_name != None || tcp.c_key_name != None || tcp.ca_cert_name != None {
             if let Some(ref credentials) = self.security_credentials {
                 url.push('?').map_err(|_e| Self::Error::BadLength)?;
-                
+
                 // if let Some(ref ca) = tcp.ca_cert_name{
-                if let Some(ref ca) = credentials.ca_cert_name{
+                if let Some(ref ca) = credentials.ca_cert_name {
                     url.push_str(&"ca=").map_err(|_e| Self::Error::BadLength)?;
                     url.push_str(ca).map_err(|_e| Self::Error::BadLength)?;
                     url.push('&').map_err(|_e| Self::Error::BadLength)?;
                 }
 
                 // if let Some(ref client) = tcp.c_cert_name{
-                if let Some(ref client) = credentials.c_cert_name{
-                    url.push_str(&"cert=").map_err(|_e| Self::Error::BadLength)?;
+                if let Some(ref client) = credentials.c_cert_name {
+                    url.push_str(&"cert=")
+                        .map_err(|_e| Self::Error::BadLength)?;
                     url.push_str(client).map_err(|_e| Self::Error::BadLength)?;
                     url.push('&').map_err(|_e| Self::Error::BadLength)?;
                 }
 
                 // if let Some(ref key) = tcp.c_key_name {
                 if let Some(ref key) = credentials.c_key_name {
-                    url.push_str(&"privKey=").map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&"privKey=")
+                        .map_err(|_e| Self::Error::BadLength)?;
                     url.push_str(key).map_err(|_e| Self::Error::BadLength)?;
                     url.push('&').map_err(|_e| Self::Error::BadLength)?;
                 }
                 url.pop();
             }
-            
+
             defmt::info!("[Connecting] url! {:str}", url);
 
-            
             let resp = self.handle_socket_error(
-                || {
-                    self.send_internal(
-                        &EdmAtCmdWrapper(ConnectPeer {
-                            url: &url
-                        }),
-                        false,
-                    )
-                },
+                || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
                 Some(socket),
                 0,
             )?;
@@ -491,7 +495,7 @@ where
             let mut sockets = self.sockets.try_borrow_mut()?;
             let mut tcp = sockets.get::<TcpSocket<_>>(handle)?;
             tcp.state() == TcpState::SynSent
-        }{
+        } {
             self.spin()?;
         }
         let mut sockets = self.sockets.try_borrow_mut()?;
@@ -502,7 +506,7 @@ where
     /// Check if this socket is still connected
     fn is_connected(&self, socket: &Self::TcpSocket) -> Result<bool, Self::Error> {
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
-            if !self.initialized.get() || !con.is_connected(){
+            if !self.initialized.get() || !con.is_connected() {
                 return Ok(false);
             }
         } else {
@@ -517,10 +521,12 @@ where
     /// Write to the stream. Returns the number of bytes written is returned
     /// (which may be less than `buffer.len()`), or an error.
     fn write(&self, socket: &mut Self::TcpSocket, buffer: &[u8]) -> nb::Result<usize, Self::Error> {
-        if let Some(ref con) = *self.wifi_connection
+        if let Some(ref con) = *self
+            .wifi_connection
             .try_borrow()
-            .map_err(|e| nb::Error::Other(e.into()))? {
-            if !self.initialized.get() || !con.is_connected(){
+            .map_err(|e| nb::Error::Other(e.into()))?
+        {
+            if !self.initialized.get() || !con.is_connected() {
                 return Err(nb::Error::Other(Error::Network));
             }
         } else {
@@ -540,7 +546,7 @@ where
             self.handle_socket_error(
                 || {
                     self.send_internal(
-                        &EdmDataCommand{
+                        &EdmDataCommand {
                             channel: tcp.channel_id().0,
                             data: chunk,
                         },
@@ -600,23 +606,21 @@ where
     fn close(&self, socket: Self::TcpSocket) -> Result<(), Self::Error> {
         defmt::debug!("TCP close: {:?}", socket.0);
         let mut sockets = self.sockets.try_borrow_mut()?;
-        
+
         // If the socket is not found it is already removed
-        if let Some(ref mut tcp) = sockets.get::<TcpSocket<_>>(socket).ok(){
+        if let Some(ref mut tcp) = sockets.get::<TcpSocket<_>>(socket).ok() {
             //If socket is not closed that means a connection excists which has to be closed
             if tcp.state() != TcpState::Closed {
                 match self.handle_socket_error(
                     || {
-                        self.send_at(
-                            ClosePeerConnection{
-                                peer_handle: tcp.handle().0
-                            }
-                        )
+                        self.send_at(ClosePeerConnection {
+                            peer_handle: tcp.handle().0,
+                        })
                     },
                     Some(socket),
                     0,
                 ) {
-                    Err(Error::AT(atat::Error::InvalidResponse)) | Ok(_) =>  (),
+                    Err(Error::AT(atat::Error::InvalidResponse)) | Ok(_) => (),
                     Err(e) => return Err(e.into()),
                 }
                 tcp.close();

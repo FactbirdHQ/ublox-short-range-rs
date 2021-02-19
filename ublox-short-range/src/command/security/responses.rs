@@ -3,9 +3,6 @@ use super::types::*;
 use atat::atat_derive::AtatResp;
 use heapless::{consts, String};
 
-
-
-
 /// 11.1 SSL/TLS certificates import produces: '>'
 #[derive(Clone, PartialEq, AtatResp)]
 pub struct ImportResponse {
@@ -13,7 +10,6 @@ pub struct ImportResponse {
     #[at_arg(position = 0)]
     ch: char,
 }
-
 
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG
 #[derive(Clone, PartialEq, AtatResp)]

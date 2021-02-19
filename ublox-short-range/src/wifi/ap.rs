@@ -1,8 +1,6 @@
-use atat::AtatClient;
-use atat::serde_at::CharVec;
 use crate::{
     client::UbloxClient,
-    command::wifi::types::{OperationMode, Authentication},
+    command::wifi::types::{Authentication, OperationMode},
     error::WifiHotspotError,
     wifi::{
         connection::WifiConnection,
@@ -10,11 +8,13 @@ use crate::{
         options::{ConnectionOptions, HotspotOptions},
     },
 };
+use atat::serde_at::CharVec;
+use atat::AtatClient;
 
 use embedded_hal::timer::{Cancel, CountDown};
-use heapless::{String, ArrayLength, consts, Vec};
+use heapless::{consts, ArrayLength, String, Vec};
 
-pub trait WifiHotspot{
+pub trait WifiHotspot {
     /// Creates wireless hotspot service for host machine.
     fn create_hotspot(
         self,

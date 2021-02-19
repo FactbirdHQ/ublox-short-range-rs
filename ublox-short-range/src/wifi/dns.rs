@@ -1,15 +1,15 @@
+use crate::client::DNSState;
 use atat::AtatClient;
 use core::fmt::Write;
 use embedded_nal::{AddrType, Dns};
 use heapless::{consts, ArrayLength, String};
 use no_std_net::IpAddr;
-use crate::client::DNSState;
 
 use crate::{
+    command::ping::*,
     // command::dns::{self, types::ResolutionType},
     error::Error,
     UbloxClient,
-    command::ping::*,
 };
 
 impl<C, N, L> Dns for UbloxClient<C, N, L>
@@ -42,11 +42,11 @@ where
             hostname: hostname,
             retry_num: 1,
         })?;
-        while self.dns_state.get() == DNSState::Resolving { 
+        while self.dns_state.get() == DNSState::Resolving {
             self.spin()?;
         }
 
-        match self.dns_state.get(){
+        match self.dns_state.get() {
             DNSState::Resolved(ip) => Ok(ip),
             DNSState::Error(e) => Err(Error::Dns(e)),
             _ => Err(Error::Dns(types::PingError::Other)),

@@ -1,10 +1,10 @@
 //! Unsolicited responses for WiFi Commands
+use super::types::*;
 use crate::socket::SocketHandle;
 use atat::atat_derive::AtatResp;
-use heapless::{consts, String};
-use super::types::*;
-use no_std_net::IpAddr;
 use atat::serde_at::CharVec;
+use heapless::{consts, String};
+use no_std_net::IpAddr;
 
 /// 7.15 Wi-Fi Link connected +UUWLE
 #[derive(Debug, PartialEq, Clone, AtatResp)]

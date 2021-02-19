@@ -1,8 +1,8 @@
-use heapless::{ArrayLength, String, consts};
-use embedded_nal::{SocketAddr, SocketAddrV4, Ipv4Addr};
+use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use heapless::{consts, ArrayLength, String};
 
 use super::{Error, Result};
-use crate::socket::{RingBuffer, Socket, SocketHandle, SocketMeta, ChannelId};
+use crate::socket::{ChannelId, RingBuffer, Socket, SocketHandle, SocketMeta};
 
 /// A TCP socket ring buffer.
 pub type SocketBuffer<N> = RingBuffer<u8, N>;

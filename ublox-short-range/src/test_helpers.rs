@@ -8,9 +8,9 @@ macro_rules! setup_test_env {
         // Note this useful idiom: importing names from outer (for mod tests) scope.
         use super::*;
 
-        use heapless::{consts::*, spsc::Queue, String};
         #[allow(unused_imports)]
         use defmt::{error, info, warn};
+        use heapless::{consts::*, spsc::Queue, String};
 
         use crate::wifi;
         use env_logger::Env;

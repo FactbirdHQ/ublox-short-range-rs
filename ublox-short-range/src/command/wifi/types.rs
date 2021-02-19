@@ -2,9 +2,9 @@
 
 use atat::atat_derive::{AtatEnum, AtatLen};
 use atat::serde_at::CharVec;
-use serde::{Deserialize, Serialize};
 use heapless::{consts, String, Vec};
 use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use serde::{Deserialize, Serialize};
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
@@ -1367,8 +1367,8 @@ pub enum SecurityModePSK {
 
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum Passkey<'a> {
-    Passphrase(#[at_arg(len = 64)]&'a str),
-    PSK(#[at_arg(len = 64)]&'a [u8]),
+    Passphrase(#[at_arg(len = 64)] &'a str),
+    PSK(#[at_arg(len = 64)] &'a [u8]),
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
@@ -1463,7 +1463,7 @@ pub enum AccessPointStatusValue {
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum DisconnectReason{
+pub enum DisconnectReason {
     Unknown = 0,
     RemoteClose = 1,
     OutOfRange = 2,

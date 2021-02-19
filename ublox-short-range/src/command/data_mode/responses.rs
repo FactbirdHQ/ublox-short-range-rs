@@ -1,4 +1,4 @@
-//! Responses for Data Mode 
+//! Responses for Data Mode
 use super::types::*;
 use atat::atat_derive::AtatResp;
 use heapless::{consts, String};

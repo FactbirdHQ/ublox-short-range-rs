@@ -10,7 +10,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, defmt::Format)]
-pub enum WiFiState{
+pub enum WiFiState {
     /// Disconnected, Wifi off
     Inactive,
     /// Searching for Wifi
@@ -21,15 +21,14 @@ pub enum WiFiState{
 /// Describes whether device is connected to a network and has an IP or not.
 /// It is possible to be attached to a network but have no Wifi connection.
 #[derive(Debug, PartialEq, defmt::Format)]
-pub enum NetworkState{
+pub enum NetworkState {
     Attached,
     AlmostAttached,
     Unattached,
 }
 
 //Fold into wifi connectivity
-pub struct WifiConnection
-{
+pub struct WifiConnection {
     pub wifi_state: WiFiState,
     pub network_state: NetworkState,
     pub network: WifiNetwork,
@@ -37,8 +36,7 @@ pub struct WifiConnection
     // pub (crate) sockets: SocketSet<consts::U8>,
 }
 
-impl WifiConnection
-{
+impl WifiConnection {
     pub(crate) fn new(network: WifiNetwork, wifi_state: WiFiState, config_id: u8) -> Self {
         WifiConnection {
             wifi_state: wifi_state,

@@ -1,4 +1,4 @@
-//! ### 5 - Data Mode 
+//! ### 5 - Data Mode
 pub mod responses;
 pub mod types;
 pub mod urc;
@@ -29,7 +29,7 @@ pub struct ChangeMode {
 /// event.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 10000)]
-pub struct ConnectPeer <'a> {
+pub struct ConnectPeer<'a> {
     #[at_arg(position = 0, len = 128)]
     pub url: &'a str,
 }

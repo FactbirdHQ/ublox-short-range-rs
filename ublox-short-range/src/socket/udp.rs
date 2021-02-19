@@ -2,12 +2,11 @@ use core::cmp::min;
 
 use heapless::ArrayLength;
 
-use super::{Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta, ChannelId};
+use super::{ChannelId, Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
 pub use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 /// A UDP socket ring buffer.
 pub type SocketBuffer<N> = RingBuffer<u8, N>;
-
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum State {
