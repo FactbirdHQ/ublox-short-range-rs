@@ -42,31 +42,5 @@ impl TryFrom<ScanedWifiNetwork> for WifiNetwork {
             group_ciphers: r.group_ciphers,
             mode: WifiMode::Station,
         })
-
-        // if let ScanedWifiNetwork {
-        //     bssid,
-        //     op_mode,
-        //     ssid,
-        //     channel,
-        //     rssi,
-        //     authentication_suites,
-        //     unicast_ciphers,
-        //     group_ciphers,
-        // } = r
-        // {
-        //     Ok(WifiNetwork {
-        //         bssid,
-        //         op_mode,
-        //         ssid,
-        //         channel,
-        //         rssi,
-        //         authentication_suites: from_hex(&mut [authentication_suites]).map_err(|_| Self::Error::HexError)?[0], //TODO: Better solution
-        //         unicast_ciphers: from_hex(&mut [unicast_ciphers]).map_err(|_| Self::Error::HexError)?[0],
-        //         group_ciphers,
-        //         mode: WifiMode::Station,
-        //     })
-        // } else {
-        //     Err(WifiError::UnexpectedResponse)
-        // }
     }
 }

@@ -1,10 +1,3 @@
-use atat::atat_log;
-use atat::Error;
-use atat::{helpers::SliceExt, DigestResult, Digester, IngressManager, UrcMatcher};
-// use atat::ingress_manager::{
-//     get_line, IngressManager, SliceExt, State, UrcMatcher, UrcMatcherResult, ByteVec,
-// };
-// use atat::queues::{ComItem, ResItem, UrcItem};
 use crate::command::edm::{
     calc_payload_len,
     types::{
@@ -12,10 +5,12 @@ use crate::command::edm::{
         STARTUPMESSAGE,
     },
 };
+use atat::atat_log;
+use atat::Error;
+use atat::{helpers::SliceExt, DigestResult, Digester, IngressManager, UrcMatcher};
 use heapless::{ArrayLength, Vec};
 
-/// State of the `DefaultDigester`, used to distiguish URCs from solicited
-/// responses
+/// State of the `EDMDigester`, used to filter responses
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, defmt::Format)]
 enum State {
     Idle,
@@ -70,7 +65,6 @@ impl Digester for EdmDigester {
                     self.state,
                 ),
             };
-            // defmt::debug!("Recived: {:?}, state: {:?}", buf, ingress.get_state());
         }
 
         // TODO Handle module restart, tests and set default startupmessage in client, and optimiz this!
@@ -98,12 +92,13 @@ impl Digester for EdmDigester {
             return DigestResult::None;
         }
 
+        // Filter message by payload
         match PayloadType::from(buf[4]) {
             PayloadType::ATConfirmation => {
                 let (resp, mut remaining) = buf.split_at(edm_len);
                 let mut return_val = DigestResult::None;
                 if self.state == State::ReceivingResponse {
-                    // Errors can come with and without leading whitespaces
+                    // Errors can arrive with and without leading whitespaces
                     if resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION) == Some(b"ERROR")
                         || resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION + 2)
                             == Some(b"ERROR")
@@ -128,7 +123,7 @@ impl Digester for EdmDigester {
                 return return_val;
             }
             PayloadType::ATEvent => {
-                // Recived URC
+                // Recived AT URC
                 let (resp, remaining) = buf.split_at(edm_len);
                 let (header, urc) = resp.split_at(AT_COMMAND_POSITION);
 
@@ -142,6 +137,7 @@ impl Digester for EdmDigester {
                 return DigestResult::Urc(resp);
             }
             PayloadType::ConnectEvent | PayloadType::DataEvent | PayloadType::DisconnectEvent => {
+                // Recived EDM event
                 let (resp, remaining) = buf.split_at(edm_len);
                 let resp = Vec::from_slice(resp).unwrap();
                 *buf = Vec::from_slice(remaining).unwrap();
@@ -159,6 +155,8 @@ impl Digester for EdmDigester {
 
 #[cfg(test)]
 mod test {
+    //TODO: Rewrite tests for new builder structure
+
     // use super::*;
     // use crate::command::edm::types::{STARTBYTE, ENDBYTE};
     // use atat::ingress_manager::{NoopUrcMatcher, ByteVec};

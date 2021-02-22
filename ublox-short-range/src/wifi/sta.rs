@@ -6,7 +6,6 @@ use crate::{
         *,
     },
     error::{WifiConnectionError, WifiError},
-    // wait_for_unsolicited,
     wifi::{
         connection::{WiFiState, WifiConnection},
         network::{WifiMode, WifiNetwork},
@@ -41,7 +40,7 @@ where
     N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
     L: ArrayLength<u8>,
 {
-    /// Attempts to connect to a wireless network with the given options.
+    /// Attempts to connect to a wireless network with the given connection options.
     fn connect(&self, options: ConnectionOptions) -> Result<(), WifiConnectionError> {
         let mut config_id: u8 = 0;
         if let Some(config_id_option) = options.config_id {
@@ -221,120 +220,5 @@ where
 
 // #[cfg(test)]
 // mod tests {
-//     setup_test_env!();
-
-//     #[test]
-//     fn test_connect() {
-//         let (ublox, (mut wifi_req_c, mut wifi_res_p)) = setup_test_case!();
-
-//         // Load the response queue with expected responses
-//         wifi_res_p.enqueue(Ok(ResponseType::None)).unwrap();
-//         wifi_res_p.enqueue(Ok(ResponseType::None)).unwrap();
-//         wifi_res_p.enqueue(Ok(ResponseType::None)).unwrap();
-//         wifi_res_p
-//             .enqueue(Ok(ResponseType::SingleSolicited(Response::STASetConfig {
-//                 configuration_id: 0,
-//                 param_tag: UWSCSetTag::ActiveOnStartup(true),
-//             })))
-//             .unwrap();
-//         wifi_res_p
-//             .enqueue(Ok(ResponseType::SingleSolicited(Response::STASetConfig {
-//                 configuration_id: 0,
-//                 param_tag: UWSCSetTag::SSID(String::from("WifiSSID")),
-//             })))
-//             .unwrap();
-//         wifi_res_p
-//             .enqueue(Ok(ResponseType::SingleSolicited(Response::STASetConfig {
-//                 configuration_id: 0,
-//                 param_tag: UWSCSetTag::Authentication(AuthentificationType::WpaWpa2),
-//             })))
-//             .unwrap();
-//         wifi_res_p
-//             .enqueue(Ok(ResponseType::SingleSolicited(Response::STASetConfig {
-//                 configuration_id: 0,
-//                 param_tag: UWSCSetTag::Passphrase(String::from("passphrase123098")),
-//             })))
-//             .unwrap();
-//         wifi_res_p.enqueue(Ok(ResponseType::None)).unwrap();
-//         // wifi_res_p.enqueue(Ok(ResponseType::None)).unwrap();
-
-//         let options = wifi::options::ConnectionOptions::new()
-//             .ssid(String::from("WifiSSID"))
-//             .password(String::from("passphrase123098"));
-
-//         // Attempt to connect to a wifi
-//         let connection = ublox.connect(options);
-
-//         assert!(connection.is_ok());
-
-//         // assertions
-//         // assert_eq!(
-//         //     wifi_req_c.dequeue().unwrap(),
-//         //     Command::SetRS232Settings {
-//         //         baud_rate: BaudRate::Baud115200,
-//         //         flow_control: FlowControl::NotUsed,
-//         //         data_bits: 8,
-//         //         stop_bits: StopBits::StopBits1,
-//         //         parity: Parity::NoParity,
-//         //         change_after_confirm: ChangeAfterConfirm::NoChange,
-//         //     }
-//         // );
-
-//         // assert_eq!(wifi_req_c.dequeue().unwrap(), Command::Store);
-
-//         assert_eq!(
-//             wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
-//             Command::ExecSTAAction {
-//                 configuration_id: 0,
-//                 action: STAAction::Deactivate,
-//             }
-//         );
-
-//         assert_eq!(
-//             wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
-//             Command::STASetConfig {
-//                 configuration_id: 0,
-//                 param_tag: UWSCSetTag::ActiveOnStartup(true),
-//             }
-//         );
-//         assert_eq!(
-//             wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
-//             Command::STASetConfig {
-//                 configuration_id: 0,
-//                 param_tag: UWSCSetTag::SSID(String::from("WifiSSID")),
-//             }
-//         );
-//         assert_eq!(
-//             wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
-//             Command::STASetConfig {
-//                 configuration_id: 0,
-//                 param_tag: UWSCSetTag::Authentication(AuthentificationType::WpaWpa2),
-//             }
-//         );
-//         assert_eq!(
-//             wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
-//             Command::STASetConfig {
-//                 configuration_id: 0,
-//                 param_tag: UWSCSetTag::Passphrase(String::from("passphrase123098")),
-//             }
-//         );
-
-//         assert_eq!(
-//             wifi_req_c.dequeue().unwrap().try_get_cmd().unwrap(),
-//             Command::ExecSTAAction {
-//                 configuration_id: 0,
-//                 action: STAAction::Activate,
-//             }
-//         );
-
-//         // assert_eq!(
-//         //     wifi_req_c.dequeue().unwrap().get_cmd().unwrap(),
-//         //     Command::ExecSTAAction {
-//         //         configuration_id: 0,
-//         //         action: STAAction::Store,
-//         //     }
-//         // );
-
-//         cleanup_test_case!(connection, wifi_req_c);
-//     }
+//
 // }

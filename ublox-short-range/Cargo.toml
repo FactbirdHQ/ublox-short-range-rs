@@ -20,18 +20,16 @@ no-std-net = { version = "0.4.0", features = ["serde"] }
 nb = "0.1.2"
 serde = { version = "^1", default-features = false, features = ["derive"] }
 typenum = "^1"
+atat = "^0.8.4"
 defmt = "0.1"
 embedded-hal = { version = "1.0.0-alpha.4" }
 embedded-nal = "0.2.0"
-# embedded-nal = { git = "https://github.com/BlackbirdHQ/embedded-nal", branch = "factbird-mini-1.0" }
 
-atat = "^0.8.4"
-
-[dependencies.packed_struct_codegen]
+[dependencies.packed_struct]
 version = "0.3"
 default-features = false
 
-[dependencies.packed_struct]
+[dependencies.packed_struct_codegen]
 version = "0.3"
 default-features = false
 
@@ -40,9 +38,6 @@ env_logger = "0.7.1"
 void = "1.0.2"
 linux-embedded-hal = "0.3.0"
 serial = "0.4.0"
-
-# [patch.crates-io]
-# atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "63551b7", features = ["derive"] }
 
 [features]
 default = ["odin_w2xx", "wifi_ap", "wifi_sta", "socket-udp", "socket-tcp"]

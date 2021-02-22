@@ -2,7 +2,7 @@
 // implements TCP and UDP for WiFi client
 
 // use embedded_hal::digital::v2::OutputPin;
-pub use embedded_nal::{AddrType, IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6, nb};
+pub use embedded_nal::{nb, AddrType, IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use heapless::{consts, ArrayLength, String};
 pub use no_std_net::{Ipv4Addr, Ipv6Addr};
 // use serde::{Serialize};
@@ -38,24 +38,6 @@ where
     N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
     L: ArrayLength<u8>,
 {
-    /// Helper function to manage the internal poll counter, used to poll open
-    /// sockets for incoming data, in case a `SocketDataAvailable` URC is missed
-    /// once in a while, as the ublox module will never send the URC again, if
-    /// the socket is not read.
-    // pub(crate) fn poll_cnt(&self, reset: bool) -> u16 {
-    //     // if reset {
-    //     //     // Reset poll_cnt
-    //     //     self.poll_cnt.set(0);
-    //     //     0
-    //     // } else {
-    //     //     // Increment poll_cnt by one, and return the old value
-    //     //     let old = self.poll_cnt.get();
-    //     //     self.poll_cnt.set(old + 1);
-    //     //     old
-    //     // }
-    //     0
-    // }
-
     pub(crate) fn handle_socket_error<A: atat::AtatResp, F: Fn() -> Result<A, Error>>(
         &self,
         f: F,
@@ -73,11 +55,7 @@ where
                 }
             }
             Err(e @ Error::AT(atat::Error::InvalidResponse)) => {
-                // let SocketErrorResponse { error } = self
-                //     .send_internal(&GetSocketError, false)
-                //     .unwrap_or_else(|_e| SocketErrorResponse { error: 110 });
-
-                // if error != 0 {
+                // Close socket upon reciving invalid response
                 if let Some(handle) = socket {
                     let mut sockets = self.sockets.try_borrow_mut()?;
                     match sockets.socket_type(handle) {
@@ -107,15 +85,7 @@ where
         if data.len() == 0 {
             return Ok(0);
         }
-
-        // Allow room for 2x length (Hex), and command overhead
-        // let chunk_size = core::cmp::min(data.len(), IngressChunkSize::to_usize());
-        let mut sockets = self
-            .sockets
-            .try_borrow_mut()?;
-
-        // Reset poll_cnt
-        // self.poll_cnt(true);
+        let mut sockets = self.sockets.try_borrow_mut()?;
 
         match sockets.socket_type_by_channel_id(channel_id) {
             Some(SocketType::Tcp) => {
@@ -153,11 +123,11 @@ where
 {
     type Error = Error;
 
-    // Only return a SocketHandle to reference into the SocketSet owned by the GsmClient,
+    // Only return a SocketHandle to reference into the SocketSet owned by the UbloxClient,
     // as the Socket object itself provides no value without accessing it though the client.
     type UdpSocket = SocketHandle;
 
-    fn socket(&self) -> Result<Self::UdpSocket, Self::Error>{
+    fn socket(&self) -> Result<Self::UdpSocket, Self::Error> {
         defmt::debug!("[UDP] Opening socket");
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected() {
@@ -183,10 +153,7 @@ where
     /// Selects a port number automatically and initializes for read/writing.
     fn connect(&self, socket: &mut Self::UdpSocket, remote: SocketAddr) -> Result<(), Self::Error> {
         defmt::debug!("[UDP] Connecting socket");
-        if let Some(ref con) = *self
-            .wifi_connection
-            .try_borrow()?
-        {
+        if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected() {
                 return Err(Error::Network);
             }
@@ -256,7 +223,7 @@ where
                     udp.meta.handle = handle;
                     *socket = handle;
                 }
-                Err(e) => return Err(e)
+                Err(e) => return Err(e),
             }
         }
         while {
@@ -291,7 +258,7 @@ where
         let mut udp = sockets
             .get::<UdpSocket<_>>(*socket)
             .map_err(|e| nb::Error::Other(e.into()))?;
-        
+
         if !udp.is_open() {
             return Err(nb::Error::Other(Error::SocketClosed));
         }
@@ -333,7 +300,8 @@ where
             .get::<UdpSocket<_>>(*socket)
             .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
 
-        let us = udp.recv_slice(buffer)
+        let us = udp
+            .recv_slice(buffer)
             .map_err(|e| nb::Error::Other(e.into()))?;
         Ok((us, udp.endpoint()))
     }
@@ -369,7 +337,7 @@ where
 {
     type Error = Error;
 
-    // Only return a SocketHandle to reference into the SocketSet owned by the GsmClient,
+    // Only return a SocketHandle to reference into the SocketSet owned by the UbloxClient,
     // as the Socket object itself provides no value without accessing it though the client.
     type TcpSocket = SocketHandle;
 
@@ -416,14 +384,12 @@ where
         }
 
         {
-            let mut sockets = self.sockets
-                .try_borrow_mut()
-                .map_err(Self::Error::from)?;
-                // .map_err(|e| nb::Error::Other(e.into()))?;
+            let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
+
             //If no socket is found we stop here
-            let mut tcp = sockets.get::<TcpSocket<_>>(*socket)
+            let mut tcp = sockets
+                .get::<TcpSocket<_>>(*socket)
                 .map_err(Self::Error::from)?;
-                // .map_err(|e| nb::Error::Other(e.into()))?;
 
             //TODO: Optimize! and when possible rewrite to ufmt!
             let mut url = String::<consts::U128>::from("tcp://");
@@ -463,7 +429,6 @@ where
                 }
             }
             url.push(':').map_err(|_e| Self::Error::BadLength)?;
-
 
             port = to_string(
                 &remote.port(),
@@ -518,7 +483,9 @@ where
         }
         while {
             let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
-            let mut tcp = sockets.get::<TcpSocket<_>>(*socket).map_err(Self::Error::from)?;
+            let mut tcp = sockets
+                .get::<TcpSocket<_>>(*socket)
+                .map_err(Self::Error::from)?;
             tcp.state() == TcpState::SynSent
         } {
             self.spin()?;
@@ -587,7 +554,11 @@ where
         Ok(buffer.len())
     }
 
-    fn receive(&self, socket: &mut Self::TcpSocket, buffer: &mut [u8]) -> nb::Result<usize, Self::Error> {
+    fn receive(
+        &self,
+        socket: &mut Self::TcpSocket,
+        buffer: &mut [u8],
+    ) -> nb::Result<usize, Self::Error> {
         self.spin()?;
 
         let mut sockets = self
@@ -603,6 +574,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))
     }
 
+    // No longer in trait
     // fn read_with<F>(&self, socket: &mut Self::TcpSocket, f: F) -> nb::Result<usize, Self::Error>
     // where
     //     F: FnOnce(&[u8], Option<&[u8]>) -> usize,

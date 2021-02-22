@@ -21,22 +21,10 @@ where
     type Error = Error;
 
     fn gethostbyaddr(&self, ip_addr: IpAddr) -> Result<String<consts::U256>, Self::Error> {
-        // let mut ip_str = String::<consts::U256>::new();
-        // write!(&mut ip_str, "{}", ip_addr).map_err(|_| Error::BadLength)?;
-
-        // let resp = self.send_at(Ping {
-        //     hostname: hostname,
-        //     retry_num: 1,
-        // })?;
-
-        // Ok(String::from(resp.ip_domain_string.as_str()))
-        Err(Error::Dns(types::PingError::Other))
+        Err(Error::Unimplemented)
     }
 
     fn gethostbyname(&self, hostname: &str, addr_type: AddrType) -> Result<IpAddr, Self::Error> {
-        // if addr_type == AddrType::IPv6 {
-        //     return Err(Error::Dns);
-        // }
         self.dns_state.set(DNSState::Resolving);
         self.send_at(Ping {
             hostname: hostname,

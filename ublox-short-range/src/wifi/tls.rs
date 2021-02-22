@@ -32,6 +32,7 @@ where
     N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
     L: ArrayLength<u8>,
 {
+    /// Importing credentials enabeles their use for all further TCP connections
     fn import_certificate(&mut self, name: &str, certificate: &[u8]) -> Result<(), Error> {
         assert!(name.len() < 200);
 
@@ -65,11 +66,10 @@ where
             }
         }
 
-        //Check MD5?
-
         Ok(())
     }
 
+    /// Importing credentials enabeles their use for all further TCP connections
     fn import_root_ca(&mut self, name: &str, root_ca: &[u8]) -> Result<(), Error> {
         assert!(name.len() < 200);
 
@@ -102,11 +102,11 @@ where
                 })
             }
         }
-        //Check MD5?
 
         Ok(())
     }
 
+    /// Importing credentials enabeles their use for all further TCP connections
     fn import_private_key(
         &mut self,
         name: &str,
@@ -131,8 +131,6 @@ where
         self.send_at(SendSecurityDataImport {
             data: atat::serde_at::ser::Bytes(private_key),
         })?;
-
-        //Check MD5?
 
         match self.security_credentials {
             Some(ref mut creds) => {
@@ -175,6 +173,6 @@ where
         //     }
         //     _ => return Err(Error::SocketNotFound),
         // }
-        Ok(())
+        Err(Error::Unimplemented)
     }
 }

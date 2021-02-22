@@ -24,6 +24,7 @@ pub enum Error {
     Generic(GenericError),
     DublicateCredentials,
     Uninitialized,
+    Unimplemented,
     _Unknown,
 }
 

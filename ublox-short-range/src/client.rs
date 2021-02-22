@@ -79,16 +79,6 @@ pub struct SecurityCredentials {
     pub c_key_name: Option<heapless::String<consts::U16>>,
 }
 
-// macro_rules! size_of {
-//     ($type:ident) => {
-//         defmt::info!(
-//             "Size of {}: {:?}",
-//             stringify!($type),
-//             core::mem::size_of::<$type>()
-//         );
-//     };
-// }
-
 pub struct UbloxClient<C, N, L>
 where
     C: atat::AtatClient,
@@ -128,22 +118,14 @@ where
         }
     }
 
-    // pub fn init(&self, hostname: &str) -> Result<(), Error> {
     pub fn init(&self) -> Result<(), Error> {
-        // Initilize a new ublox device to a known state (set RS232 settings, restart, wait for startup etc.)
-        // size_of!(AtatCmd);
-        // size_of!(AtatResp);
-        // size_of!(ResponseType);
-        // size_of!(Packet);
-
-        // self.state.set(State::Initializing);
+        // Initilize a new ublox device to a known state (set RS232 settings)
 
         //Switch to EDM on Init. If in EDM, fail and check with autosense
         if self.serial_mode.get() != SerialMode::ExtendedData {
             self.send_internal(&SwitchToEdmCommand, true)?;
             self.serial_mode.set(SerialMode::ExtendedData);
         }
-        // self.autosense()?;
 
         //TODO: handle EDM settings quirk see EDM datasheet: 2.2.5.1 AT Request Serial settings
         self.send_internal(
@@ -160,26 +142,14 @@ where
 
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
 
-        // self.send_internal(&RebootDCE, false)?;
-        // block!(wait_for_unsolicited!(self, UnsolicitedResponse::Startup)).unwrap();
-        // self.send_internal(&AT, false)?;
-
         self.initialized.set(true);
         Ok(())
     }
 
-    /// Not in use
+    /// Not implemented
     #[inline]
-    fn low_power_mode(&self, _enable: bool) -> Result<(), atat::Error> {
-        // if let Some(ref _dtr) = self.config.dtr_pin {
-        //     // if enable {
-        //     // dtr.set_high().ok();
-        //     // } else {
-        //     // dtr.set_low().ok();
-        //     // }
-        //     return Ok(());
-        // }
-        Ok(())
+    fn low_power_mode(&self, _enable: bool) -> Result<(), Error> {
+        Err(Error::Unimplemented)
     }
 
     ///Not in use
@@ -196,17 +166,10 @@ where
         Err(Error::BaudDetection)
     }
 
-    ///Not in use
+    ///Not implemented
     #[inline]
     fn reset(&self) -> Result<(), Error> {
-        // self.send_internal(
-        //     &SetModuleFunctionality {
-        //         fun: Functionality::SilentResetWithSimReset,
-        //         rst: None,
-        //     },
-        //     false,
-        // )?;
-        Ok(())
+        Err(Error::Unimplemented)
     }
 
     pub fn spin(&self) -> Result<(), Error> {
@@ -268,7 +231,7 @@ where
         self.client
             .try_borrow_mut()?
             .peek_urc_with::<EdmEvent, _>(|edm_urc| {
-                // defmt::debug!("Handle URC");
+                defmt::trace!("Handle URC");
                 let res = match edm_urc {
                     EdmEvent::ATEvent(urc) => {
                         match urc {
@@ -282,13 +245,15 @@ where
                                     let mut handle = SocketHandle(msg.handle);
                                     match sockets.socket_type(handle) {
                                         Some(SocketType::Tcp) => {
-                                            if let Ok(mut tcp) = sockets.get::<TcpSocket<_>>(handle) {
+                                            if let Ok(mut tcp) = sockets.get::<TcpSocket<_>>(handle)
+                                            {
                                                 tcp.close();
                                                 sockets.remove(handle).ok();
                                             }
                                         }
                                         Some(SocketType::Udp) => {
-                                            if let Ok(mut udp) = sockets.get::<UdpSocket<_>>(handle) {
+                                            if let Ok(mut udp) = sockets.get::<UdpSocket<_>>(handle)
+                                            {
                                                 udp.close();
                                             }
                                             sockets.remove(handle).ok();
@@ -412,8 +377,6 @@ where
                     } // end match urc
                     EdmEvent::StartUp => {
                         defmt::debug!("[EDM_URC] STARTUP");
-                        // self.initialized.set(false);
-                        // self.serial_mode.set(SerialMode::Cmd);
                         true
                     }
                     EdmEvent::IPv4ConnectEvent(event) => {
