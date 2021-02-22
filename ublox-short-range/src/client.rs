@@ -1,15 +1,13 @@
 use crate::{
     command::{
-        data_mode::{types::Mode, ChangeMode},
         edm::{urc::EdmEvent, EdmAtCmdWrapper, SwitchToEdmCommand},
         ping::types::PingError,
         system::{
             types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
-            RebootDCE, SetRS232Settings, StoreCurrentConfig,
+            SetRS232Settings, StoreCurrentConfig,
         },
         wifi::{
             types::DisconnectReason,
-            urc::{WifiLinkConnected, WifiLinkDisconnected},
         },
         Urc, AT,
     },
@@ -18,15 +16,10 @@ use crate::{
     sockets::SocketSet,
     wifi::connection::{NetworkState, WiFiState, WifiConnection},
 };
-use atat::atat_derive::{AtatCmd, AtatResp};
-use atat::AtatClient;
 use core::cell::{Cell, RefCell};
-use embedded_hal::timer::CountDown;
 use embedded_nal::{IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6};
-use heapless::{consts, ArrayLength, String};
+use heapless::{consts, ArrayLength};
 
-use defmt::info;
-// use edm::Packet;
 
 #[macro_export]
 macro_rules! wait_for_unsolicited {

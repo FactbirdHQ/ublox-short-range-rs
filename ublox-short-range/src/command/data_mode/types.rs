@@ -1,8 +1,5 @@
 //! Argument and parameter types used by Data Mode Commands and Responses
-
 use atat::atat_derive::AtatEnum;
-use heapless::{consts, String, Vec};
-use no_std_net::IpAddr;
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
