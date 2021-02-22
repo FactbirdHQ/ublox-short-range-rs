@@ -254,7 +254,6 @@ where
                     let mut udp = sockets.get::<UdpSocket<_>>(*socket)?;
                     udp.endpoint = remote;
                     udp.meta.handle = handle;
-                    udp.set_state(UdpState::WaitingForConnection);
                     *socket = handle;
                 }
                 Err(e) => return Err(e)
