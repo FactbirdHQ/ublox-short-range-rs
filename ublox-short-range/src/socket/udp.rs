@@ -104,9 +104,9 @@ impl<L: ArrayLength<u8>> UdpSocket<L> {
     /// Check whether the socket is open.
     #[inline]
     pub fn is_open(&self) -> bool {
-        match self.endpoint {
-            SocketAddr::V4(ipv4) => ipv4.port() != 0,
-            SocketAddr::V6(ipv6) => ipv6.port() != 0,
+        match self.state {
+            State::Established => true,
+            _ => false,
         }
     }
 

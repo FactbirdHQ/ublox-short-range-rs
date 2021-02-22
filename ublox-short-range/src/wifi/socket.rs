@@ -254,6 +254,7 @@ where
                     let mut udp = sockets.get::<UdpSocket<_>>(*socket)?;
                     udp.endpoint = remote;
                     udp.meta.handle = handle;
+                    udp.set_state(UdpState::WaitingForConnection);
                     *socket = handle;
                 }
                 Err(e) => return Err(e)
@@ -291,6 +292,10 @@ where
         let mut udp = sockets
             .get::<UdpSocket<_>>(*socket)
             .map_err(|e| nb::Error::Other(e.into()))?;
+        
+        if !udp.is_open() {
+            return Err(nb::Error::Other(Error::SocketClosed));
+        }
 
         for chunk in buffer.chunks(EgressChunkSize::to_usize()) {
             self.handle_socket_error(
@@ -560,6 +565,10 @@ where
         let mut tcp = sockets
             .get::<TcpSocket<_>>(*socket)
             .map_err(|e| nb::Error::Other(e.into()))?;
+
+        if !tcp.may_send() {
+            return Err(nb::Error::Other(Error::SocketClosed));
+        }
 
         for chunk in buffer.chunks(EgressChunkSize::to_usize()) {
             self.handle_socket_error(

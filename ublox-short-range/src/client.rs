@@ -282,22 +282,13 @@ where
                                     let mut handle = SocketHandle(msg.handle);
                                     match sockets.socket_type(handle) {
                                         Some(SocketType::Tcp) => {
-                                            if let Ok(mut tcp) = sockets.get::<TcpSocket<_>>(handle)
-                                            {
-                                                match tcp.state() {
-                                                    TcpState::SynSent => {
-                                                        tcp.close();
-                                                    }
-                                                    _ => {
-                                                        tcp.close();
-                                                        sockets.remove(handle).ok();
-                                                    }
-                                                }
+                                            if let Ok(mut tcp) = sockets.get::<TcpSocket<_>>(handle) {
+                                                tcp.close();
+                                                sockets.remove(handle).ok();
                                             }
                                         }
                                         Some(SocketType::Udp) => {
-                                            if let Ok(mut udp) = sockets.get::<UdpSocket<_>>(handle)
-                                            {
+                                            if let Ok(mut udp) = sockets.get::<UdpSocket<_>>(handle) {
                                                 udp.close();
                                             }
                                             sockets.remove(handle).ok();
