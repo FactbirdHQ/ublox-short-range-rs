@@ -5,8 +5,8 @@ pub mod urc;
 use crate::command::{data_mode, data_mode::ChangeMode};
 use crate::command::{NoResponse, Urc};
 /// Containing EDM structs with custom serialaization and deserilaisation.
-use atat::{AtatCmd, AtatLen, AtatResp};
-use heapless::{consts, Vec};
+use atat::AtatCmd;
+use heapless::{consts, ArrayLength, Vec};
 use types::*;
 
 #[inline]
@@ -26,15 +26,14 @@ impl<T> atat::AtatCmd for EdmAtCmdWrapper<T>
 where
     T: AtatCmd,
     <T as atat::AtatCmd>::CommandLen: core::ops::Add<EdmAtCmdOverhead>,
-    <<T as atat::AtatCmd>::CommandLen as core::ops::Add<EdmAtCmdOverhead>>::Output:
-        atat::heapless::ArrayLength<u8>,
+    <<T as atat::AtatCmd>::CommandLen as core::ops::Add<EdmAtCmdOverhead>>::Output: ArrayLength<u8>,
 {
     type Response = T::Response;
     type CommandLen =
         <<T as atat::AtatCmd>::CommandLen as core::ops::Add<EdmAtCmdOverhead>>::Output;
 
-    fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
-        let mut s: atat::heapless::Vec<u8, Self::CommandLen> = atat::heapless::Vec::new();
+    fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+        let mut s: Vec<u8, Self::CommandLen> = Vec::new();
         let at_vec = self.0.as_bytes();
         let payload_len = (at_vec.len() + 2) as u16;
         s.extend(
@@ -98,8 +97,8 @@ impl<'a> atat::AtatCmd for EdmDataCommand<'a> {
     type Response = NoResponse;
     type CommandLen = <DataPackageSize as core::ops::Add<consts::U4>>::Output;
 
-    fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
-        let mut s: atat::heapless::Vec<u8, Self::CommandLen> = atat::heapless::Vec::new();
+    fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+        let mut s: Vec<u8, Self::CommandLen> = Vec::new();
         let payload_len = (self.data.len() + 3) as u16;
         s.extend(
             [
@@ -117,7 +116,7 @@ impl<'a> atat::AtatCmd for EdmDataCommand<'a> {
         return s;
     }
 
-    fn parse(&self, resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
+    fn parse(&self, _resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
         Ok(NoResponse)
     }
 
@@ -135,10 +134,10 @@ pub struct EdmResendConnectEventsCommand;
 
 impl atat::AtatCmd for EdmResendConnectEventsCommand {
     type Response = NoResponse;
-    type CommandLen = atat::heapless::consts::U8;
+    type CommandLen = consts::U8;
 
-    fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
-        let mut s: atat::heapless::Vec<u8, Self::CommandLen> = atat::heapless::Vec::new();
+    fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+        let mut s: Vec<u8, Self::CommandLen> = Vec::new();
         s.extend(
             [
                 STARTBYTE,
@@ -153,7 +152,7 @@ impl atat::AtatCmd for EdmResendConnectEventsCommand {
         return s;
     }
 
-    fn parse(&self, resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
+    fn parse(&self, _resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
         Ok(NoResponse)
     }
 
@@ -173,7 +172,7 @@ impl atat::AtatCmd for SwitchToEdmCommand {
     type Response = NoResponse;
     type CommandLen = <ChangeMode as atat::AtatCmd>::CommandLen;
 
-    fn as_bytes(&self) -> atat::heapless::Vec<u8, Self::CommandLen> {
+    fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
         return ChangeMode {
             mode: data_mode::types::Mode::ExtendedDataMode,
         }

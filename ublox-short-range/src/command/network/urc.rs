@@ -1,9 +1,6 @@
 //! Unsolicited responses for Network Commands
 use super::types::*;
-use crate::socket::SocketHandle;
 use atat::atat_derive::AtatResp;
-use heapless::{consts, String};
-use no_std_net::IpAddr;
 
 /// 10.6 Network up +UUNU
 #[derive(Debug, PartialEq, Clone, AtatResp)]

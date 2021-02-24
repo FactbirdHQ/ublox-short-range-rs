@@ -1,13 +1,10 @@
 use crate::command::edm::{
     calc_payload_len,
-    types::{
-        PayloadType, AT_COMMAND_POSITION, EDM_FULL_SIZE_FILTER, EDM_OVERHEAD, ENDBYTE, STARTBYTE,
-        STARTUPMESSAGE,
-    },
+    types::{PayloadType, AT_COMMAND_POSITION, EDM_OVERHEAD, ENDBYTE, STARTBYTE},
 };
 use atat::atat_log;
 use atat::Error;
-use atat::{helpers::SliceExt, DigestResult, Digester, IngressManager, UrcMatcher};
+use atat::{helpers::SliceExt, DigestResult, Digester, UrcMatcher};
 use heapless::{ArrayLength, Vec};
 
 /// State of the `EDMDigester`, used to filter responses
@@ -53,13 +50,14 @@ impl Digester for EdmDigester {
     fn digest<L: ArrayLength<u8>>(
         &mut self,
         buf: &mut Vec<u8, L>,
-        urc_matcher: &mut impl UrcMatcher,
+        _urc_matcher: &mut impl UrcMatcher,
     ) -> DigestResult<L> {
         // Debug statement for trace properly
         if buf.len() != 0 {
             match core::str::from_utf8(&buf) {
-                Ok(s) => defmt::trace!("Recived: {:str}, state: {:?}", s, self.state),
-                Err(_) => defmt::trace!(
+                Ok(_s) => atat_log!(trace, "Recived: {:str}, state: {:?}", _s, self.state),
+                Err(_) => atat_log!(
+                    trace,
                     "Recived: {:?}, state: {:?}",
                     core::convert::AsRef::<[u8]>::as_ref(&buf),
                     self.state,
@@ -95,7 +93,7 @@ impl Digester for EdmDigester {
         // Filter message by payload
         match PayloadType::from(buf[4]) {
             PayloadType::ATConfirmation => {
-                let (resp, mut remaining) = buf.split_at(edm_len);
+                let (resp, remaining) = buf.split_at(edm_len);
                 let mut return_val = DigestResult::None;
                 if self.state == State::ReceivingResponse {
                     // Errors can arrive with and without leading whitespaces
@@ -113,7 +111,7 @@ impl Digester for EdmDigester {
                 return return_val;
             }
             PayloadType::StartEvent => {
-                let (resp, mut remaining) = buf.split_at(edm_len);
+                let (resp, remaining) = buf.split_at(edm_len);
                 let mut return_val = DigestResult::None;
                 if self.state == State::ReceivingResponse {
                     self.state = State::Idle;
@@ -145,7 +143,7 @@ impl Digester for EdmDigester {
             }
             _ => {
                 // Wrong/Unsupported packet, thrown away.
-                let (resp, remaining) = buf.split_at(edm_len);
+                let (_, remaining) = buf.split_at(edm_len);
                 *buf = Vec::from_slice(remaining).unwrap();
                 return DigestResult::None;
             }

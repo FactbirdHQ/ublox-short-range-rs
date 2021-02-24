@@ -4,8 +4,7 @@ pub mod types;
 pub mod urc;
 
 use atat::atat_derive::AtatCmd;
-use heapless::{consts, String, Vec};
-use no_std_net::IpAddr;
+use heapless::{consts, Vec};
 use responses::*;
 use types::*;
 

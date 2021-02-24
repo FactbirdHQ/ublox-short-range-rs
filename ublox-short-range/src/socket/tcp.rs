@@ -1,5 +1,5 @@
 use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use heapless::{consts, ArrayLength, String};
+use heapless::ArrayLength;
 
 use super::{Error, Result};
 use crate::socket::{ChannelId, RingBuffer, Socket, SocketHandle, SocketMeta};

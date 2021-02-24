@@ -1,11 +1,10 @@
-use super::calc_payload_len;
 use heapless::{consts, Vec};
 use no_std_net::{Ipv4Addr, Ipv6Addr};
 
 /// Start byte, Length: u16, Id+Type: u16, Endbyte
 // type EdmAtCmdOverhead = (u8, u16, u16, u8);
 
-pub type EdmAtCmdOverhead = atat::heapless::consts::U6;
+pub type EdmAtCmdOverhead = consts::U6;
 pub type ChannelId = u8;
 pub type DataPackageSize = consts::U540;
 

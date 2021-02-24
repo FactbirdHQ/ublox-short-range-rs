@@ -1,7 +1,7 @@
 //! Argument and parameter types used by Network Commands and Responses
 
 use atat::atat_derive::AtatEnum;
-use heapless::{consts, String, Vec};
+use heapless::{consts, String};
 use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 #[derive(Clone, PartialEq, AtatEnum)]

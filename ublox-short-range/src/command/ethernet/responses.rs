@@ -1,7 +1,6 @@
 //! Responses for Ethernet
 use super::types::*;
 use atat::atat_derive::AtatResp;
-use heapless::{consts, String};
 
 /// 8.1 Ethernet configuration +UETHC
 #[derive(Clone, AtatResp)]

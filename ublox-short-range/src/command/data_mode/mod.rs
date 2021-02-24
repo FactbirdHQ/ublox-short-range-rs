@@ -4,7 +4,6 @@ pub mod types;
 pub mod urc;
 
 use atat::atat_derive::AtatCmd;
-use heapless::{consts, String};
 use responses::*;
 use types::*;
 

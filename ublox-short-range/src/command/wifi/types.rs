@@ -1,10 +1,10 @@
 //! Argument and parameter types used by WiFi Commands and Responses
 
-use atat::atat_derive::{AtatEnum, AtatLen};
+use atat::atat_derive::AtatEnum;
 use atat::serde_at::CharVec;
 use heapless::{consts, String, Vec};
-use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
-use serde::{Deserialize, Serialize};
+use no_std_net::{Ipv4Addr, Ipv6Addr};
+use serde::Deserialize;
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
@@ -43,7 +43,7 @@ pub enum WifiStationConfigParameter {
     ActiveKey = 7,
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase (8-63
     /// ASCII characters as a string) for WPA/WPA2 PSK.
-    WPA_PSK_Passphrase = 8,
+    WpaPskPassphrase = 8,
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     EAPPassword = 9,
@@ -158,7 +158,7 @@ pub enum WifiStationConfig<'a> {
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase (8-63
     /// ASCII characters as a string) for WPA/WPA2 PSK.
     #[at_arg(value = 8)]
-    WPA_PSKOrPassphrase(#[at_arg(len = 63)] &'a str),
+    WpaPskOrPassphrase(#[at_arg(len = 63)] &'a str),
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     #[at_arg(value = 9)]
@@ -292,7 +292,7 @@ pub enum WifiStationConfigR {
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase (8-63
     /// ASCII characters as a string) for WPA/WPA2 PSK.
     #[at_arg(value = 8)]
-    WPA_PSKOrPassphrase(String<consts::U63>),
+    WpaPskOrPassphrase(String<consts::U63>),
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     #[at_arg(value = 9)]
@@ -388,10 +388,10 @@ pub enum WifiStationConfigR {
 #[repr(u8)]
 pub enum Authentication {
     Open = 1,
-    WPA_WAP2_PSK = 2,
+    WpaWpa2Psk = 2,
     LEAP = 3,
     PEAP = 4,
-    EAP_TLS = 5,
+    EAPTLS = 5,
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
@@ -1353,9 +1353,9 @@ pub enum AccessPointConfigResponse {
 #[repr(u8)]
 pub enum SecurityMode {
     Open = 1,
-    WPA2_AES_CCMP = 2,
-    WPA_WPA2_Mixed = 3,
-    WPA_RC4_TKIP = 4,
+    Wpa2AesCcmp = 2,
+    WpaWpa2Mixed = 3,
+    WpaRC4Tkip = 4,
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]

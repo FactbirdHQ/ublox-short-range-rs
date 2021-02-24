@@ -2,11 +2,10 @@ use crate::{
     client::SecurityCredentials,
     command::security::{types::*, *},
     error::Error,
-    socket::{SocketHandle, SocketType, TcpSocket},
+    socket::SocketHandle,
     UbloxClient,
 };
-use atat::AtatClient;
-use heapless::{consts, ArrayLength, String};
+use heapless::{ArrayLength, String};
 
 pub trait TLS {
     fn import_certificate(&mut self, name: &str, certificate: &[u8]) -> Result<(), Error>;
@@ -150,10 +149,10 @@ where
 
     fn enable_tls(
         &self,
-        socket: SocketHandle,
-        ca_cert_name: Option<&str>,
-        client_cert_name: Option<&str>,
-        priv_key_name: Option<&str>,
+        _socket: SocketHandle,
+        _ca_cert_name: Option<&str>,
+        _client_cert_name: Option<&str>,
+        _priv_key_name: Option<&str>,
     ) -> Result<(), Error> {
         //Change socket handle to do TLS now,
         //Needs name of Certificates.

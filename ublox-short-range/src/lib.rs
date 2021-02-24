@@ -10,19 +10,12 @@
 
 extern crate heapless;
 
-#[macro_use]
+// #[macro_use]
 extern crate nb;
 extern crate no_std_net;
 extern crate packed_struct;
-#[macro_use]
+// #[macro_use]
 extern crate packed_struct_codegen;
-
-// pub type ATClient<T> = at::client::ATClient<
-//     T,
-//     command::RequestType,
-//     heapless::consts::U5,
-//     heapless::consts::U5,
-// >;
 
 #[cfg(test)]
 #[macro_use]

@@ -1,7 +1,6 @@
 //! Responses for GPIO Commands
 use super::types::*;
 use atat::atat_derive::AtatResp;
-use heapless::{consts, String};
 
 /// 14.2 GPIO Read +UGPIOR
 #[derive(Clone, PartialEq, AtatResp)]

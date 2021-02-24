@@ -1,7 +1,6 @@
 //! Responses for Network Commands
 use super::types::*;
 use atat::atat_derive::AtatResp;
-use heapless::{consts, String};
 
 /// 10.2 Network status +UNSTAT
 #[derive(Clone, AtatResp)]

@@ -4,7 +4,6 @@ pub mod types;
 
 use atat::atat_derive::AtatCmd;
 use heapless::{consts, String};
-use no_std_net::IpAddr;
 use responses::*;
 use types::*;
 

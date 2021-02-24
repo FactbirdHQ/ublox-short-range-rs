@@ -6,10 +6,8 @@ use crate::{
             types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
             SetRS232Settings, StoreCurrentConfig,
         },
-        wifi::{
-            types::DisconnectReason,
-        },
-        Urc, AT,
+        wifi::types::DisconnectReason,
+        Urc,
     },
     error::Error,
     socket::{ChannelId, SocketHandle, SocketType, TcpSocket, TcpState, UdpSocket, UdpState},
@@ -17,9 +15,8 @@ use crate::{
     wifi::connection::{NetworkState, WiFiState, WifiConnection},
 };
 use core::cell::{Cell, RefCell};
-use embedded_nal::{IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use embedded_nal::{IpAddr, SocketAddr};
 use heapless::{consts, ArrayLength};
-
 
 #[macro_export]
 macro_rules! wait_for_unsolicited {
@@ -44,16 +41,8 @@ macro_rules! wait_for_unsolicited {
 }
 
 #[derive(PartialEq, Copy, Clone)]
-pub enum State {
-    Uninitialized,
-    Initializing,
-    Idle,
-}
-
-#[derive(PartialEq, Copy, Clone)]
 pub enum SerialMode {
     Cmd,
-    Data,
     ExtendedData,
 }
 
@@ -78,7 +67,6 @@ where
     N: 'static + ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
     L: 'static + ArrayLength<u8>,
 {
-    // pub(crate) state: Cell<State>,
     pub(crate) initialized: Cell<bool>,
     serial_mode: Cell<SerialMode>,
     pub(crate) wifi_connection: RefCell<Option<WifiConnection>>,
@@ -98,7 +86,6 @@ where
 {
     pub fn new(client: C, socket_set: &'static mut SocketSet<N, L>) -> Self {
         UbloxClient {
-            // state: Cell::new(State::Uninitialized),
             initialized: Cell::new(false),
             serial_mode: Cell::new(SerialMode::Cmd),
             wifi_connection: RefCell::new(None),
@@ -140,30 +127,30 @@ where
     }
 
     /// Not implemented
-    #[inline]
-    fn low_power_mode(&self, _enable: bool) -> Result<(), Error> {
-        Err(Error::Unimplemented)
-    }
+    // #[inline]
+    // fn low_power_mode(&self, _enable: bool) -> Result<(), Error> {
+    //     Err(Error::Unimplemented)
+    // }
 
     ///Not in use
-    #[inline]
-    fn autosense(&self) -> Result<(), Error> {
-        for _ in 0..15 {
-            match self.client.try_borrow_mut()?.send(&EdmAtCmdWrapper(AT)) {
-                Ok(_) => {
-                    return Ok(());
-                }
-                Err(_e) => {}
-            };
-        }
-        Err(Error::BaudDetection)
-    }
+    // #[inline]
+    // fn autosense(&self) -> Result<(), Error> {
+    //     for _ in 0..15 {
+    //         match self.client.try_borrow_mut()?.send(&EdmAtCmdWrapper(AT)) {
+    //             Ok(_) => {
+    //                 return Ok(());
+    //             }
+    //             Err(_e) => {}
+    //         };
+    //     }
+    //     Err(Error::BaudDetection)
+    // }
 
     ///Not implemented
-    #[inline]
-    fn reset(&self) -> Result<(), Error> {
-        Err(Error::Unimplemented)
-    }
+    // #[inline]
+    // fn reset(&self) -> Result<(), Error> {
+    //     Err(Error::Unimplemented)
+    // }
 
     pub fn spin(&self) -> Result<(), Error> {
         // defmt::debug!("SPIN");
@@ -188,11 +175,6 @@ where
         req: &A,
         check_urc: bool,
     ) -> Result<A::Response, Error> {
-        match self.serial_mode.get() {
-            SerialMode::Cmd => {}
-            SerialMode::Data => return Err(Error::AT(atat::Error::Write)),
-            SerialMode::ExtendedData => {}
-        }
 
         if check_urc {
             if let Err(_e) = self.handle_urc() {
@@ -235,7 +217,7 @@ where
                             Urc::PeerDisconnected(msg) => {
                                 defmt::debug!("[URC] PeerDisconnected");
                                 if let Ok(ref mut sockets) = self.sockets.try_borrow_mut() {
-                                    let mut handle = SocketHandle(msg.handle);
+                                    let handle = SocketHandle(msg.handle);
                                     match sockets.socket_type(handle) {
                                         Some(SocketType::Tcp) => {
                                             if let Ok(mut tcp) = sockets.get::<TcpSocket<_>>(handle)
@@ -399,8 +381,6 @@ where
                                         sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)
                                     {
                                         udp.meta.channel_id.0 = event.channel_id;
-                                        let endpoint =
-                                            SocketAddrV4::new(event.remote_ip, event.remote_port);
                                         udp.set_state(UdpState::Established);
                                         true
                                     } else {
@@ -443,12 +423,6 @@ where
                                         sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)
                                     {
                                         udp.meta.channel_id.0 = event.channel_id;
-                                        let endpoint = SocketAddrV6::new(
-                                            event.remote_ip,
-                                            event.remote_port,
-                                            0,
-                                            0,
-                                        );
                                         udp.set_state(UdpState::Established);
                                         true
                                     } else {
@@ -513,7 +487,7 @@ where
             core::ops::Add<crate::command::edm::types::EdmAtCmdOverhead>,
         <<A as atat::AtatCmd>::CommandLen as core::ops::Add<
             crate::command::edm::types::EdmAtCmdOverhead,
-        >>::Output: atat::heapless::ArrayLength<u8>,
+        >>::Output: ArrayLength<u8>,
     {
         if !self.initialized.get() {
             self.init()?;

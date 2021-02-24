@@ -27,7 +27,7 @@ impl Default for State {
 pub struct UdpSocket<L: ArrayLength<u8>> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: SocketAddr,
-    available_data: usize,
+    _available_data: usize,
     state: State,
     rx_buffer: SocketBuffer<L>,
 }
@@ -41,7 +41,7 @@ impl<L: ArrayLength<u8>> UdpSocket<L> {
             meta,
             endpoint: SocketAddrV4::new(Ipv4Addr::unspecified(), 0).into(),
             state: State::Closed,
-            available_data: 0,
+            _available_data: 0,
             rx_buffer: SocketBuffer::new(),
         }
     }

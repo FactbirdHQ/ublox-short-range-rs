@@ -14,7 +14,6 @@ pub mod system;
 pub mod wifi;
 
 use atat::atat_derive::{AtatCmd, AtatResp, AtatUrc};
-use heapless::{consts, String};
 
 #[derive(Debug, Clone, AtatResp, PartialEq)]
 pub struct NoResponse;

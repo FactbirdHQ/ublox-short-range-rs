@@ -1,10 +1,9 @@
-use super::{NoResponse, Urc};
-use atat::AtatUrc;
-use heapless::{consts, String, Vec};
-use no_std_net::{Ipv4Addr, Ipv6Addr};
-// use responses::*;
 use super::calc_payload_len;
 use super::types::*;
+use super::Urc;
+use atat::AtatUrc;
+use heapless::Vec;
+use no_std_net::{Ipv4Addr, Ipv6Addr};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EdmEvent {

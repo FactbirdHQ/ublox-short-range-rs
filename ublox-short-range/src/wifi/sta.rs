@@ -1,8 +1,8 @@
 use crate::{
-    client::{State, UbloxClient},
+    client::UbloxClient,
     command::{
         edm::EdmAtCmdWrapper,
-        wifi::{responses::*, types::*, *},
+        wifi::{types::*, *},
         *,
     },
     error::{WifiConnectionError, WifiError},
@@ -17,10 +17,7 @@ use atat::AtatClient;
 
 // use core::convert::TryFrom;
 use core::convert::TryFrom;
-use embedded_hal::timer::{Cancel, CountDown};
-use heapless::{consts, ArrayLength, String, Vec};
-
-use defmt::info;
+use heapless::{consts, ArrayLength, Vec};
 
 /// Wireless network connectivity functionality.
 pub trait WifiConnectivity {
@@ -126,7 +123,7 @@ where
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
                     config_id: config_id,
-                    config_param: WifiStationConfig::Authentication(Authentication::WPA_WAP2_PSK),
+                    config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
                 }),
                 true,
             )?;
@@ -135,7 +132,7 @@ where
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
                     config_id: config_id,
-                    config_param: WifiStationConfig::WPA_PSKOrPassphrase(&pass),
+                    config_param: WifiStationConfig::WpaPskOrPassphrase(&pass),
                 }),
                 true,
             )?;

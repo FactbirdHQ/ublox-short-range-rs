@@ -1,10 +1,8 @@
 //! Unsolicited responses for Data mode Commands
 use super::types::*;
-use crate::socket::SocketHandle;
 use atat::atat_derive::AtatResp;
 use atat::serde_at::CharVec;
-use heapless::{consts, String};
-use no_std_net::IpAddr;
+use heapless::consts;
 
 /// 5.10 Peer connected +UUDPC
 #[derive(Debug, PartialEq, Clone, AtatResp)]

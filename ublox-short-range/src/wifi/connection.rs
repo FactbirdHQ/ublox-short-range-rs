@@ -1,13 +1,4 @@
-use atat::AtatClient;
-use embedded_hal::timer::{Cancel, CountDown};
-
-use heapless::consts;
-
-use crate::{
-    client::UbloxClient,
-    socket::{tcp::TcpSocket, Socket, SocketHandle, SocketSet},
-    wifi::network::{WifiMode, WifiNetwork},
-};
+use crate::wifi::network::{WifiMode, WifiNetwork};
 
 #[derive(Debug, Clone, Copy, PartialEq, defmt::Format)]
 pub enum WiFiState {

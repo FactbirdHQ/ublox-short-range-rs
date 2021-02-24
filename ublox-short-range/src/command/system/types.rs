@@ -1,7 +1,6 @@
 //! Argument and parameter types used by System Commands and Responses
 
 use atat::atat_derive::AtatEnum;
-use heapless::{consts, String, Vec};
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]

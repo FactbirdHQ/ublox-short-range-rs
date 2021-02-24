@@ -1,4 +1,4 @@
-use crate::command::wifi::types::{Authentication, OperationMode, ScanedWifiNetwork};
+use crate::command::wifi::types::{OperationMode, ScanedWifiNetwork};
 use crate::error::WifiError;
 use crate::hex::from_hex;
 use atat::serde_at::CharVec;

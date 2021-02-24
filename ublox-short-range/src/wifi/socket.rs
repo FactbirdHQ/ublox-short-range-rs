@@ -7,16 +7,14 @@ use heapless::{consts, ArrayLength, String};
 pub use no_std_net::{Ipv4Addr, Ipv6Addr};
 // use serde::{Serialize};
 use atat::serde_at::{to_string, SerializeOptions};
-
-use crate::command::data_mode::{types::*, *};
-use crate::command::edm::{EdmAtCmdWrapper, EdmDataCommand};
-use crate::UbloxClient;
-use crate::{error::Error, socket, socket::ChannelId};
 use typenum::marker_traits::Unsigned;
 
 use crate::{
-    hex,
-    socket::{SocketHandle, SocketType},
+    command::data_mode::*,
+    command::edm::{EdmAtCmdWrapper, EdmDataCommand},
+    error::Error,
+    socket::{ChannelId, SocketHandle, SocketType},
+    UbloxClient,
 };
 
 #[cfg(feature = "socket-udp")]
@@ -163,10 +161,9 @@ where
 
         {
             let mut url = String::<consts::U128>::from("udp://");
-            let dud = String::<consts::U1>::new();
-            let mut workspace = String::<consts::U43>::new();
+            let workspace: String::<consts::U43>;
             let mut ip_str = String::<consts::U43>::from("[");
-            let mut port = String::<consts::U8>::new();
+            let port: String::<consts::U8>;
 
             match remote.ip() {
                 IpAddr::V4(ip) => {
@@ -228,7 +225,7 @@ where
         }
         while {
             let mut sockets = self.sockets.try_borrow_mut()?;
-            let mut udp = sockets.get::<UdpSocket<_>>(*socket)?;
+            let udp = sockets.get::<UdpSocket<_>>(*socket)?;
             udp.state() == UdpState::Closed
         } {
             self.spin()?;
@@ -255,7 +252,7 @@ where
             .try_borrow_mut()
             .map_err(|e| nb::Error::Other(e.into()))?;
 
-        let mut udp = sockets
+        let udp = sockets
             .get::<UdpSocket<_>>(*socket)
             .map_err(|e| nb::Error::Other(e.into()))?;
 
@@ -393,10 +390,9 @@ where
 
             //TODO: Optimize! and when possible rewrite to ufmt!
             let mut url = String::<consts::U128>::from("tcp://");
-            let dud = String::<consts::U1>::new();
-            let mut workspace = String::<consts::U43>::new();
+            let workspace: String::<consts::U43>;
             let mut ip_str = String::<consts::U43>::from("[");
-            let mut port = String::<consts::U8>::new();
+            let port: String::<consts::U8>;
 
             match remote.ip() {
                 IpAddr::V4(ip) => {
@@ -483,7 +479,7 @@ where
         }
         while {
             let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
-            let mut tcp = sockets
+            let tcp = sockets
                 .get::<TcpSocket<_>>(*socket)
                 .map_err(Self::Error::from)?;
             tcp.state() == TcpState::SynSent
@@ -528,7 +524,7 @@ where
             .try_borrow_mut()
             .map_err(|e| nb::Error::Other(e.into()))?;
 
-        let mut tcp = sockets
+        let tcp = sockets
             .get::<TcpSocket<_>>(*socket)
             .map_err(|e| nb::Error::Other(e.into()))?;
 

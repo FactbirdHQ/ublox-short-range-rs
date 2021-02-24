@@ -2,13 +2,8 @@
 pub mod types;
 pub mod urc;
 
-use atat::atat_derive::AtatCmd;
-use heapless::{consts, String};
-use no_std_net::IpAddr;
-use types::*;
-use urc::*;
-
 use super::NoResponse;
+use atat::atat_derive::AtatCmd;
 
 /// 16.1 Ping command +UPING
 ///
@@ -42,17 +37,3 @@ pub struct Ping<'a> {
     #[at_arg(position = 1)]
     pub retry_num: i32,
 }
-
-// #[derive(Clone, AtatCmd)]
-// #[at_cmd(
-//     "",
-//     PingResponse,
-//     value_sep = false,
-//     cmd_prefix = "",
-//     termination = "",
-//     force_receive_state = true,
-//     timeout_ms = 10000
-// )]
-// pub struct GetPingResponse{
-//     pub disregard: u8
-// }
