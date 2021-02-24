@@ -175,7 +175,6 @@ where
         req: &A,
         check_urc: bool,
     ) -> Result<A::Response, Error> {
-
         if check_urc {
             if let Err(_e) = self.handle_urc() {
                 #[cfg(features = "logging")]

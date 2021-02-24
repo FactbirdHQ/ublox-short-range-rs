@@ -161,9 +161,9 @@ where
 
         {
             let mut url = String::<consts::U128>::from("udp://");
-            let workspace: String::<consts::U43>;
+            let workspace: String<consts::U43>;
             let mut ip_str = String::<consts::U43>::from("[");
-            let port: String::<consts::U8>;
+            let port: String<consts::U8>;
 
             match remote.ip() {
                 IpAddr::V4(ip) => {
@@ -390,9 +390,9 @@ where
 
             //TODO: Optimize! and when possible rewrite to ufmt!
             let mut url = String::<consts::U128>::from("tcp://");
-            let workspace: String::<consts::U43>;
+            let workspace: String<consts::U43>;
             let mut ip_str = String::<consts::U43>::from("[");
-            let port: String::<consts::U8>;
+            let port: String<consts::U8>;
 
             match remote.ip() {
                 IpAddr::V4(ip) => {
