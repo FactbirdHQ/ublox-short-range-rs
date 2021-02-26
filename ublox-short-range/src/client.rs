@@ -7,7 +7,7 @@ use crate::{
             SetRS232Settings, StoreCurrentConfig,
         },
         wifi::types::DisconnectReason,
-        Urc,
+        Urc, AT,
     },
     error::Error,
     socket::{ChannelId, SocketHandle, SocketType, TcpSocket, TcpState, UdpSocket, UdpState},
@@ -103,7 +103,9 @@ where
 
         //Switch to EDM on Init. If in EDM, fail and check with autosense
         if self.serial_mode.get() != SerialMode::ExtendedData {
-            self.send_internal(&SwitchToEdmCommand, true)?;
+            if self.send_internal(&SwitchToEdmCommand, true).is_err() {
+                self.send_internal(&EdmAtCmdWrapper(AT), false)?;
+            }
             self.serial_mode.set(SerialMode::ExtendedData);
         }
 
