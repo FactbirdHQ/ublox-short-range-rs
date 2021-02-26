@@ -148,8 +148,8 @@ mod test {
     use super::*;
     use crate::command::{data_mode::urc::PeerDisconnected, edm::types::DataPackageSize, Urc};
     use atat::{
-        heapless::{consts, Vec},
-        AtatCmd, AtatLen, AtatResp, AtatUrc, Error,
+        heapless::{Vec},
+        AtatUrc,
     };
 
     #[test]

@@ -155,218 +155,189 @@ impl Digester for EdmDigester {
 mod test {
     //TODO: Rewrite tests for new builder structure
 
-    // use super::*;
-    // use crate::command::edm::types::{STARTBYTE, ENDBYTE};
-    // use atat::ingress_manager::{NoopUrcMatcher, ByteVec};
-    // use atat::queues::{ComQueue, ResQueue, UrcQueue};
-    // use atat::{Mode, Config};
-    // use heapless::{consts, spsc::Queue};
+    use super::*;
+    use atat::{ComQueue, ResQueue, UrcQueue};
+    use atat::{ DefaultUrcMatcher, IngressManager, Command};
+    use heapless::{consts, spsc::Queue};
 
-    // type TestRxBufLen = consts::U256;
-    // type TestComCapacity = consts::U3;
-    // type TestResCapacity = consts::U5;
-    // type TestUrcCapacity = consts::U10;
+    type TestRxBufLen = consts::U256;
+    type TestUrcCapacity = consts::U10;
 
-    // macro_rules! setup {
-    //     ($config:expr, $urch:expr) => {{
-    //         static mut RES_Q: ResQueue<TestRxBufLen, TestResCapacity> =
-    //             Queue(heapless::i::Queue::u8());
-    //         let (res_p, res_c) = unsafe { RES_Q.split() };
-    //         static mut URC_Q: UrcQueue<TestRxBufLen, TestUrcCapacity> =
-    //             Queue(heapless::i::Queue::u8());
-    //         let (urc_p, urc_c) = unsafe { URC_Q.split() };
-    //         static mut COM_Q: ComQueue<TestComCapacity> = Queue(heapless::i::Queue::u8());
-    //         let (_com_p, com_c) = unsafe { COM_Q.split() };
-    //         (
-    //             IngressManager::with_customs(res_p, urc_p, com_c, $config, $urch, custom_digest),
-    //             res_c,
-    //             urc_c,
-    //         )
-    //     }};
-    //     ($config:expr) => {{
-    //         let val: (
-    //             IngressManager<
-    //                 TestRxBufLen,
-    //                 NoopUrcMatcher,
-    //                 TestComCapacity,
-    //                 TestResCapacity,
-    //                 TestUrcCapacity,
-    //             >,
-    //             _,
-    //             _,
-    //         ) = setup!($config, None);
-    //         val
-    //     }};
-    // }
+    macro_rules! setup_ingressmanager {
+        () => {{
+            static mut RES_Q: ResQueue<TestRxBufLen> =
+                Queue(heapless::i::Queue::u8());
+            let (res_p, res_c) = unsafe { RES_Q.split() };
+            static mut URC_Q: UrcQueue<TestRxBufLen, TestUrcCapacity> =
+                Queue(heapless::i::Queue::u8());
+            let (urc_p, urc_c) = unsafe { URC_Q.split() };
+            static mut COM_Q: ComQueue = Queue(heapless::i::Queue::u8());
+            let (com_p, com_c) = unsafe { COM_Q.split() };
+            (
+                IngressManager::with_customs(res_p, urc_p, com_c, DefaultUrcMatcher::default(), EdmDigester::default()),
+                res_c,
+                urc_c,
+                com_p,
+            )
+        }};
+    }
 
-    // // Removed functionality used to change OK responses to empty responses.
-    // // #[test]
-    // // fn ok_response() {
-    // //     let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-    // //     let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
+    // Removed functionality used to change OK responses to empty responses.
+    #[test]
+    fn ok_response() {
+        let (mut at_pars, mut res_c, mut urc_c, mut com_p) = setup_ingressmanager!();
+        
+        com_p.enqueue(Command::ForceReceiveState).unwrap();
+        at_pars.digest();
 
-    // //     assert_eq!(at_pars.get_state(), State::Idle);
+        //Payload: "OK\r\n"
+        let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
+        let empty_ok_response =
+            Vec::<u8, TestRxBufLen>::from_slice(&[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]).unwrap();
 
-    // //     at_pars.set_state(State::ReceivingResponse);
-    // //     //Payload: "OK\r\n"
-    // //     let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
-    // //     let empty_ok_response =
-    // //         Vec::<u8, TestRxBufLen>::from_slice(&[ 0xAAu8, 0x00, 0x02, 0x00, PayloadType::ATConfirmation as u8, 0x55]).unwrap();
+        at_pars.write(data);
 
-    // //     at_pars.write(data);
-    // //     assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+        at_pars.digest();
+        assert_eq!(res_c.dequeue(), Some(Ok(empty_ok_response)));
+        assert_eq!(urc_c.dequeue(), None);
+    }
 
-    // //     at_pars.digest();
-    // //     assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-    // //     assert_eq!(res_c.dequeue(), Some(Ok(empty_ok_response)));
-    // //     assert_eq!(urc_c.dequeue(), None);
-    // // }
+    #[test]
+    fn error_response() {
+        let (mut at_pars, mut res_c, mut urc_c, mut com_p) = setup_ingressmanager!();
 
-    // #[test]
-    // fn error_response() {
-    //     let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-    //     let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
+        //Payload: "ERROR\r\n"
+        let data = &[0xAAu8,0x00,0x09,0x00,0x45,0x45,0x52,0x52,0x4f,0x52,0x0D,0x0a,0x55];
+        
+        com_p.enqueue(Command::ForceReceiveState).unwrap();
+        at_pars.digest();
+        at_pars.write(data);
 
-    //     assert_eq!(at_pars.get_state(), State::Idle);
+        at_pars.digest();
+        assert_eq!(res_c.dequeue(), Some(Err(Error::InvalidResponse)));
+        assert_eq!(urc_c.dequeue(), None);
+    }
 
-    //     at_pars.set_state(State::ReceivingResponse);
-    //     //Payload: "ERROR\r\n"
-    //     let data = &[0xAAu8,0x00,0x09,0x00,0x45,0x45,0x52,0x52,0x4f,0x52,0x0D,0x0a,0x55];
+    #[test]
+    fn regular_response_with_trailing_ok() {
+        let (mut at_pars, mut res_c, mut urc_c, mut com_p) = setup_ingressmanager!();
+        com_p.enqueue(Command::ForceReceiveState).unwrap();
+        at_pars.digest();
 
-    //     at_pars.write(data);
-    //     assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+        //Payload: AT\r\n
+        let response = &[0xAAu8,0x00,0x06,0x00,0x45,0x41,0x54,0x0D,0x0a,0x55];
+        // Data = response + trailing OK message
+        let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x41,0x54,0x0D,0x0a,0x55,0xAA,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
 
-    //     at_pars.digest();
-    //     assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-    //     assert_eq!(res_c.dequeue(), Some(Err(Error::InvalidResponse)));
-    //     assert_eq!(urc_c.dequeue(), None);
-    // }
+        at_pars.write(data);
+        at_pars.digest();
+        assert_eq!(res_c.dequeue(), Some(Ok(Vec::<u8, TestRxBufLen>::from_slice(response).unwrap())));
+        assert_eq!(urc_c.dequeue(), None);
+    }
 
-    // #[test]
-    // fn regular_response_with_trailing_ok() {
-    //     let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-    //     let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
+    // Regular response with traling regular response..
 
-    //     assert_eq!(at_pars.get_state(), State::Idle);
+    #[test]
+    fn at_urc() {
+        let (mut at_pars, mut res_c, mut urc_c, _) = setup_ingressmanager!();
+        
+        let type_byte = PayloadType::ATEvent as u8;
+        //Payload: "OK\r\n"
+        let data = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        let result  = &[
+            0xAAu8, 0x00, 0x0C, 0x00, type_byte, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        at_pars.write(data);
+        at_pars.digest();
+        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(res_c.dequeue(), None);
+    }
 
-    //     at_pars.set_state(State::ReceivingResponse);
-    //     //Payload: AT\r\n
-    //     let response = &[0xAAu8,0x00,0x06,0x00,0x45,0x41,0x54,0x0D,0x0a,0x55];
-    //     // Data = response + trailing OK message
-    //     let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x41,0x54,0x0D,0x0a,0x55,0xAA,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
+    #[test]
+    fn data_event() {
+        let (mut at_pars, mut res_c, mut urc_c, _) = setup_ingressmanager!();
 
-    //     at_pars.write(data);
-    //     assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
+        let type_byte = PayloadType::DataEvent as u8;
+        //Payload: "OK\r\n"
+        let data = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        let result  = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        at_pars.write(data);
+        at_pars.digest();
+        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(res_c.dequeue(), None);
+    }
 
-    //     at_pars.digest();
-    //     assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-    //     assert_eq!(res_c.dequeue(), Some(Ok(Vec::<u8, TestRxBufLen>::from_slice(response).unwrap())));
-    //     assert_eq!(urc_c.dequeue(), None);
-    // }
+    #[test]
+    fn connect_disconnect_events() {
+        let (mut at_pars, mut res_c, mut urc_c, _) = setup_ingressmanager!();
 
-    // // Regular response with traling regular response..
+        let type_byte = PayloadType::ConnectEvent as u8;
+        //Payload: "OK\r\n"
+        let data = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        let result  = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        at_pars.write(data);
+        at_pars.digest();
+        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(res_c.dequeue(), None);
 
-    // #[test]
-    // fn at_urc() {
-    //     let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-    //     let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
+        let type_byte = PayloadType::DisconnectEvent as u8;
+        //Payload: "OK\r\n"
+        let data = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        let result  = &[
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        ];
+        at_pars.write(data);
+        at_pars.digest();
+        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(res_c.dequeue(), None);
+    }
 
-    //     assert_eq!(at_pars.get_state(), State::Idle);
+    #[test]
+    fn wrong_type_packet() {
+        let (mut at_pars, mut res_c, mut urc_c, mut com_p) = setup_ingressmanager!();
 
-    //     let type_byte = PayloadType::ATEvent as u8;
-    //     //Payload: "OK\r\n"
-    //     let data = &[
-    //         0xAAu8, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-    //     ];
-    //     let result  = &[
-    //         0xAAu8, 0x00, 0x0C, 0x00, type_byte, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-    //     ];
-    //     at_pars.write(data);
-    //     assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
-    //     at_pars.digest();
-    //     assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-    //     assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
-    //     assert_eq!(res_c.dequeue(), None);
-    // }
+        let type_byte = PayloadType::Unknown as u8;
+        //Payload: "OK\r\n"
+        let data = &[0xAAu8, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
+        at_pars.write(data);
+        at_pars.digest();
+        assert_eq!(urc_c.dequeue(), None);
+        assert_eq!(res_c.dequeue(), None);
 
-    // #[test]
-    // fn data_event() {
-    //     let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-    //     let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
+        // In reciver state!
+        com_p.enqueue(Command::ForceReceiveState).unwrap();
+        at_pars.digest();
 
-    //     assert_eq!(at_pars.get_state(), State::Idle);
+        at_pars.write(data);
+        at_pars.digest();
+        assert_eq!(urc_c.dequeue(), None);
+        assert_eq!(res_c.dequeue(), None);
 
-    //     let type_byte = PayloadType::DataEvent as u8;
-    //     //Payload: "OK\r\n"
-    //     let data = &[
-    //         0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-    //     ];
-    //     let result  = &[
-    //         0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-    //     ];
-    //     at_pars.write(data);
-    //     assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
-    //     at_pars.digest();
-    //     assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-    //     assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
-    //     assert_eq!(res_c.dequeue(), None);
-    // }
+        // Recovered enough to recive normal data?
+        com_p.enqueue(Command::ForceReceiveState).unwrap();
+        at_pars.digest();
 
-    // #[test]
-    // fn connect_disconnect_events() {
-    //     let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-    //     let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
+        //Payload: "OK\r\n"
+        let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
+        let empty_ok_response =
+            Vec::<u8, TestRxBufLen>::from_slice(&[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]).unwrap();
 
-    //     assert_eq!(at_pars.get_state(), State::Idle);
+        at_pars.write(data);
 
-    //     let type_byte = PayloadType::ConnectEvent as u8;
-    //     //Payload: "OK\r\n"
-    //     let data = &[
-    //         0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-    //     ];
-    //     let result  = &[
-    //         0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-    //     ];
-    //     at_pars.write(data);
-    //     assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
-    //     at_pars.digest();
-    //     assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-    //     assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
-    //     assert_eq!(res_c.dequeue(), None);
-
-    //     assert_eq!(at_pars.get_state(), State::Idle);
-
-    //     let type_byte = PayloadType::DisconnectEvent as u8;
-    //     //Payload: "OK\r\n"
-    //     let data = &[
-    //         0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-    //     ];
-    //     let result  = &[
-    //         0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-    //     ];
-    //     at_pars.write(data);
-    //     assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
-    //     at_pars.digest();
-    //     assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-    //     assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
-    //     assert_eq!(res_c.dequeue(), None);
-    // }
-
-    // #[test]
-    // fn wrong_type_packet() {
-    //     let conf = Config::new(Mode::Timeout).with_at_echo(false).with_line_term(ENDBYTE).with_format_char(STARTBYTE);
-    //     let (mut at_pars, mut res_c, mut urc_c) = setup!(conf);
-
-    //     assert_eq!(at_pars.get_state(), State::Idle);
-
-    //     let type_byte = PayloadType::Unknown as u8;
-    //     //Payload: "OK\r\n"
-    //     let data = &[0xAAu8, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
-    //     at_pars.write(data);
-    //     assert_eq!(at_pars.buf, Vec::<u8, TestRxBufLen>::from_slice(data).unwrap());
-    //     at_pars.digest();
-    //     assert_eq!(at_pars.buf, Vec::<_, TestRxBufLen>::new());
-    //     assert_eq!(urc_c.dequeue(), None);
-    //     assert_eq!(res_c.dequeue(), None);
-    // }
+        at_pars.digest();
+        assert_eq!(res_c.dequeue(), Some(Ok(empty_ok_response)));
+        assert_eq!(urc_c.dequeue(), None);
+    }
 }

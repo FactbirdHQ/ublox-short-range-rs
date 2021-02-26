@@ -203,13 +203,12 @@ impl atat::AtatCmd for SwitchToEdmCommand {
 mod test {
     use super::*;
     use crate::command::{
-        data_mode::urc::PeerDisconnected,
         system::{responses::SystemStatusResponse, types::StatusID, SystemStatus},
-        Urc, AT,
+        AT,
     };
     use atat::{
         heapless::{consts, Vec},
-        AtatCmd, AtatLen, AtatResp, AtatUrc, Error,
+        AtatCmd, Error,
     };
 
     #[test]
@@ -278,7 +277,6 @@ mod test {
     #[test]
     fn parse_wrong_at_responses() {
         let parse = EdmAtCmdWrapper(AT);
-        let correct_response = NoResponse;
         // AT-response: NoResponse
         let response = &[
             0xAAu8,
