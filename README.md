@@ -23,9 +23,6 @@ The driver aims to be compatible with the ublox short range modules:
 
 [atat]: https://crates.io/crates/atat
 
-<!--
-## [Documentation](https://docs.rs/ublox-cellular-rs/latest)
--->
 ## Documentation
 Relevant docs:
 - https://www.u-blox.com/en/docs/UBX-14044127
