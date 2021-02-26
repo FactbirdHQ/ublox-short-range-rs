@@ -157,7 +157,7 @@ mod test {
 
     use super::*;
     use atat::{ComQueue, ResQueue, UrcQueue};
-    use atat::{ DefaultUrcMatcher, IngressManager, Command};
+    use atat::{Command, DefaultUrcMatcher, IngressManager};
     use heapless::{consts, spsc::Queue};
 
     type TestRxBufLen = consts::U256;
@@ -165,8 +165,7 @@ mod test {
 
     macro_rules! setup_ingressmanager {
         () => {{
-            static mut RES_Q: ResQueue<TestRxBufLen> =
-                Queue(heapless::i::Queue::u8());
+            static mut RES_Q: ResQueue<TestRxBufLen> = Queue(heapless::i::Queue::u8());
             let (res_p, res_c) = unsafe { RES_Q.split() };
             static mut URC_Q: UrcQueue<TestRxBufLen, TestUrcCapacity> =
                 Queue(heapless::i::Queue::u8());
@@ -174,7 +173,13 @@ mod test {
             static mut COM_Q: ComQueue = Queue(heapless::i::Queue::u8());
             let (com_p, com_c) = unsafe { COM_Q.split() };
             (
-                IngressManager::with_customs(res_p, urc_p, com_c, DefaultUrcMatcher::default(), EdmDigester::default()),
+                IngressManager::with_customs(
+                    res_p,
+                    urc_p,
+                    com_c,
+                    DefaultUrcMatcher::default(),
+                    EdmDigester::default(),
+                ),
                 res_c,
                 urc_c,
                 com_p,
@@ -186,14 +191,16 @@ mod test {
     #[test]
     fn ok_response() {
         let (mut at_pars, mut res_c, mut urc_c, mut com_p) = setup_ingressmanager!();
-        
+
         com_p.enqueue(Command::ForceReceiveState).unwrap();
         at_pars.digest();
 
         //Payload: "OK\r\n"
-        let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
-        let empty_ok_response =
-            Vec::<u8, TestRxBufLen>::from_slice(&[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]).unwrap();
+        let data = &[0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
+        let empty_ok_response = Vec::<u8, TestRxBufLen>::from_slice(&[
+            0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
+        ])
+        .unwrap();
 
         at_pars.write(data);
 
@@ -207,8 +214,10 @@ mod test {
         let (mut at_pars, mut res_c, mut urc_c, mut com_p) = setup_ingressmanager!();
 
         //Payload: "ERROR\r\n"
-        let data = &[0xAAu8,0x00,0x09,0x00,0x45,0x45,0x52,0x52,0x4f,0x52,0x0D,0x0a,0x55];
-        
+        let data = &[
+            0xAAu8, 0x00, 0x09, 0x00, 0x45, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x0D, 0x0a, 0x55,
+        ];
+
         com_p.enqueue(Command::ForceReceiveState).unwrap();
         at_pars.digest();
         at_pars.write(data);
@@ -225,13 +234,19 @@ mod test {
         at_pars.digest();
 
         //Payload: AT\r\n
-        let response = &[0xAAu8,0x00,0x06,0x00,0x45,0x41,0x54,0x0D,0x0a,0x55];
+        let response = &[0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x41, 0x54, 0x0D, 0x0a, 0x55];
         // Data = response + trailing OK message
-        let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x41,0x54,0x0D,0x0a,0x55,0xAA,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
+        let data = &[
+            0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x41, 0x54, 0x0D, 0x0a, 0x55, 0xAA, 0x00, 0x06, 0x00,
+            0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
+        ];
 
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(res_c.dequeue(), Some(Ok(Vec::<u8, TestRxBufLen>::from_slice(response).unwrap())));
+        assert_eq!(
+            res_c.dequeue(),
+            Some(Ok(Vec::<u8, TestRxBufLen>::from_slice(response).unwrap()))
+        );
         assert_eq!(urc_c.dequeue(), None);
     }
 
@@ -240,18 +255,23 @@ mod test {
     #[test]
     fn at_urc() {
         let (mut at_pars, mut res_c, mut urc_c, _) = setup_ingressmanager!();
-        
+
         let type_byte = PayloadType::ATEvent as u8;
         //Payload: "OK\r\n"
         let data = &[
-            0xAAu8, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+            0xAAu8, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
+            0x3A, 0x33, 0x0D, 0x0A, 0x55,
         ];
-        let result  = &[
-            0xAAu8, 0x00, 0x0C, 0x00, type_byte, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        let result = &[
+            0xAAu8, 0x00, 0x0C, 0x00, type_byte, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33,
+            0x0D, 0x0A, 0x55,
         ];
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(
+            urc_c.dequeue(),
+            Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap())
+        );
         assert_eq!(res_c.dequeue(), None);
     }
 
@@ -262,14 +282,51 @@ mod test {
         let type_byte = PayloadType::DataEvent as u8;
         //Payload: "OK\r\n"
         let data = &[
-            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+            0xAAu8,
+            0x00,
+            0x0E,
+            0x00,
+            type_byte as u8,
+            0x0D,
+            0x0A,
+            0x2B,
+            0x55,
+            0x55,
+            0x44,
+            0x50,
+            0x44,
+            0x3A,
+            0x33,
+            0x0D,
+            0x0A,
+            0x55,
         ];
-        let result  = &[
-            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        let result = &[
+            0xAAu8,
+            0x00,
+            0x0E,
+            0x00,
+            type_byte as u8,
+            0x0D,
+            0x0A,
+            0x2B,
+            0x55,
+            0x55,
+            0x44,
+            0x50,
+            0x44,
+            0x3A,
+            0x33,
+            0x0D,
+            0x0A,
+            0x55,
         ];
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(
+            urc_c.dequeue(),
+            Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap())
+        );
         assert_eq!(res_c.dequeue(), None);
     }
 
@@ -280,27 +337,101 @@ mod test {
         let type_byte = PayloadType::ConnectEvent as u8;
         //Payload: "OK\r\n"
         let data = &[
-            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+            0xAAu8,
+            0x00,
+            0x0E,
+            0x00,
+            type_byte as u8,
+            0x0D,
+            0x0A,
+            0x2B,
+            0x55,
+            0x55,
+            0x44,
+            0x50,
+            0x44,
+            0x3A,
+            0x33,
+            0x0D,
+            0x0A,
+            0x55,
         ];
-        let result  = &[
-            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        let result = &[
+            0xAAu8,
+            0x00,
+            0x0E,
+            0x00,
+            type_byte as u8,
+            0x0D,
+            0x0A,
+            0x2B,
+            0x55,
+            0x55,
+            0x44,
+            0x50,
+            0x44,
+            0x3A,
+            0x33,
+            0x0D,
+            0x0A,
+            0x55,
         ];
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(
+            urc_c.dequeue(),
+            Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap())
+        );
         assert_eq!(res_c.dequeue(), None);
 
         let type_byte = PayloadType::DisconnectEvent as u8;
         //Payload: "OK\r\n"
         let data = &[
-            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+            0xAAu8,
+            0x00,
+            0x0E,
+            0x00,
+            type_byte as u8,
+            0x0D,
+            0x0A,
+            0x2B,
+            0x55,
+            0x55,
+            0x44,
+            0x50,
+            0x44,
+            0x3A,
+            0x33,
+            0x0D,
+            0x0A,
+            0x55,
         ];
-        let result  = &[
-            0xAAu8, 0x00, 0x0E, 0x00, type_byte as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
+        let result = &[
+            0xAAu8,
+            0x00,
+            0x0E,
+            0x00,
+            type_byte as u8,
+            0x0D,
+            0x0A,
+            0x2B,
+            0x55,
+            0x55,
+            0x44,
+            0x50,
+            0x44,
+            0x3A,
+            0x33,
+            0x0D,
+            0x0A,
+            0x55,
         ];
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(urc_c.dequeue(), Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap()));
+        assert_eq!(
+            urc_c.dequeue(),
+            Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap())
+        );
         assert_eq!(res_c.dequeue(), None);
     }
 
@@ -310,7 +441,9 @@ mod test {
 
         let type_byte = PayloadType::Unknown as u8;
         //Payload: "OK\r\n"
-        let data = &[0xAAu8, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
+        let data = &[
+            0xAAu8, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
+        ];
         at_pars.write(data);
         at_pars.digest();
         assert_eq!(urc_c.dequeue(), None);
@@ -330,9 +463,11 @@ mod test {
         at_pars.digest();
 
         //Payload: "OK\r\n"
-        let data = &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55];
-        let empty_ok_response =
-            Vec::<u8, TestRxBufLen>::from_slice(&[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]).unwrap();
+        let data = &[0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
+        let empty_ok_response = Vec::<u8, TestRxBufLen>::from_slice(&[
+            0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
+        ])
+        .unwrap();
 
         at_pars.write(data);
 

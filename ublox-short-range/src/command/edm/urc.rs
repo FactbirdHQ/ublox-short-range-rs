@@ -147,10 +147,7 @@ impl AtatUrc for EdmEvent {
 mod test {
     use super::*;
     use crate::command::{data_mode::urc::PeerDisconnected, edm::types::DataPackageSize, Urc};
-    use atat::{
-        heapless::{Vec},
-        AtatUrc,
-    };
+    use atat::{heapless::Vec, AtatUrc};
 
     #[test]
     fn parse_at_urc() {
