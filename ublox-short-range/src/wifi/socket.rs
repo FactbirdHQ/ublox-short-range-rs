@@ -1,30 +1,31 @@
 // Handles reciving data from sockets
 // implements TCP and UDP for WiFi client
 
-use embedded_hal::digital::v2::OutputPin;
-pub use embedded_nal::{Ipv4Addr, Mode, SocketAddr, SocketAddrV4};
-use heapless::{consts, ArrayLength};
-
-// use crate::command::ip_transport_layer::{types::*, *};
-use crate::{error::Error, socket};
-// use crate::modules::{gprs::GPRS, ssl::SSL};
-use crate::UbloxClient;
+// use embedded_hal::digital::v2::OutputPin;
+pub use embedded_nal::{nb, AddrType, IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6};
+use heapless::{consts, ArrayLength, String};
+pub use no_std_net::{Ipv4Addr, Ipv6Addr};
+// use serde::{Serialize};
+use atat::serde_at::{to_string, SerializeOptions};
 use typenum::marker_traits::Unsigned;
 
 use crate::{
-    hex,
-    socket::{SocketHandle, SocketType},
+    command::data_mode::*,
+    command::edm::{EdmAtCmdWrapper, EdmDataCommand},
+    error::Error,
+    socket::{ChannelId, SocketHandle, SocketType},
+    UbloxClient,
 };
 
 #[cfg(feature = "socket-udp")]
-use crate::socket::UdpSocket;
+use crate::socket::{UdpSocket, UdpState};
 #[cfg(feature = "socket-udp")]
-use embedded_nal::UdpStack;
+use embedded_nal::UdpClient;
 
 #[cfg(feature = "socket-tcp")]
 use crate::socket::{TcpSocket, TcpState};
 #[cfg(feature = "socket-tcp")]
-use embedded_nal::TcpStack;
+use embedded_nal::TcpClient;
 
 pub type IngressChunkSize = consts::U256;
 pub type EgressChunkSize = consts::U512;
@@ -35,24 +36,6 @@ where
     N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
     L: ArrayLength<u8>,
 {
-    /// Helper function to manage the internal poll counter, used to poll open
-    /// sockets for incoming data, in case a `SocketDataAvailable` URC is missed
-    /// once in a while, as the ublox module will never send the URC again, if
-    /// the socket is not read.
-    pub(crate) fn poll_cnt(&self, reset: bool) -> u16 {
-        // if reset {
-        //     // Reset poll_cnt
-        //     self.poll_cnt.set(0);
-        //     0
-        // } else {
-        //     // Increment poll_cnt by one, and return the old value
-        //     let old = self.poll_cnt.get();
-        //     self.poll_cnt.set(old + 1);
-        //     old
-        // }
-        0
-    }
-
     pub(crate) fn handle_socket_error<A: atat::AtatResp, F: Fn() -> Result<A, Error>>(
         &self,
         f: F,
@@ -63,19 +46,14 @@ where
             Ok(r) => Ok(r),
             Err(e @ Error::AT(atat::Error::Timeout)) => {
                 if attempt < 3 {
-                    #[cfg(feature = "logging")]
-                    log::error!("[RETRY] Retrying! {:?}", attempt);
+                    defmt::error!("[RETRY] Retrying! {:?}", attempt);
                     self.handle_socket_error(f, socket, attempt + 1)
                 } else {
                     Err(e)
                 }
             }
             Err(e @ Error::AT(atat::Error::InvalidResponse)) => {
-                // let SocketErrorResponse { error } = self
-                //     .send_internal(&GetSocketError, false)
-                //     .unwrap_or_else(|_e| SocketErrorResponse { error: 110 });
-
-                // if error != 0 {
+                // Close socket upon reciving invalid response
                 if let Some(handle) = socket {
                     let mut sockets = self.sockets.try_borrow_mut()?;
                     match sockets.socket_type(handle) {
@@ -99,117 +77,35 @@ where
 
     pub(crate) fn socket_ingress(
         &self,
-        socket: SocketHandle,
-        length: usize,
+        channel_id: ChannelId,
+        data: &[u8],
     ) -> Result<usize, Error> {
-        if length == 0 {
+        if data.len() == 0 {
             return Ok(0);
         }
+        let mut sockets = self.sockets.try_borrow_mut()?;
 
-        // Allow room for 2x length (Hex), and command overhead
-        let chunk_size = core::cmp::min(length, IngressChunkSize::to_usize());
-        let mut sockets = self
-            .sockets
-            .try_borrow_mut()
-            .map_err(|_| Error::BaudDetection)?;
-
-        // Reset poll_cnt
-        self.poll_cnt(true);
-
-        match sockets.socket_type(socket) {
+        match sockets.socket_type_by_channel_id(channel_id) {
             Some(SocketType::Tcp) => {
                 // Handle tcp socket
-                let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
+                let mut tcp = sockets.get_by_channel::<TcpSocket<_>>(channel_id)?;
                 if !tcp.can_recv() {
                     return Err(Error::Busy);
                 }
 
-                // let mut socket_data = self.handle_socket_error(
-                //     || {
-                //         self.send_internal(
-                //             &ReadSocketData {
-                //                 socket,
-                //                 length: chunk_size,
-                //             },
-                //             false,
-                //         )
-                //     },
-                //     Some(socket),
-                //     0,
-                // )?;
-
-                // if socket_data.socket != socket {
-                //     #[cfg(feature = "logging")]
-                //     log::error!("WrongSocketType {:?} != {:?}", socket_data.socket, socket);
-                //     return Err(Error::WrongSocketType);
-                // }
-
-                // if let Some(ref mut data) = socket_data.data {
-                //     if socket_data.length > 0 && data.len() / 2 != socket_data.length {
-                //         #[cfg(feature = "logging")]
-                //         log::error!(
-                //             "BadLength {:?} != {:?}, {:?}",
-                //             socket_data.length,
-                //             data.len() / 2,
-                //             data
-                //         );
-                //         return Err(Error::BadLength);
-                //     }
-
-                //     Ok(tcp.rx_enqueue_slice(
-                //         hex::from_hex(unsafe { data.as_bytes_mut() })
-                //             .map_err(|_| Error::InvalidHex)?,
-                //     ))
-                // } else {
-                    Ok(0)
-                // }
+                Ok(tcp.rx_enqueue_slice(data))
             }
             Some(SocketType::Udp) => {
                 // Handle udp socket
-                let mut udp = sockets.get::<UdpSocket<_>>(socket)?;
+                let mut udp = sockets.get_by_channel::<UdpSocket<_>>(channel_id)?;
 
                 if !udp.can_recv() {
                     return Err(Error::Busy);
                 }
-
-                // let mut socket_data = self.send_internal(
-                //     &ReadUDPSocketData {
-                //         socket,
-                //         length: chunk_size,
-                //     },
-                //     false,
-                // )?;
-
-                // if socket_data.socket != socket {
-                //     #[cfg(feature = "logging")]
-                //     log::error!("WrongSocketType {:?} != {:?}", socket_data.socket, socket);
-                //     return Err(Error::WrongSocketType);
-                // }
-
-                // if let Some(ref mut data) = socket_data.data {
-                //     if socket_data.length > 0 && data.len() / 2 != socket_data.length {
-                //         #[cfg(feature = "logging")]
-                //         log::error!(
-                //             "BadLength {:?} != {:?}, {:?}",
-                //             socket_data.length,
-                //             data.len() / 2,
-                //             data
-                //         );
-                //         return Err(Error::BadLength);
-                //     }
-
-                //     Ok(udp.rx_enqueue_slice(
-                //         hex::from_hex(unsafe { data.as_bytes_mut() })
-                //             .map_err(|_| Error::InvalidHex)?,
-                //     ))
-                // } else {
-                    Ok(0)
-                // }
-                
+                Ok(udp.rx_enqueue_slice(data))
             }
             _ => {
-                #[cfg(feature = "logging")]
-                log::error!("SocketNotFound {:?}", socket);
+                defmt::error!("SocketNotFound {:?}", channel_id);
                 Err(Error::SocketNotFound)
             }
         }
@@ -217,7 +113,7 @@ where
 }
 
 #[cfg(feature = "socket-udp")]
-impl<C, N, L> UdpStack for UbloxClient<C, N, L>
+impl<C, N, L> UdpClient for UbloxClient<C, N, L>
 where
     C: atat::AtatClient,
     N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
@@ -225,41 +121,132 @@ where
 {
     type Error = Error;
 
-    // Only return a SocketHandle to reference into the SocketSet owned by the GsmClient,
+    // Only return a SocketHandle to reference into the SocketSet owned by the UbloxClient,
     // as the Socket object itself provides no value without accessing it though the client.
     type UdpSocket = SocketHandle;
 
-    /// Open a new UDP socket to the given address and port. UDP is connectionless,
-    /// so unlike `TcpStack` no `connect()` is required.
-    fn open(&self, remote: SocketAddr, _mode: Mode) -> Result<Self::UdpSocket, Self::Error> {
-        // if self.state.get() != crate::client::State::Attached || !self.check_gprs_attachment()? {
-        //     self.state.set(crate::client::State::Detached);
-        //     return Err(Error::Network);
-        // }
+    fn socket(&self) -> Result<Self::UdpSocket, Self::Error> {
+        defmt::debug!("[UDP] Opening socket");
+        if let Some(ref con) = *self.wifi_connection.try_borrow()? {
+            if !self.initialized.get() || !con.is_connected() {
+                return Err(Error::Network);
+            }
+        } else {
+            return Err(Error::Network);
+        }
+        if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
+            if let Ok(h) = sockets.add(UdpSocket::new(0)) {
+                Ok(h)
+            } else {
+                defmt::error!("[UDP] Opening socket Error: Socket set full");
+                Err(Error::Network)
+            }
+        } else {
+            defmt::error!("[UDP] Opening socket Error: Unable to borrow sockets");
+            Err(Error::Network)
+        }
+    }
 
-        // let socket_resp = self.handle_socket_error(
-        //     || {
-        //         self.send_internal(
-        //             &CreateSocket {
-        //                 protocol: SocketProtocol::UDP,
-        //                 local_port: None,
-        //             },
-        //             false,
-        //         )
-        //     },
-        //     None,
-        //     0,
-        // )?;
+    /// Connect a UDP socket with a peer using a dynamically selected port.
+    /// Selects a port number automatically and initializes for read/writing.
+    fn connect(&self, socket: &mut Self::UdpSocket, remote: SocketAddr) -> Result<(), Self::Error> {
+        defmt::debug!("[UDP] Connecting socket");
+        if let Some(ref con) = *self.wifi_connection.try_borrow()? {
+            if !self.initialized.get() || !con.is_connected() {
+                return Err(Error::Network);
+            }
+        } else {
+            return Err(Error::Network);
+        }
 
-        // let mut socket = UdpSocket::new(socket_resp.socket.0);
-        let mut socket = UdpSocket::new(0);
-        socket.bind(remote)?;
+        {
+            let mut url = String::<consts::U128>::from("udp://");
+            let workspace: String<consts::U43>;
+            let mut ip_str = String::<consts::U43>::from("[");
+            let port: String<consts::U8>;
 
-        Ok(self.sockets.try_borrow_mut()?.add(socket)?)
+            match remote.ip() {
+                IpAddr::V4(ip) => {
+                    ip_str = to_string(
+                        &ip,
+                        String::<consts::U1>::new(),
+                        SerializeOptions {
+                            value_sep: false,
+                            cmd_prefix: &"",
+                            termination: &"",
+                        },
+                    )
+                    .map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&ip_str[1..ip_str.len() - 1])
+                        .map_err(|_e| Self::Error::BadLength)?;
+                }
+                IpAddr::V6(ip) => {
+                    workspace = to_string(
+                        &ip,
+                        String::<consts::U1>::new(),
+                        SerializeOptions::default(),
+                    )
+                    .map_err(|_e| Self::Error::BadLength)?;
+
+                    ip_str
+                        .push_str(&workspace[1..workspace.len() - 1])
+                        .map_err(|_e| Self::Error::BadLength)?;
+                    ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
+                }
+            }
+            url.push(':').map_err(|_e| Self::Error::BadLength)?;
+
+            port = to_string(
+                &remote.port(),
+                String::<consts::U1>::new(),
+                SerializeOptions::default(),
+            )
+            .map_err(|_e| Self::Error::BadLength)?;
+            url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
+            url.push('/').map_err(|_e| Self::Error::BadLength)?;
+
+            let mut sockets = self.sockets.try_borrow_mut()?;
+            defmt::trace!("[UDP] Connecting URL! {:str}", url);
+            match self.handle_socket_error(
+                || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
+                None,
+                0,
+            ) {
+                Ok(resp) => {
+                    let handle = SocketHandle(resp.peer_handle);
+                    let mut udp = sockets.get::<UdpSocket<_>>(*socket)?;
+                    udp.endpoint = remote;
+                    udp.meta.handle = handle;
+                    *socket = handle;
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        while {
+            let mut sockets = self.sockets.try_borrow_mut()?;
+            let udp = sockets.get::<UdpSocket<_>>(*socket)?;
+            udp.state() == UdpState::Closed
+        } {
+            self.spin()?;
+        }
+        Ok(())
     }
 
     /// Send a datagram to the remote host.
-    fn write(&self, socket: &mut Self::UdpSocket, buffer: &[u8]) -> nb::Result<(), Self::Error> {
+    fn send(&self, socket: &mut Self::UdpSocket, buffer: &[u8]) -> nb::Result<(), Self::Error> {
+        if let Some(ref con) = *self
+            .wifi_connection
+            .try_borrow()
+            .map_err(|e| nb::Error::Other(e.into()))?
+        {
+            if !self.initialized.get() || !con.is_connected() {
+                return Err(nb::Error::Other(Error::Network));
+            }
+        } else {
+            return Err(nb::Error::Other(Error::Network));
+        }
+
         let mut sockets = self
             .sockets
             .try_borrow_mut()
@@ -267,95 +254,79 @@ where
 
         let udp = sockets
             .get::<UdpSocket<_>>(*socket)
-            .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
+            .map_err(|e| nb::Error::Other(e.into()))?;
 
         if !udp.is_open() {
             return Err(nb::Error::Other(Error::SocketClosed));
         }
 
         for chunk in buffer.chunks(EgressChunkSize::to_usize()) {
-            // #[cfg(feature = "logging")]
-            // log::debug!("Sending: {} bytes, {:?}", chunk.len(), chunk);
-            // self.handle_socket_error(
-            //     || {
-            //         self.send_internal(
-            //             &PrepareUDPSendToDataBinary {
-            //                 socket: *socket,
-            //                 remote_addr: udp.endpoint.ip(),
-            //                 remote_port: udp.endpoint.port(),
-            //                 length: chunk.len(),
-            //             },
-            //             false,
-            //         )
-            //     },
-            //     Some(*socket),
-            //     0,
-            // )?;
-
-            // let response = self.handle_socket_error(
-            //     || {
-            //         self.send_internal(
-            //             &UDPSendToDataBinary {
-            //                 data: serde_at::ser::Bytes(chunk),
-            //             },
-            //             false,
-            //         )
-            //     },
-            //     Some(*socket),
-            //     0,
-            // )?;
-
-            // if response.length != chunk.len() {
-            //     return Err(nb::Error::Other(Error::BadLength));
-            // }
-            // if &response.socket != socket {
-            //     return Err(nb::Error::Other(Error::WrongSocketType));
-            // }
+            self.handle_socket_error(
+                || {
+                    self.send_internal(
+                        &EdmDataCommand {
+                            channel: udp.channel_id().0,
+                            data: chunk,
+                        },
+                        true,
+                    )
+                },
+                Some(*socket),
+                0,
+            )?;
         }
-
         Ok(())
     }
 
     /// Read a datagram the remote host has sent to us. Returns `Ok(n)`, which
     /// means a datagram of size `n` has been received and it has been placed
     /// in `&buffer[0..n]`, or an error.
-    fn read(
+    fn receive(
         &self,
         socket: &mut Self::UdpSocket,
         buffer: &mut [u8],
-    ) -> nb::Result<usize, Self::Error> {
+    ) -> nb::Result<(usize, SocketAddr), Self::Error> {
         // self.spin()?;
 
-        // let mut sockets = self
-        //     .sockets
-        //     .try_borrow_mut()
-        //     .map_err(|e| nb::Error::Other(e.into()))?;
+        let mut sockets = self
+            .sockets
+            .try_borrow_mut()
+            .map_err(|e| nb::Error::Other(e.into()))?;
 
-        // let mut udp = sockets
-        //     .get::<UdpSocket<_>>(*socket)
-        //     .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
+        let mut udp = sockets
+            .get::<UdpSocket<_>>(*socket)
+            .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
 
-        // udp.recv_slice(buffer)
-        //     .map_err(|e| nb::Error::Other(e.into()))
-        Ok(0)
+        let us = udp
+            .recv_slice(buffer)
+            .map_err(|e| nb::Error::Other(e.into()))?;
+        Ok((us, udp.endpoint()))
     }
 
     /// Close an existing UDP socket.
     fn close(&self, socket: Self::UdpSocket) -> Result<(), Self::Error> {
-        // self.send_internal(&CloseSocket { socket }, false)?;
-
+        defmt::debug!("[UDP] Closelosing socket: {:?}", socket.0);
         let mut sockets = self.sockets.try_borrow_mut()?;
-        let mut udp = sockets.get::<UdpSocket<_>>(socket)?;
-        udp.close();
-
-        sockets.remove(socket)?;
+        //If no sockets excists, nothing to close.
+        if let Some(ref mut udp) = sockets.get::<UdpSocket<_>>(socket).ok() {
+            self.handle_socket_error(
+                || {
+                    self.send_at(ClosePeerConnection {
+                        peer_handle: udp.handle().0,
+                    })
+                },
+                Some(socket),
+                0,
+            )?;
+            udp.close();
+        }
 
         Ok(())
     }
 }
 
 #[cfg(feature = "socket-tcp")]
-impl<C, N, L> TcpStack for UbloxClient<C, N, L>
+impl<C, N, L> TcpClient for UbloxClient<C, N, L>
 where
     C: atat::AtatClient,
     N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
@@ -363,134 +334,223 @@ where
 {
     type Error = Error;
 
-    // Only return a SocketHandle to reference into the SocketSet owned by the GsmClient,
+    // Only return a SocketHandle to reference into the SocketSet owned by the UbloxClient,
     // as the Socket object itself provides no value without accessing it though the client.
     type TcpSocket = SocketHandle;
 
     /// Open a new TCP socket to the given address and port. The socket starts in the unconnected state.
-    fn open(&self, _mode: Mode) -> Result<Self::TcpSocket, Self::Error> {
-        // if self.state.get() != crate::client::State::Attached || !self.check_gprs_attachment()? {
-        //     self.state.set(crate::client::State::Detached);
-        //     return Err(Error::Network);
-        // }
-
-        // let socket_resp = self.handle_socket_error(
-        //     || {
-        //         // self.send_internal(
-        //         //     &CreateSocket {
-        //         //         protocol: SocketProtocol::TCP,
-        //         //         local_port: None,
-        //         //     },
-        //         //     false,
-        //         // )
-        //     },
-        //     None,
-        //     0,
-        // )?;
-
-        Ok(self
-            .sockets
-            .try_borrow_mut()?
-            .add(TcpSocket::new(0))?)
-            // .add(TcpSocket::new(socket_resp.socket.0))?)
+    fn socket(&self) -> Result<Self::TcpSocket, Self::Error> {
+        defmt::debug!("[TCP] Opening socket");
+        if let Some(ref con) = *self.wifi_connection.try_borrow()? {
+            if !self.initialized.get() || !con.is_connected() {
+                return Err(Error::Network);
+            }
+        } else {
+            return Err(Error::Network);
+        }
+        if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
+            if let Ok(h) = sockets.add(TcpSocket::new(0)) {
+                Ok(h)
+            } else {
+                defmt::error!("[TCP] Opening socket Error: Socket set full");
+                Err(Error::Network)
+            }
+        } else {
+            defmt::error!("[TCP] Opening socket Error: Not able to borrow sockets");
+            Err(Error::Network)
+        }
     }
 
     /// Connect to the given remote host and port.
     fn connect(
         &self,
-        socket: Self::TcpSocket,
+        socket: &mut Self::TcpSocket,
         remote: SocketAddr,
-    ) -> Result<Self::TcpSocket, Self::Error> {
-        // if self.state.get() != crate::client::State::Attached {
-        //     return Err(Error::Network);
-        // }
+    ) -> nb::Result<(), Self::Error> {
+        defmt::debug!("[TCP] Connect socket: {:?}", socket.0);
+        if let Some(ref con) = *self
+            .wifi_connection
+            .try_borrow()
+            .map_err(|e| nb::Error::Other(e.into()))?
+        {
+            if !self.initialized.get() || !con.is_connected() {
+                return Err(nb::Error::Other(Error::Network));
+            }
+        } else {
+            return Err(nb::Error::Other(Error::Network));
+        }
 
-        // self.enable_ssl(socket, 0)?;
+        {
+            let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
 
-        // self.handle_socket_error(
-        //     || {
-        //         // self.send_internal(
-        //         //     &ConnectSocket {
-        //         //         socket,
-        //         //         remote_addr: remote.ip(),
-        //         //         remote_port: remote.port(),
-        //         //     },
-        //         //     false,
-        //         // )
-        //         },
-        //     Some(socket),
-        //     0,
-        // )?;
+            //If no socket is found we stop here
+            let mut tcp = sockets
+                .get::<TcpSocket<_>>(*socket)
+                .map_err(Self::Error::from)?;
 
-        let mut sockets = self.sockets.try_borrow_mut()?;
-        let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
-        tcp.set_state(TcpState::Established);
-        Ok(tcp.handle())
+            //TODO: Optimize! and when possible rewrite to ufmt!
+            let mut url = String::<consts::U128>::from("tcp://");
+            let workspace: String<consts::U43>;
+            let mut ip_str = String::<consts::U43>::from("[");
+            let port: String<consts::U8>;
+
+            match remote.ip() {
+                IpAddr::V4(ip) => {
+                    ip_str = to_string(
+                        &ip,
+                        String::<consts::U1>::new(),
+                        SerializeOptions {
+                            value_sep: false,
+                            cmd_prefix: &"",
+                            termination: &"",
+                        },
+                    )
+                    .map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&ip_str[1..ip_str.len() - 1])
+                        .map_err(|_e| Self::Error::BadLength)?;
+                }
+                IpAddr::V6(ip) => {
+                    workspace = to_string(
+                        &ip,
+                        String::<consts::U1>::new(),
+                        SerializeOptions::default(),
+                    )
+                    .map_err(|_e| Self::Error::BadLength)?;
+
+                    ip_str
+                        .push_str(&workspace[1..workspace.len() - 1])
+                        .map_err(|_e| Self::Error::BadLength)?;
+                    ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
+                }
+            }
+            url.push(':').map_err(|_e| Self::Error::BadLength)?;
+
+            port = to_string(
+                &remote.port(),
+                String::<consts::U1>::new(),
+                SerializeOptions::default(),
+            )
+            .map_err(|_e| Self::Error::BadLength)?;
+            url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
+            url.push('/').map_err(|_e| Self::Error::BadLength)?;
+
+            // if tcp.c_cert_name != None || tcp.c_key_name != None || tcp.ca_cert_name != None {
+            if let Some(ref credentials) = self.security_credentials {
+                url.push('?').map_err(|_e| Self::Error::BadLength)?;
+
+                // if let Some(ref ca) = tcp.ca_cert_name{
+                if let Some(ref ca) = credentials.ca_cert_name {
+                    url.push_str(&"ca=").map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(ca).map_err(|_e| Self::Error::BadLength)?;
+                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
+                }
+
+                // if let Some(ref client) = tcp.c_cert_name{
+                if let Some(ref client) = credentials.c_cert_name {
+                    url.push_str(&"cert=")
+                        .map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(client).map_err(|_e| Self::Error::BadLength)?;
+                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
+                }
+
+                // if let Some(ref key) = tcp.c_key_name {
+                if let Some(ref key) = credentials.c_key_name {
+                    url.push_str(&"privKey=")
+                        .map_err(|_e| Self::Error::BadLength)?;
+                    url.push_str(key).map_err(|_e| Self::Error::BadLength)?;
+                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
+                }
+                url.pop();
+            }
+
+            defmt::trace!("[TCP] Connecting to url! {:str}", url);
+
+            let resp = self.handle_socket_error(
+                || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
+                Some(*socket),
+                0,
+            )?;
+            let handle = SocketHandle(resp.peer_handle);
+            tcp.set_state(TcpState::SynSent);
+            tcp.endpoint = remote;
+            tcp.meta.handle = handle;
+            *socket = handle;
+        }
+        while {
+            let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
+            let tcp = sockets
+                .get::<TcpSocket<_>>(*socket)
+                .map_err(Self::Error::from)?;
+            tcp.state() == TcpState::SynSent
+        } {
+            self.spin()?;
+        }
+        Ok(())
     }
 
     /// Check if this socket is still connected
     fn is_connected(&self, socket: &Self::TcpSocket) -> Result<bool, Self::Error> {
-        // if self.state.get() != crate::client::State::Attached {
-        //     return Ok(false);
-        // }
+        if let Some(ref con) = *self.wifi_connection.try_borrow()? {
+            if !self.initialized.get() || !con.is_connected() {
+                return Ok(false);
+            }
+        } else {
+            return Ok(false);
+        }
 
-        // let mut sockets = self.sockets.try_borrow_mut()?;
-        // Ok(sockets.get::<TcpSocket<_>>(*socket)?.is_active())
-        Ok(true)
+        let mut sockets = self.sockets.try_borrow_mut()?;
+        let socket_ref = sockets.get::<TcpSocket<_>>(*socket)?;
+        Ok(socket_ref.state() == TcpState::Established)
     }
 
     /// Write to the stream. Returns the number of bytes written is returned
     /// (which may be less than `buffer.len()`), or an error.
-    fn write(&self, socket: &mut Self::TcpSocket, buffer: &[u8]) -> nb::Result<usize, Self::Error> {
-        if !self.is_connected(&socket)? {
+    fn send(&self, socket: &mut Self::TcpSocket, buffer: &[u8]) -> nb::Result<usize, Self::Error> {
+        if let Some(ref con) = *self
+            .wifi_connection
+            .try_borrow()
+            .map_err(|e| nb::Error::Other(e.into()))?
+        {
+            if !self.initialized.get() || !con.is_connected() {
+                return Err(nb::Error::Other(Error::Network));
+            }
+        } else {
+            return Err(nb::Error::Other(Error::Network));
+        }
+
+        let mut sockets = self
+            .sockets
+            .try_borrow_mut()
+            .map_err(|e| nb::Error::Other(e.into()))?;
+
+        let tcp = sockets
+            .get::<TcpSocket<_>>(*socket)
+            .map_err(|e| nb::Error::Other(e.into()))?;
+
+        if !tcp.may_send() {
             return Err(nb::Error::Other(Error::SocketClosed));
         }
 
         for chunk in buffer.chunks(EgressChunkSize::to_usize()) {
-            // #[cfg(feature = "logging")]
-            // log::debug!("Sending: {} bytes, {:?}", chunk.len(), chunk);
-            // self.handle_socket_error(
-            //     || {
-            //         // self.send_internal(
-            //         //     &PrepareWriteSocketDataBinary {
-            //         //         socket: *socket,
-            //         //         length: chunk.len(),
-            //         //     },
-            //         //     false,
-            //         // )
-            //     },
-            //     Some(*socket),
-            //     0,
-            // )?;
-
-            // let response = self.handle_socket_error(
-            //     || {
-            //         // self.send_internal(
-            //         //     &WriteSocketDataBinary {
-            //         //         data: serde_at::ser::Bytes(chunk),
-            //         //     },
-            //         //     false,
-            //         // )
-            //     },
-            //     Some(*socket),
-            //     0,
-            // )?;
-
-            // if response.length != chunk.len() {
-            //     return Err(nb::Error::Other(Error::BadLength));
-            // }
-            // if &response.socket != socket {
-            //     return Err(nb::Error::Other(Error::WrongSocketType));
-            // }
+            self.handle_socket_error(
+                || {
+                    self.send_internal(
+                        &EdmDataCommand {
+                            channel: tcp.channel_id().0,
+                            data: chunk,
+                        },
+                        true,
+                    )
+                },
+                Some(*socket),
+                0,
+            )?;
         }
-
         Ok(buffer.len())
     }
 
-    /// Read from the stream. Returns `Ok(n)`, which means `n` bytes of
-    /// data have been received and they have been placed in
-    /// `&buffer[0..n]`, or an error.
-    fn read(
+    fn receive(
         &self,
         socket: &mut Self::TcpSocket,
         buffer: &mut [u8],
@@ -510,35 +570,54 @@ where
             .map_err(|e| nb::Error::Other(e.into()))
     }
 
-    fn read_with<F>(&self, socket: &mut Self::TcpSocket, f: F) -> nb::Result<usize, Self::Error>
-    where
-        F: FnOnce(&[u8], Option<&[u8]>) -> usize,
-    {
-        self.spin()?;
+    // No longer in trait
+    // fn read_with<F>(&self, socket: &mut Self::TcpSocket, f: F) -> nb::Result<usize, Self::Error>
+    // where
+    //     F: FnOnce(&[u8], Option<&[u8]>) -> usize,
+    // {
+    //     self.spin()?;
 
-        let mut sockets = self
-            .sockets
-            .try_borrow_mut()
-            .map_err(|e| nb::Error::Other(e.into()))?;
+    //     let mut sockets = self
+    //         .sockets
+    //         .try_borrow_mut()
+    //         .map_err(|e| nb::Error::Other(e.into()))?;
 
-        let mut tcp = sockets
-            .get::<TcpSocket<_>>(*socket)
-            .map_err(|e| nb::Error::Other(e.into()))?;
+    //     let mut tcp = sockets
+    //         .get::<TcpSocket<_>>(*socket)
+    //         .map_err(|e| nb::Error::Other(e.into()))?;
 
-        tcp.recv_wrapping(|a, b| f(a, b))
-            .map_err(|e| nb::Error::Other(e.into()))
-    }
+    //     tcp.recv_wrapping(|a, b| f(a, b))
+    //         .map_err(|e| nb::Error::Other(e.into()))
+    // }
 
     /// Close an existing TCP socket.
     fn close(&self, socket: Self::TcpSocket) -> Result<(), Self::Error> {
+        defmt::debug!("[TCP] Closing socket: {:?}", socket.0);
         let mut sockets = self.sockets.try_borrow_mut()?;
-        let mut tcp = sockets.get::<TcpSocket<_>>(socket)?;
-        tcp.close();
 
-        sockets.remove(socket)?;
-
-        // self.send_internal(&CloseSocket { socket }, false)?;
-
+        // If the socket is not found it is already removed
+        if let Some(ref mut tcp) = sockets.get::<TcpSocket<_>>(socket).ok() {
+            //If socket is not closed that means a connection excists which has to be closed
+            if tcp.state() != TcpState::Closed {
+                match self.handle_socket_error(
+                    || {
+                        self.send_at(ClosePeerConnection {
+                            peer_handle: tcp.handle().0,
+                        })
+                    },
+                    Some(socket),
+                    0,
+                ) {
+                    Err(Error::AT(atat::Error::InvalidResponse)) | Ok(_) => (),
+                    Err(e) => return Err(e.into()),
+                }
+                tcp.close();
+            } else {
+                //No connection exists the socket should be removed from the set here
+                tcp.close();
+                sockets.remove(socket)?;
+            }
+        }
         Ok(())
     }
 }

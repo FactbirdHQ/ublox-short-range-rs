@@ -1,7 +1,9 @@
 //! AT Commands for U-Blox short range module family\
 //! Following the [u-connect ATCommands Manual](https://www.u-blox.com/sites/default/files/u-connect-ATCommands-Manual_(UBX-14044127).pdf)
 
+pub mod custom_digest;
 pub mod data_mode;
+pub mod edm;
 pub mod ethernet;
 pub mod general;
 pub mod gpio;
@@ -12,16 +14,15 @@ pub mod system;
 pub mod wifi;
 
 use atat::atat_derive::{AtatCmd, AtatResp, AtatUrc};
-use heapless::{consts, String};
 
-#[derive(Clone, AtatResp)]
+#[derive(Debug, Clone, AtatResp, PartialEq)]
 pub struct NoResponse;
 
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, Clone, AtatCmd)]
 #[at_cmd("", NoResponse, timeout_ms = 1000)]
 pub struct AT;
 
-#[derive(Clone, AtatUrc)]
+#[derive(Debug, PartialEq, Clone, AtatUrc)]
 pub enum Urc {
     /// 5.10 Peer connected +UUDPC
     #[at_urc("+UUDPC")]
@@ -62,4 +63,8 @@ pub enum Urc {
     /// 10.8 Network error +UUNERR
     #[at_urc("+UUNERR")]
     NetworkError(network::urc::NetworkError),
+    #[at_urc("+UUPING")]
+    PingResponse(ping::urc::PingResponse),
+    #[at_urc("+UUPINGER")]
+    PingErrorResponse(ping::urc::PingErrorResponse),
 }

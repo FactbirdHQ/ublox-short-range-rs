@@ -1,8 +1,6 @@
 //! Argument and parameter types used by Security Commands and Responses
 
 use atat::atat_derive::AtatEnum;
-use heapless::{consts, String, Vec};
-use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
@@ -20,6 +18,8 @@ pub enum SecurityOperation {
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum SecurityDataType {
+    // This is undocumented..
+    TrustedRootCA = 0,
     ClientCertificate = 1,
     ClientPrivateKey = 2,
 }

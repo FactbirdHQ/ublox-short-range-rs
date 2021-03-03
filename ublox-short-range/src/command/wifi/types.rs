@@ -1,9 +1,10 @@
 //! Argument and parameter types used by WiFi Commands and Responses
 
-use atat::atat_derive::{AtatEnum, AtatLen};
-use serde::{Deserialize, Serialize};
+use atat::atat_derive::AtatEnum;
+use atat::serde_at::CharVec;
 use heapless::{consts, String, Vec};
-use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use no_std_net::{Ipv4Addr, Ipv6Addr};
+use serde::Deserialize;
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
@@ -16,7 +17,7 @@ pub enum OnOff {
 #[repr(u16)]
 pub enum WifiStationConfigParameter {
     /// <param_val1> decides if the station is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     ActiveOnStartup = 0,
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default value is an
@@ -42,7 +43,7 @@ pub enum WifiStationConfigParameter {
     ActiveKey = 7,
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase (8-63
     /// ASCII characters as a string) for WPA/WPA2 PSK.
-    WPA_PSK_Passphrase = 8,
+    WpaPskPassphrase = 8,
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     EAPPassword = 9,
@@ -119,7 +120,7 @@ pub enum WifiStationConfigParameter {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum WifiStationConfig<'a> {
     /// <param_val1> decides if the station is active on start up.
-    /// • Off (default): inactive
+    /// • Off (default): Inactive
     /// • On: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
@@ -157,7 +158,7 @@ pub enum WifiStationConfig<'a> {
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase (8-63
     /// ASCII characters as a string) for WPA/WPA2 PSK.
     #[at_arg(value = 8)]
-    WPA_PSKOrPassphrase(#[at_arg(len = 63)] &'a str),
+    WpaPskOrPassphrase(#[at_arg(len = 63)] &'a str),
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     #[at_arg(value = 9)]
@@ -253,7 +254,7 @@ pub enum WifiStationConfig<'a> {
 #[repr(u8)]
 pub enum WifiStationConfigR {
     /// <param_val1> decides if the station is active on start up.
-    /// • Off (default): inactive
+    /// • Off (default): Inactive
     /// • On: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
@@ -291,7 +292,7 @@ pub enum WifiStationConfigR {
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase (8-63
     /// ASCII characters as a string) for WPA/WPA2 PSK.
     #[at_arg(value = 8)]
-    WPA_PSKOrPassphrase(String<consts::U63>),
+    WpaPskOrPassphrase(String<consts::U63>),
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     #[at_arg(value = 9)]
@@ -387,10 +388,10 @@ pub enum WifiStationConfigR {
 #[repr(u8)]
 pub enum Authentication {
     Open = 1,
-    WPA_WAP2_PSK = 2,
+    WpaWpa2Psk = 2,
     LEAP = 3,
     PEAP = 4,
-    EAP_TLS = 5,
+    EAPTLS = 5,
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
@@ -447,7 +448,7 @@ pub enum StatusId {
 
 #[derive(Clone, PartialEq, Deserialize)]
 pub struct ScanedWifiNetwork {
-    pub bssid: String<consts::U64>,
+    pub bssid: CharVec<consts::U20>,
     pub op_mode: OperationMode,
     pub ssid: String<consts::U64>,
     pub channel: u8,
@@ -477,7 +478,7 @@ pub enum WifiStatus {
     #[at_arg(value = 0)]
     SSID(String<consts::U64>),
     #[at_arg(value = 1)]
-    BSSID(String<consts::U64>),
+    BSSID(CharVec<consts::U20>),
     #[at_arg(value = 2)]
     Channel(u8),
     ///The <status_val> is the current status of the station, possible values of status_val
@@ -915,7 +916,7 @@ pub enum AccessPointId {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum AccessPointConfig<'a> {
     /// <param_val1> decides if the access point is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
@@ -1071,7 +1072,7 @@ pub enum AccessPointConfig<'a> {
 #[repr(u16)]
 pub enum AccessPointConfigParameter {
     /// <param_val1> decides if the access point is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     ActiveOnStartup = 0,
     /// SSID - <param_val1> is the Service Set identification of the access point. The
@@ -1196,7 +1197,7 @@ pub enum AccessPointConfigParameter {
 #[repr(u16)]
 pub enum AccessPointConfigResponse {
     /// <param_val1> decides if the access point is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
@@ -1352,9 +1353,9 @@ pub enum AccessPointConfigResponse {
 #[repr(u8)]
 pub enum SecurityMode {
     Open = 1,
-    WPA2_AES_CCMP = 2,
-    WPA_WPA2_Mixed = 3,
-    WPA_RC4_TKIP = 4,
+    Wpa2AesCcmp = 2,
+    WpaWpa2Mixed = 3,
+    WpaRC4Tkip = 4,
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
@@ -1366,8 +1367,8 @@ pub enum SecurityModePSK {
 
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum Passkey<'a> {
-    Passphrase(#[at_arg(len = 64)]&'a str),
-    PSK(#[at_arg(len = 64)]&'a [u8]),
+    Passphrase(#[at_arg(len = 64)] &'a str),
+    PSK(#[at_arg(len = 64)] &'a [u8]),
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
@@ -1443,7 +1444,7 @@ pub enum AccessPointStatus {
     SSID(String<consts::U64>),
     /// The <status_val> is the currently used BSSID.
     #[at_arg(value = 1)]
-    BSSID(String<consts::U64>),
+    BSSID(CharVec<consts::U20>),
     /// The <status_val> is the currently used channel.
     #[at_arg(value = 2)]
     Channel(u32),
@@ -1460,9 +1461,9 @@ pub enum AccessPointStatusValue {
     String(String<consts::U64>),
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum DisconnectReason{
+pub enum DisconnectReason {
     Unknown = 0,
     RemoteClose = 1,
     OutOfRange = 2,

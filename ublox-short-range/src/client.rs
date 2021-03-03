@@ -1,34 +1,22 @@
-use atat::AtatClient;
-use atat::atat_derive::{AtatCmd, AtatResp};
-use core::cell::{Cell, RefCell};
-use embedded_hal::timer::CountDown;
 use crate::{
     command::{
+        edm::{urc::EdmEvent, EdmAtCmdWrapper, SwitchToEdmCommand},
+        ping::types::PingError,
         system::{
-            SetRS232Settings,
-            StoreCurrentConfig,
-            RebootDCE,
-            types::{
-                BaudRate,
-                StopBits,
-                FlowControl,
-                Parity,
-                ChangeAfterConfirm,
-            },
+            types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
+            SetRS232Settings, StoreCurrentConfig,
         },
-        AT,
+        wifi::types::DisconnectReason,
         Urc,
     },
-    wifi::connection::{WifiConnection, WiFiState, NetworkState},
     error::Error,
+    socket::{ChannelId, SocketHandle, SocketType, TcpSocket, TcpState, UdpSocket, UdpState},
     sockets::SocketSet,
+    wifi::connection::{NetworkState, WiFiState, WifiConnection},
 };
-use heapless::{consts, ArrayLength, String};
-    
-    
-#[cfg(feature = "logging")]
-use log::info;
-// use edm::Packet;
+use core::cell::{Cell, RefCell};
+use embedded_nal::{IpAddr, SocketAddr};
+use heapless::{consts, ArrayLength};
 
 #[macro_export]
 macro_rules! wait_for_unsolicited {
@@ -53,230 +41,144 @@ macro_rules! wait_for_unsolicited {
 }
 
 #[derive(PartialEq, Copy, Clone)]
-pub enum State{
-    Uninitialized,
-    Initializing,
-    Idle,
-}
-
-#[derive(PartialEq, Copy, Clone)]
 pub enum SerialMode {
     Cmd,
-    Data,
     ExtendedData,
 }
 
-macro_rules! size_of {
-    ($type:ident) => {
-        log::info!(
-            "Size of {}: {:?}",
-            stringify!($type),
-            core::mem::size_of::<$type>()
-        );
-    };
+#[derive(PartialEq, Copy, Clone)]
+pub enum DNSState {
+    NotResolving,
+    Resolving,
+    Resolved(IpAddr),
+    Error(PingError),
+}
+
+#[derive(PartialEq, Clone)]
+pub struct SecurityCredentials {
+    pub ca_cert_name: Option<heapless::String<consts::U16>>,
+    pub c_cert_name: Option<heapless::String<consts::U16>>, //TODO: Make &str with lifetime
+    pub c_key_name: Option<heapless::String<consts::U16>>,
 }
 
 pub struct UbloxClient<C, N, L>
 where
-    C: AtatClient,
+    C: atat::AtatClient,
     N: 'static + ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
     L: 'static + ArrayLength<u8>,
 {
-    // pub(crate) state: Cell<State>,
-    initialized: Cell<bool>,
+    pub(crate) initialized: Cell<bool>,
     serial_mode: Cell<SerialMode>,
     pub(crate) wifi_connection: RefCell<Option<WifiConnection>>,
     pub(crate) client: RefCell<C>,
     pub(crate) sockets: RefCell<&'static mut SocketSet<N, L>>,
+    pub(crate) dns_state: Cell<DNSState>,
+    pub(crate) urc_attempts: Cell<u8>,
+    pub(crate) max_urc_attempts: u8,
+    pub(crate) security_credentials: Option<SecurityCredentials>,
 }
 
 impl<C, N, L> UbloxClient<C, N, L>
 where
-    C: AtatClient,
+    C: atat::AtatClient,
     N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
     L: ArrayLength<u8>,
 {
-    pub fn new(
-        client: C,
-        socket_set: &'static mut SocketSet<N, L>,
-    ) -> Self {
+    pub fn new(client: C, socket_set: &'static mut SocketSet<N, L>) -> Self {
         UbloxClient {
-            // state: Cell::new(State::Uninitialized),
             initialized: Cell::new(false),
             serial_mode: Cell::new(SerialMode::Cmd),
             wifi_connection: RefCell::new(None),
             client: RefCell::new(client),
             sockets: RefCell::new(socket_set),
+            dns_state: Cell::new(DNSState::NotResolving),
+            max_urc_attempts: 5,
+            urc_attempts: Cell::new(0),
+            security_credentials: None,
         }
     }
 
-    // pub fn init(&self, hostname: &str) -> Result<(), Error> {
     pub fn init(&self) -> Result<(), Error> {
-        // Initilize a new ublox device to a known state (set RS232 settings, restart, wait for startup etc.)
-        // size_of!(AtatCmd);
-        // size_of!(AtatResp);
-        // size_of!(ResponseType);
-        // size_of!(Packet);
+        // Initilize a new ublox device to a known state (set RS232 settings)
 
-        // self.state.set(State::Initializing);
+        //Switch to EDM on Init. If in EDM, fail and check with autosense
+        if self.serial_mode.get() != SerialMode::ExtendedData {
+            self.send_internal(&SwitchToEdmCommand, true)?;
+            self.serial_mode.set(SerialMode::ExtendedData);
+        }
 
-        self.send_internal(&SetRS232Settings {
-            baud_rate: BaudRate::B115200,
-            flow_control: FlowControl::Off,
-            data_bits: 8,
-            stop_bits: StopBits::One,
-            parity: Parity::None,
-            change_after_confirm: ChangeAfterConfirm::ChangeAfterOK,
-        }, false)?;
+        //TODO: handle EDM settings quirk see EDM datasheet: 2.2.5.1 AT Request Serial settings
+        self.send_internal(
+            &EdmAtCmdWrapper(SetRS232Settings {
+                baud_rate: BaudRate::B115200,
+                flow_control: FlowControl::On,
+                data_bits: 8,
+                stop_bits: StopBits::One,
+                parity: Parity::None,
+                change_after_confirm: ChangeAfterConfirm::ChangeAfterOK,
+            }),
+            false,
+        )?;
 
-        
-        self.send_internal(&StoreCurrentConfig, false)?;
-        
-        // TODO: Wait for connect
-        
-        // self.send_internal(&RebootDCE, false)?;
-        // block!(wait_for_unsolicited!(self, UnsolicitedResponse::Startup)).unwrap();
-        // self.send_internal(&AT, false)?;
+        self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
 
         self.initialized.set(true);
         Ok(())
     }
 
-    #[inline]
-    fn low_power_mode(&self, _enable: bool) -> Result<(), atat::Error> {
-        // if let Some(ref _dtr) = self.config.dtr_pin {
-        //     // if enable {
-        //     // dtr.set_high().ok();
-        //     // } else {
-        //     // dtr.set_low().ok();
-        //     // }
-        //     return Ok(());
-        // }
-        Ok(())
-    }
+    /// Not implemented
+    // #[inline]
+    // fn low_power_mode(&self, _enable: bool) -> Result<(), Error> {
+    //     Err(Error::Unimplemented)
+    // }
 
-    #[inline]
-    fn autosense(&self) -> Result<(), Error> {
-        for _ in 0..15 {
-            match self.client.try_borrow_mut()?.send(&AT) {
-                Ok(_) => {
-                    return Ok(());
-                }
-                Err(_e) => {}
-            };
-        }
-        Err(Error::BaudDetection)
-    }
+    ///Not in use
+    // #[inline]
+    // fn autosense(&self) -> Result<(), Error> {
+    //     for _ in 0..15 {
+    //         match self.client.try_borrow_mut()?.send(&EdmAtCmdWrapper(AT)) {
+    //             Ok(_) => {
+    //                 return Ok(());
+    //             }
+    //             Err(_e) => {}
+    //         };
+    //     }
+    //     Err(Error::BaudDetection)
+    // }
 
-    #[inline]
-    fn reset(&self) -> Result<(), Error> {
-        // self.send_internal(
-        //     &SetModuleFunctionality {
-        //         fun: Functionality::SilentResetWithSimReset,
-        //         rst: None,
-        //     },
-        //     false,
-        // )?;
-        Ok(())
-    }
+    ///Not implemented
+    // #[inline]
+    // fn reset(&self) -> Result<(), Error> {
+    //     Err(Error::Unimplemented)
+    // }
 
     pub fn spin(&self) -> Result<(), Error> {
+        // defmt::debug!("SPIN");
+        if !self.initialized.get() {
+            return Err(Error::Uninitialized);
+        }
         self.handle_urc()?;
 
-        // match self.state.get() {
-        //     State::Attached => {}
-        //     State::Sending => {
-        //         return Ok(());
-        //     }
-        //     s => {
-        //         return Err(Error::NetworkState(s));
-        //     }
-        // }
-
-        // // Occasionally poll every open socket, in case a `SocketDataAvailable`
-        // // URC was missed somehow. TODO: rewrite this to readable code
-        // let data_available: heapless::Vec<(SocketHandle, usize), consts::U4> = {
-        //     let sockets = self.sockets.try_borrow()?;
-
-        //     if sockets.len() > 0 && self.poll_cnt(false) >= 500 {
-        //         self.poll_cnt(true);
-
-        //         sockets
-        //             .iter()
-        //             .filter_map(|(h, s)| {
-        //                 // Figure out if socket is TCP or UDP
-        //                 match s.get_type() {
-        //                     SocketType::Tcp => self
-        //                         .send_internal(
-        //                             &ReadSocketData {
-        //                                 socket: h,
-        //                                 length: 0,
-        //                             },
-        //                             false,
-        //                         )
-        //                         .map_or(None, |s| {
-        //                             if s.length > 0 {
-        //                                 Some((h, s.length))
-        //                             } else {
-        //                                 None
-        //                             }
-        //                         }),
-        //                     // SocketType::Udp => self
-        //                     //     .send_internal(
-        //                     //         &ReadUDPSocketData {
-        //                     //             socket: h,
-        //                     //             length: 0,
-        //                     //         },
-        //                     //         false,
-        //                     //     )
-        //                     //     .map_or(None, |s| {
-        //                     //         if s.length > 0 {
-        //                     //             Some((h, s.length))
-        //                     //         } else {
-        //                     //             None
-        //                     //         }
-        //                     //     }),
-        //                     _ => None,
-        //                 }
-        //             })
-        //             .collect()
-        //     } else {
-        //         heapless::Vec::new()
-        //     }
-        // };
-
-        // data_available
-        //     .iter()
-        //     .try_for_each(|(handle, len)| self.socket_ingress(*handle, *len).map(|_| ()))
-        //     .map_err(|e| {
-        //         #[cfg(feature = "logging")]
-        //         log::error!("ERROR: {:?}", e);
-        //         e
-        //     })?;
+        if let Some(ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+            if !con.is_connected() {
+                return Err(Error::WifiState(con.wifi_state));
+            }
+        } else {
+            return Err(Error::NoWifiSetup);
+        }
 
         Ok(())
     }
-
 
     pub(crate) fn send_internal<A: atat::AtatCmd>(
         &self,
         req: &A,
         check_urc: bool,
     ) -> Result<A::Response, Error> {
-
-        match self.serial_mode.get() {
-            SerialMode::Cmd => {},
-            SerialMode::Data => return Err(Error::AT(atat::Error::Write)),
-            SerialMode::ExtendedData => {
-                // edm::Packet::new(edm::Identifier::AT, edm::Type::Request, cmd.get_cmd().into_bytes());
-                return Err(Error::AT(atat::Error::Write))
-            }
-        }
-
         if check_urc {
             if let Err(_e) = self.handle_urc() {
                 #[cfg(features = "logging")]
-                log::error!("Failed handle URC: {:?}", _e);
+                defmt::error!("Failed handle URC: {:?}", _e);
             }
         }
 
@@ -285,10 +187,13 @@ where
             .send(req)
             .map_err(|e| match e {
                 nb::Error::Other(ate) => {
-                    #[cfg(feature = "logging")]
                     match core::str::from_utf8(&req.as_bytes()) {
-                        Ok(s) => log::error!("{:?}: [{:?}]", ate, s),
-                        Err(_) => log::error!("{:?}: {:02x?}", ate, req.as_bytes()),
+                        Ok(s) => defmt::error!("{:?}: [{:str}]", ate, s),
+                        Err(_) => defmt::error!(
+                            "{:?}: {:?}",
+                            ate,
+                            core::convert::AsRef::<[u8]>::as_ref(&req.as_bytes())
+                        ),
                     };
                     ate.into()
                 }
@@ -297,98 +202,299 @@ where
     }
 
     fn handle_urc(&self) -> Result<(), Error> {
-        let urc = self.client.try_borrow_mut()?.check_urc::<Urc>();
+        self.client
+            .try_borrow_mut()?
+            .peek_urc_with::<EdmEvent, _>(|edm_urc| {
+                defmt::trace!("Handle URC");
+                let res = match edm_urc {
+                    EdmEvent::ATEvent(urc) => {
+                        match urc {
+                            Urc::PeerConnected(_) => {
+                                defmt::debug!("[URC] PeerConnected");
+                                true
+                            }
+                            Urc::PeerDisconnected(msg) => {
+                                defmt::debug!("[URC] PeerDisconnected");
+                                if let Ok(ref mut sockets) = self.sockets.try_borrow_mut() {
+                                    let handle = SocketHandle(msg.handle);
+                                    match sockets.socket_type(handle) {
+                                        Some(SocketType::Tcp) => {
+                                            if let Ok(mut tcp) = sockets.get::<TcpSocket<_>>(handle)
+                                            {
+                                                tcp.close();
+                                                sockets.remove(handle).ok();
+                                            }
+                                        }
+                                        Some(SocketType::Udp) => {
+                                            if let Ok(mut udp) = sockets.get::<UdpSocket<_>>(handle)
+                                            {
+                                                udp.close();
+                                            }
+                                            sockets.remove(handle).ok();
+                                        }
+                                        None => {}
+                                    }
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            Urc::WifiLinkConnected(msg) => {
+                                defmt::debug!("[URC] WifiLinkConnected");
+                                if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
+                                    if let Some(ref mut con) = *some {
+                                        con.wifi_state = WiFiState::Connected;
+                                        con.network.bssid = msg.bssid;
+                                        con.network.channel = msg.channel;
+                                    }
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            Urc::WifiLinkDisconnected(msg) => {
+                                defmt::debug!("[URC] WifiLinkDisconnected");
+                                if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
+                                    if let Some(ref mut con) = *some {
+                                        // con.sockets.prune();
+                                        match msg.reason {
+                                            DisconnectReason::NetworkDisabled => {
+                                                con.wifi_state = WiFiState::Inactive;
+                                            }
+                                            DisconnectReason::SecurityProblems => {
+                                                defmt::error!("Wifi Security Problems");
+                                            }
+                                            _ => {
+                                                con.wifi_state = WiFiState::NotConnected;
+                                            }
+                                        }
+                                    }
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            Urc::WifiAPUp(_) => {
+                                defmt::debug!("[URC] WifiAPUp");
+                                true
+                            }
+                            Urc::WifiAPDown(_) => {
+                                defmt::debug!("[URC] WifiAPDown");
+                                true
+                            }
+                            Urc::WifiAPStationConnected(_) => {
+                                defmt::debug!("[URC] WifiAPStationConnected");
+                                true
+                            }
+                            Urc::WifiAPStationDisconnected(_) => {
+                                defmt::debug!("[URC] WifiAPStationDisconnected");
+                                true
+                            }
+                            Urc::EthernetLinkUp(_) => {
+                                defmt::debug!("[URC] EthernetLinkUp");
+                                true
+                            }
+                            Urc::EthernetLinkDown(_) => {
+                                defmt::debug!("[URC] EthernetLinkDown");
+                                true
+                            }
+                            Urc::NetworkUp(_) => {
+                                defmt::debug!("[URC] NetworkUp");
+                                if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
+                                    if let Some(ref mut con) = *some {
+                                        match con.network_state {
+                                            NetworkState::Attached => (),
+                                            NetworkState::AlmostAttached => {
+                                                con.network_state = NetworkState::Attached
+                                            }
+                                            NetworkState::Unattached => {
+                                                con.network_state = NetworkState::AlmostAttached
+                                            }
+                                        }
+                                        // con.network_state = NetworkState::Attached;
+                                    }
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            Urc::NetworkDown(_) => {
+                                defmt::debug!("[URC] NetworkDown");
+                                if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
+                                    if let Some(ref mut con) = *some {
+                                        con.network_state = NetworkState::Unattached;
+                                    }
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                            Urc::NetworkError(_) => {
+                                defmt::debug!("[URC] NetworkError");
+                                true
+                            }
+                            Urc::PingResponse(resp) => {
+                                defmt::debug!("[URC] PingResponse");
+                                if self.dns_state.get() == DNSState::Resolving {
+                                    self.dns_state.set(DNSState::Resolved(resp.ip))
+                                }
+                                true
+                            }
+                            Urc::PingErrorResponse(resp) => {
+                                defmt::debug!("[URC] PingErrorResponse: {:?}", resp.error);
+                                if self.dns_state.get() == DNSState::Resolving {
+                                    self.dns_state.set(DNSState::Error(resp.error))
+                                }
+                                true
+                            }
+                        }
+                    } // end match urc
+                    EdmEvent::StartUp => {
+                        defmt::debug!("[EDM_URC] STARTUP");
+                        true
+                    }
+                    EdmEvent::IPv4ConnectEvent(event) => {
+                        defmt::debug!(
+                            "[EDM_URC] IPv4ConnectEvent! Channel_id: {:?}",
+                            event.channel_id
+                        );
 
-        match urc {
-            Some(Urc::PeerConnected(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] PeerConnected");
-                Ok(())
-            }
-            Some(Urc::PeerDisconnected(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] PeerDisconnected");
-                Ok(())
-            }
-            Some(Urc::WifiLinkConnected(msg)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] WifiLinkConnected");
-                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                        con.wifi_state = WiFiState::Connected;
-                        con.network.bssid = msg.bssid;
-                        con.network.channel = msg.channel;
+                        if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
+                            let endpoint =
+                                SocketAddr::new(IpAddr::V4(event.remote_ip), event.remote_port);
+                            match sockets.socket_type_by_endpoint(&endpoint) {
+                                Some(SocketType::Tcp) => {
+                                    if let Ok(mut tcp) =
+                                        sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint)
+                                    {
+                                        tcp.meta.channel_id.0 = event.channel_id;
+                                        tcp.set_state(TcpState::Established);
+                                        true
+                                    } else {
+                                        defmt::debug!("[EDM_URC] Socket not found!");
+                                        false
+                                    }
+                                }
+                                Some(SocketType::Udp) => {
+                                    if let Ok(mut udp) =
+                                        sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)
+                                    {
+                                        udp.meta.channel_id.0 = event.channel_id;
+                                        udp.set_state(UdpState::Established);
+                                        true
+                                    } else {
+                                        defmt::debug!("[EDM_URC] Socket not found!");
+                                        false
+                                    }
+                                }
+                                None => {
+                                    defmt::debug!("[EDM_URC] Socket type not excisting!");
+                                    true
+                                }
+                            }
+                        } else {
+                            defmt::debug!("[EDM_URC] Could not borrow sockets!");
+                            false
+                        }
+                    }
+                    EdmEvent::IPv6ConnectEvent(event) => {
+                        defmt::debug!(
+                            "[EDM_URC] IPv6ConnectEvent! Channel_id: {:?}",
+                            event.channel_id
+                        );
+                        if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
+                            let endpoint =
+                                SocketAddr::new(IpAddr::V6(event.remote_ip), event.remote_port);
+                            match sockets.socket_type_by_endpoint(&endpoint) {
+                                Some(SocketType::Tcp) => {
+                                    if let Ok(mut tcp) =
+                                        sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint)
+                                    {
+                                        tcp.meta.channel_id.0 = event.channel_id;
+                                        tcp.set_state(TcpState::Established);
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                Some(SocketType::Udp) => {
+                                    if let Ok(mut udp) =
+                                        sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)
+                                    {
+                                        udp.meta.channel_id.0 = event.channel_id;
+                                        udp.set_state(UdpState::Established);
+                                        true
+                                    } else {
+                                        false
+                                    }
+                                }
+                                None => true,
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                    EdmEvent::BluetoothConnectEvent(_) => {
+                        defmt::debug!("[EDM_URC] BluetoothConnectEvent");
+                        true
+                    }
+                    EdmEvent::DisconnectEvent(channel_id) => {
+                        defmt::debug!("[EDM_URC] DisconnectEvent! Channel_id: {:?}", channel_id);
+                        true
+                    }
+                    EdmEvent::DataEvent(mut event) => {
+                        defmt::debug!("[EDM_URC] DataEvent! Channel_id: {:?}", event.channel_id);
+                        if let Ok(digested) =
+                            self.socket_ingress(ChannelId(event.channel_id), &event.data)
+                        {
+                            if digested < event.data.len() {
+                                //resize packet and return false
+                                event.data = heapless::Vec::from_slice(
+                                    &event.data[digested..event.data.len()],
+                                )
+                                .unwrap();
+                                false
+                            } else {
+                                true
+                            }
+                        } else {
+                            false
+                        }
+                    }
+                }; // end match emd-urc
+                if !res {
+                    let a = self.urc_attempts.get();
+                    if a < self.max_urc_attempts {
+                        defmt::debug!("[EDM_URC] URC handeling failed");
+                        self.urc_attempts.set(a + 1);
+                        return false;
+                    }
+                    defmt::debug!("[EDM_URC] URC thrown away");
                 }
-                Ok(())
-            }
-            Some(Urc::WifiLinkDisconnected(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] WifiLinkDisconnected");
-                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                    // con.sockets.prune();
-                    con.wifi_state = WiFiState::Disconnected;
-                }
-                Ok(())
-            }
-            Some(Urc::WifiAPUp(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] WifiAPUp");
-                Ok(())
-            }
-            Some(Urc::WifiAPDown(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] WifiAPDown");
-                Ok(())
-            }
-            Some(Urc::WifiAPStationConnected(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] WifiAPStationConnected");
-                Ok(())
-            }
-            Some(Urc::WifiAPStationDisconnected(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] WifiAPStationDisconnected");
-                Ok(())
-            }
-            Some(Urc::EthernetLinkUp(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] EthernetLinkUp");
-                Ok(())
-            }
-            Some(Urc::EthernetLinkDown(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] EthernetLinkDown");
-                Ok(())
-            }
-            Some(Urc::NetworkUp(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] NetworkUp");
-                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                    con.network_state = NetworkState::Attached;
-                }
-                Ok(())
-            }
-            Some(Urc::NetworkDown(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] NetworkDown");
-                if let Some (ref mut con) = *self.wifi_connection.try_borrow_mut()? {
-                    con.network_state = NetworkState::Unattached;
-                }
-                Ok(())
-            }
-            Some(Urc::NetworkError(_)) => {
-                #[cfg(feature = "logging")]
-                log::info!("[URC] NetworkError");
-                Ok(())
-            }
-            None => Ok(()),
-        }
+                self.urc_attempts.set(0);
+                true
+            });
+        Ok(())
     }
 
-        pub fn send_at<A: atat::AtatCmd>(&mut self, cmd: &A) -> Result<A::Response, Error> {
+    /// Send AT command
+    /// Automaticaly waraps commands in EDM context
+    pub fn send_at<A>(&self, cmd: A) -> Result<A::Response, Error>
+    where
+        A: atat::AtatCmd,
+        <A as atat::AtatCmd>::CommandLen:
+            core::ops::Add<crate::command::edm::types::EdmAtCmdOverhead>,
+        <<A as atat::AtatCmd>::CommandLen as core::ops::Add<
+            crate::command::edm::types::EdmAtCmdOverhead,
+        >>::Output: ArrayLength<u8>,
+    {
         if !self.initialized.get() {
             self.init()?;
         }
-
-        self.send_internal(cmd, true)
+        if self.serial_mode.get() == SerialMode::ExtendedData {
+            self.send_internal(&EdmAtCmdWrapper(cmd), true)
+        } else {
+            self.send_internal(&cmd, true)
+        }
     }
 }

@@ -1,8 +1,5 @@
 //! Argument and parameter types used by Data Mode Commands and Responses
-
 use atat::atat_derive::AtatEnum;
-use heapless::{consts, String, Vec};
-use no_std_net::IpAddr;
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
@@ -204,15 +201,15 @@ pub enum PeerConfigParameter {
     TCPOutOfSequenceQueue(u8),
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum ConnectionType{
+pub enum ConnectionType {
     Bluetooth = 1,
     IPv4 = 2,
     IPv6 = 3,
 }
 
-// #[derive(Clone, PartialEq, AtatEnum)]
+// #[derive(Debug, Clone, PartialEq, AtatEnum)]
 // #[repr(u8)]
 // pub enum Profile {
 //     SPP = 1,
@@ -222,9 +219,9 @@ pub enum ConnectionType{
 //     Reserved = 5,
 // }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum IPProtocol{
+pub enum IPProtocol {
     TCP = 0,
     UDP = 1,
 }

@@ -1,9 +1,8 @@
-use atat::Error as ATError;
-use heapless::{consts::U64, String};
 use crate::socket;
+use atat::Error as ATError;
+use core::cell::{BorrowError, BorrowMutError};
 
-
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub enum Error {
     SetState,
     BadLength,
@@ -13,14 +12,18 @@ pub enum Error {
     SocketClosed,
     WrongSocketType,
     SocketNotFound,
-    // NetworkState(crate::State),
+    NetworkState(crate::wifi::connection::NetworkState),
+    NoWifiSetup,
+    WifiState(crate::wifi::connection::WiFiState),
     Socket(socket::Error),
-    BorrowError(core::cell::BorrowError),
-    BorrowMutError(core::cell::BorrowMutError),
     AT(atat::Error),
     Busy,
     InvalidHex,
-    Dns,
+    Dns(crate::command::ping::types::PingError),
+    Generic(GenericError),
+    DublicateCredentials,
+    Uninitialized,
+    Unimplemented,
     _Unknown,
 }
 
@@ -35,58 +38,52 @@ impl From<socket::Error> for Error {
         Error::Socket(e)
     }
 }
-
-impl From<core::cell::BorrowMutError> for Error {
-    fn from(e: core::cell::BorrowMutError) -> Self {
-        Error::BorrowMutError(e)
+impl From<BorrowMutError> for Error {
+    fn from(e: BorrowMutError) -> Self {
+        Error::Generic(e.into())
     }
 }
 
-impl From<core::cell::BorrowError> for Error {
-    fn from(e: core::cell::BorrowError) -> Self {
-        Error::BorrowError(e)
+impl From<BorrowError> for Error {
+    fn from(e: BorrowError) -> Self {
+        Error::Generic(e.into())
     }
 }
 /// Error that occurs when attempting to connect to a wireless network.
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub enum WifiConnectionError {
     /// Failed to connect to wireless network.
-    // FailedToConnect(String<U64>),
     FailedToConnect,
     /// Failed to disconnect from wireless network. Try turning the wireless interface down.
-    // FailedToDisconnect(String<U64>),
     FailedToDisconnect,
     /// A wireless error occurred.
     Other {
         kind: WifiError,
     },
-
+    WaitingForWifiDeactivation,
     BufferOverflow,
     // SsidNotFound,
-    BorrowError(core::cell::BorrowError),
-    BorrowMutError(core::cell::BorrowMutError),
+    Generic(GenericError),
     Internal(Error),
 }
 
-impl From<Error> for WifiConnectionError{
+impl From<Error> for WifiConnectionError {
     fn from(e: Error) -> Self {
         WifiConnectionError::Internal(e)
     }
 }
-
-impl From<core::cell::BorrowMutError> for WifiConnectionError {
-    fn from(e: core::cell::BorrowMutError) -> Self {
-        WifiConnectionError::BorrowMutError(e)
+impl From<BorrowMutError> for WifiConnectionError {
+    fn from(e: BorrowMutError) -> Self {
+        WifiConnectionError::Generic(e.into())
     }
 }
 
-impl From<core::cell::BorrowError> for WifiConnectionError {
-    fn from(e: core::cell::BorrowError) -> Self {
-        WifiConnectionError::BorrowError(e)
+impl From<BorrowError> for WifiConnectionError {
+    fn from(e: BorrowError) -> Self {
+        WifiConnectionError::Generic(e.into())
     }
 }
-
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub enum WifiError {
     // The specified wifi  is currently disabled. Try switching it on.
     WifiDisabled,
@@ -102,7 +99,7 @@ pub enum WifiError {
     Other,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub enum WifiHotspotError {
     /// Failed to ceate wireless hotspot.
     CreationFailed,
@@ -136,5 +133,23 @@ impl From<ATError> for WifiConnectionError {
 impl From<ATError> for WifiError {
     fn from(error: ATError) -> Self {
         WifiError::ATError(error)
+    }
+}
+
+#[derive(Debug, defmt::Format)]
+pub enum GenericError {
+    BorrowError,
+    BorrowMutError,
+}
+
+impl From<BorrowMutError> for GenericError {
+    fn from(_: BorrowMutError) -> Self {
+        GenericError::BorrowMutError
+    }
+}
+
+impl From<BorrowError> for GenericError {
+    fn from(_: BorrowError) -> Self {
+        GenericError::BorrowError
     }
 }

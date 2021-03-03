@@ -1,7 +1,6 @@
 //! Argument and parameter types used by General Commands and Responses
 
 use atat::atat_derive::AtatEnum;
-use heapless::{consts, String, Vec};
 
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum GreetingTextMode<'a> {

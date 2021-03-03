@@ -1,10 +1,9 @@
-//! ### 5 - Data Mode 
+//! ### 5 - Data Mode
 pub mod responses;
 pub mod types;
 pub mod urc;
 
 use atat::atat_derive::AtatCmd;
-use heapless::{consts, String};
 use responses::*;
 use types::*;
 
@@ -16,7 +15,7 @@ use super::NoResponse;
 /// After executing the data mode command or the extended data mode command, a delay of 50 ms is
 /// required before start of data transmission.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("O", NoResponse, timeout_ms = 10000)]
+#[at_cmd("O", NoResponse, timeout_ms = 10000, value_sep = false)]
 pub struct ChangeMode {
     #[at_arg(position = 0)]
     pub mode: Mode,
@@ -29,7 +28,7 @@ pub struct ChangeMode {
 /// event.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 10000)]
-pub struct ConnectPeer <'a> {
+pub struct ConnectPeer<'a> {
     #[at_arg(position = 0, len = 128)]
     pub url: &'a str,
 }
@@ -41,7 +40,7 @@ pub struct ConnectPeer <'a> {
 #[at_cmd("+UDCPC", NoResponse, timeout_ms = 10000)]
 pub struct ClosePeerConnection {
     #[at_arg(position = 0)]
-    pub peer_handle: u32,
+    pub peer_handle: usize,
 }
 
 /// 5.4 Default remote peer +UDDRP

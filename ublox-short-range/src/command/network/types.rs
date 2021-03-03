@@ -1,7 +1,7 @@
 //! Argument and parameter types used by Network Commands and Responses
 
 use atat::atat_derive::AtatEnum;
-use heapless::{consts, String, Vec};
+use heapless::{consts, String};
 use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 #[derive(Clone, PartialEq, AtatEnum)]
@@ -247,7 +247,7 @@ pub enum BridgeAction {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
-pub enum Timing{
+pub enum Timing {
     /// 0: Max initial probe delay [ms] (default: 1000 ms)
     #[at_arg(value = 0)]
     InitialProbeDelayMax(u16),
@@ -271,8 +271,8 @@ pub enum Timing{
     AnnounceInterval(u16),
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum ErrorType{
+pub enum ErrorType {
     IpAddressConflict = 128,
 }

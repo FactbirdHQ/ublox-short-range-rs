@@ -1,10 +1,8 @@
-//! ### 20 - Ping Commands
-pub mod types;
-pub mod urc;
-
-use super::NoResponse;
-use atat::atat_derive::AtatCmd;
-
+//! Responses for Ping Commands
+use super::types::*;
+use atat::atat_derive::AtatResp;
+use heapless::{consts, String};
+use no_std_net::IpAddr;
 /// 16.1 Ping command +UPING
 ///
 /// The ping command is the common method to know if a remote host is reachable on the Internet.
@@ -24,16 +22,25 @@ use atat::atat_derive::AtatCmd;
 /// OBS: Some remote hosts might not reply to the ICMP echo request if the data size of the echo request is too big.
 /// OBS: If a remote host does not reply to an ICMP echo request, it does not mean that the host cannot be reached
 /// in another way.
-#[derive(Clone, AtatCmd)]
-#[at_cmd("+UPING", NoResponse, timeout_ms = 10000)]
-pub struct Ping<'a> {
-    /// IP address (dotted decimal representation) or domain name of the remote host
-    /// • Maximum length: 64 characters
-    #[at_arg(position = 0, len = 64)]
-    pub hostname: &'a str,
-    /// Indicates the number of iterations for the ping command.
-    /// • Range: 1-2147483647(i32 max)
-    /// • Default value: 4
+#[derive(Debug, PartialEq, Clone, AtatResp)]
+pub struct PingResponse {
+    /// Text string that identifies the serial number.
+    #[at_arg(position = 0)]
+    pub retrynum: u32,
     #[at_arg(position = 1)]
-    pub retry_num: i32,
+    pub ping_size: u16,
+    #[at_arg(position = 2)]
+    pub hostname: String<consts::U64>,
+    #[at_arg(position = 3)]
+    pub ip: IpAddr,
+    #[at_arg(position = 4)]
+    pub ttl: u8,
+    #[at_arg(position = 5)]
+    pub rtt: i32,
+}
+
+#[derive(Debug, PartialEq, Clone, AtatResp, defmt::Format)]
+pub struct PingErrorResponse {
+    #[at_arg(position = 0)]
+    pub error: PingError,
 }

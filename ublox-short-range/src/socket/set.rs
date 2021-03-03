@@ -1,8 +1,8 @@
 use super::{AnySocket, Error, Result, Socket, SocketRef, SocketType};
 
+use embedded_nal::SocketAddr;
 use heapless::{ArrayLength, Vec};
 use serde::{Deserialize, Serialize};
-
 /// An item of a socket set.
 ///
 /// The only reason this struct is public is to allow the socket set storage
@@ -13,8 +13,36 @@ pub struct Item<L: ArrayLength<u8>> {
 }
 
 /// A handle, identifying a socket in a set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Default,
+    Serialize,
+    Deserialize,
+    defmt::Format,
+)]
 pub struct Handle(pub usize);
+
+/// A channel id, identifying a socket in a set.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Default,
+    Serialize,
+    Deserialize,
+    defmt::Format,
+)]
+pub struct ChannelId(pub u8);
 
 /// An extensible set of sockets.
 #[derive(Default)]
@@ -75,6 +103,46 @@ where
         }
     }
 
+    /// Get the type of a specific socket in the set.
+    ///
+    /// Returned as a [`SocketType`]
+    pub fn socket_type_by_channel_id(&self, channel_id: ChannelId) -> Option<SocketType> {
+        match self.sockets.iter().find_map(|i| {
+            if let Some(ref s) = i {
+                if s.socket.channel_id().0 == channel_id.0 {
+                    Some(s)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }) {
+            Some(item) => Some(item.socket.get_type()),
+            None => None,
+        }
+    }
+
+    /// Get the type of a specific socket in the set.
+    ///
+    /// Returned as a [`SocketType`]
+    pub fn socket_type_by_endpoint(&self, endpoint: &SocketAddr) -> Option<SocketType> {
+        match self.sockets.iter().find_map(|i| {
+            if let Some(ref s) = i {
+                if s.socket.endpoint() == endpoint {
+                    Some(s)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }) {
+            Some(item) => Some(item.socket.get_type()),
+            None => None,
+        }
+    }
+
     /// Add a socket to the set with the reference count 1, and return its handle.
     pub fn add<T>(&mut self, socket: T) -> Result<Handle>
     where
@@ -96,6 +164,48 @@ where
         match self.sockets.iter_mut().find_map(|i| {
             if let Some(ref mut s) = i {
                 if s.socket.handle().0 == handle.0 {
+                    Some(s)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }) {
+            Some(item) => Ok(T::downcast(SocketRef::new(&mut item.socket))?),
+            None => Err(Error::InvalidSocket),
+        }
+    }
+
+    /// Get a socket from the set by its channel id, as mutable.
+    pub fn get_by_channel<T: AnySocket<L>>(
+        &mut self,
+        channel_id: ChannelId,
+    ) -> Result<SocketRef<T>> {
+        match self.sockets.iter_mut().find_map(|i| {
+            if let Some(ref mut s) = i {
+                if s.socket.channel_id().0 == channel_id.0 {
+                    Some(s)
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        }) {
+            Some(item) => Ok(T::downcast(SocketRef::new(&mut item.socket))?),
+            None => Err(Error::InvalidSocket),
+        }
+    }
+
+    /// Get a socket from the set by its endpoint, as mutable.
+    pub fn get_by_endpoint<T: AnySocket<L>>(
+        &mut self,
+        endpoint: &SocketAddr,
+    ) -> Result<SocketRef<T>> {
+        match self.sockets.iter_mut().find_map(|i| {
+            if let Some(ref mut s) = i {
+                if s.socket.endpoint() == endpoint {
                     Some(s)
                 } else {
                     None

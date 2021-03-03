@@ -1,8 +1,6 @@
 //! Argument and parameter types used by GPIO Commands and Responses
 
 use atat::atat_derive::AtatEnum;
-use heapless::{consts, String, Vec};
-use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum GPIOId {

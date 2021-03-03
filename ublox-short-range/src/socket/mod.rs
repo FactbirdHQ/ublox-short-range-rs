@@ -7,21 +7,22 @@ pub mod udp;
 
 pub(crate) use self::meta::Meta as SocketMeta;
 pub use self::ring_buffer::RingBuffer;
+use embedded_nal::SocketAddr;
 use heapless::ArrayLength;
 
 #[cfg(feature = "socket-tcp")]
 pub use tcp::{State as TcpState, TcpSocket};
 #[cfg(feature = "socket-udp")]
-pub use udp::UdpSocket;
+pub use udp::{State as UdpState, UdpSocket};
 
-pub use self::set::{Handle as SocketHandle, Item as SocketSetItem, Set as SocketSet};
+pub use self::set::{ChannelId, Handle as SocketHandle, Item as SocketSetItem, Set as SocketSet};
 
 pub use self::ref_::Ref as SocketRef;
 pub(crate) use self::ref_::Session as SocketSession;
 
 /// The error type for the networking stack.
 #[non_exhaustive]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 pub enum Error {
     /// An operation cannot proceed because a buffer is empty or full.
     Exhausted,
@@ -107,8 +108,18 @@ impl<L: ArrayLength<u8>> Socket<L> {
         self.meta().handle
     }
 
+    /// Return the socket channel id.
+    #[inline]
+    pub fn channel_id(&self) -> ChannelId {
+        self.meta().channel_id
+    }
+
     pub(crate) fn meta(&self) -> &SocketMeta {
         dispatch_socket!(self, |socket| &socket.meta)
+    }
+
+    pub(crate) fn endpoint(&self) -> &SocketAddr {
+        dispatch_socket!(self, |socket| &socket.endpoint)
     }
 
     // pub(crate) fn meta_mut(&mut self) -> &mut SocketMeta {

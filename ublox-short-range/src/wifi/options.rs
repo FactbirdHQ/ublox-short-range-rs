@@ -1,4 +1,4 @@
-use heapless::{String, consts};
+use heapless::{consts, String};
 use no_std_net::Ipv4Addr;
 
 #[allow(dead_code)]

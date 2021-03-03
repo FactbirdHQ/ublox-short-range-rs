@@ -3,7 +3,6 @@ pub mod responses;
 pub mod types;
 
 use atat::atat_derive::AtatCmd;
-use heapless::{consts, String};
 use responses::*;
 use types::*;
 
@@ -13,7 +12,7 @@ use super::NoResponse;
 ///
 /// Commits all the settings to be stored in start up database. The parameters are
 ///  written to non-volatile memory when +CPWROFF is issued.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("&W0", NoResponse, timeout_ms = 10000)]
 pub struct StoreCurrentConfig;
 
@@ -21,14 +20,14 @@ pub struct StoreCurrentConfig;
 ///
 /// Resets the profile to the last stored configuration. Any settings committed with
 /// AT&W will be discarded. The restored settings will be used after a reboot.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("Z0", NoResponse, timeout_ms = 10000)]
 pub struct SetToDefaultConfig;
 
 /// 4.3 Set to factory defined configuration +UFACTORY
 ///
 /// Reset to factory defined defaults. A reboot is required before using the new settings.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UFACTORY", NoResponse, timeout_ms = 10000)]
 pub struct ResetToFacroryDefaults;
 
@@ -38,7 +37,7 @@ pub struct ResetToFacroryDefaults;
 /// changes between ASSERTED (logical 0 on UART_DSR signal) and DEASSERTED
 /// (logical 1 on UART_DSR signal) states.
 /// The DTR line is connected to the DSR pin on the module.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("&D", NoResponse, timeout_ms = 10000)]
 pub struct SetDTRBehavior {
     #[at_arg(position = 0)]
@@ -51,7 +50,7 @@ pub struct SetDTRBehavior {
 /// between ASSERTED (logical 0 on signal UART_DTR) and DEASSERTED (logical 1 on
 /// signal UART_DTR) states.
 /// The DSR line is connected to the DTR pin on the module.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("&S", NoResponse, timeout_ms = 10000)]
 pub struct SetDSROverride {
     #[at_arg(position = 0)]
@@ -62,7 +61,7 @@ pub struct SetDSROverride {
 ///
 /// This command configures whether or not the unit echoes the characters received
 /// from the DTE in Command Mode. If <echo_on> is omitted, it turns off the echoing.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("E", NoResponse, timeout_ms = 10000, value_sep = false)]
 pub struct SetEcho {
     #[at_arg(position = 0)]
@@ -78,7 +77,7 @@ pub struct SetEcho {
 /// Upon successful transition to the command mode, the DCE will transmit an OK
 /// response.
 /// Factory default: 43, the "+" character.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("S2", NoResponse, timeout_ms = 10000)]
 pub struct SetEscapeCharacter {
     #[at_arg(position = 0)]
@@ -99,7 +98,7 @@ pub struct SetEscapeCharacter {
 /// line "ATS3=30" is issued, the command line shall be terminated with a CR, character
 /// (13), but the result code issued will use the character with the ordinal value 30 instead
 /// of the CR.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("S3", NoResponse, timeout_ms = 10000)]
 pub struct SetLineTerminationCharacter {
     /// 0...127  Factory default: 13
@@ -115,7 +114,7 @@ pub struct SetLineTerminationCharacter {
 /// the S3 parameter.
 /// If the value of S4 is changed in a command line, the result code issued in response to
 /// that command line will use the new value of S4.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("S4", NoResponse, timeout_ms = 10000)]
 pub struct SetResponseFormattingCharacter {
     /// 0...127  Factory default: 10
@@ -128,7 +127,7 @@ pub struct SetResponseFormattingCharacter {
 /// Writes backspace character.
 /// This setting changes the decimal value of the character recognized by the DCE as a
 /// request to delete from the command line, the immediately preceding character.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("S5", NoResponse, timeout_ms = 10000)]
 pub struct SetBackspaceCharacter {
     /// 0...127  Factory default: 8
@@ -141,7 +140,7 @@ pub struct SetBackspaceCharacter {
 /// Force start of the boot loader. The boot loader will start at the defined baud rate.
 /// To update any binary image other than the u-connect software, enter the bootloader
 /// mode and follow the boot menu commands.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UFWUPD", SoftwareUpdateResponse, timeout_ms = 10000)]
 pub struct SoftwareUpdate {
     #[at_arg(position = 0)]
@@ -154,14 +153,14 @@ pub struct SoftwareUpdate {
 ///
 /// Reboot the DCE. During shutdown, the settings marked for storing to start up the
 /// database by &W are written in the non-volatile memory of the module.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+CPWROFF", NoResponse, timeout_ms = 10000)]
 pub struct RebootDCE;
 
 /// 4.13 Module start mode +UMSM
 ///
 /// Writes start mode
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UMSM", NoResponse, timeout_ms = 10000)]
 pub struct ModuleStart {
     #[at_arg(position = 0)]
@@ -172,7 +171,7 @@ pub struct ModuleStart {
 ///
 /// Sets the local address of the interface id. A DCE reboot is required before an address
 /// change takes effect.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UMLA", NoResponse, timeout_ms = 10000)]
 pub struct SetLocalAddress<'a> {
     #[at_arg(position = 0)]
@@ -188,7 +187,7 @@ pub struct SetLocalAddress<'a> {
 /// 4.14 Get Local address +UMLA
 ///
 /// Reads the local address of the interface id.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UMSM", LocalAddressResponse, timeout_ms = 10000)]
 pub struct GetLocalAddress {
     #[at_arg(position = 0)]
@@ -199,11 +198,11 @@ pub struct GetLocalAddress {
 ///
 /// Reads current status of the system. If <status_id> is omitted, all applicable ids will be
 /// listed.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UMSTAT", SystemStatusResponse, timeout_ms = 10000)]
 pub struct SystemStatus {
     #[at_arg(position = 0)]
-    pub status_id: Option<StatusID>,
+    pub status_id: StatusID,
 }
 
 /// 4.16 RS232 Settings +UMRS
@@ -211,7 +210,7 @@ pub struct SystemStatus {
 /// After receiving the OK response, the DTE shall wait for at least 40 ms for ODIN-
 /// W2 and 1 second for NINA-B1, NINA-B3, and ANNA-B112 before issuing a new AT
 /// command, to guarantee a proper baudrate reconfiguration.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UMRS", NoResponse, timeout_ms = 10000)]
 pub struct SetRS232Settings {
     #[at_arg(position = 0)]
@@ -229,7 +228,7 @@ pub struct SetRS232Settings {
     #[at_arg(position = 2)]
     pub data_bits: u8,
     #[at_arg(position = 3)]
-    pub stop_bits : StopBits,
+    pub stop_bits: StopBits,
     #[at_arg(position = 4)]
     pub parity: Parity,
     #[at_arg(position = 5)]
@@ -240,7 +239,7 @@ pub struct SetRS232Settings {
 /// Enable routing of radio signals to EXT_TX_EN and EXT_RX_EN pins.
 /// When routing is enabled on both the pins, it is recommended not to use other
 /// GPIO commands on the same pins to avoid undefined behavior.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UMRSIG", NoResponse, timeout_ms = 10000)]
 pub struct SetRouteSignalsGPIO {
     #[at_arg(position = 0)]
@@ -252,7 +251,7 @@ pub struct SetRouteSignalsGPIO {
 /// Enable/disable automatic switch between DC/DC and LDO power regulators.
 /// For the settings to take effect, use the commands - &W and +CPWROFF to store the configuration to
 /// start up database and reboot the module.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UPWRREG", NoResponse, timeout_ms = 10000)]
 pub struct SetPowerRegulatorSettings {
     #[at_arg(position = 0)]
@@ -262,6 +261,6 @@ pub struct SetPowerRegulatorSettings {
 /// 4.19 LPO detection +UMLPO
 ///
 /// Checks if Low Power Oscillator (LPO) is detected or not.
-#[derive(Clone, AtatCmd)]
+#[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UMLPO?", LPODetectionResponse, timeout_ms = 10000)]
 pub struct GetLPODetection;

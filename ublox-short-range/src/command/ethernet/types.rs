@@ -1,8 +1,7 @@
 //! Argument and parameter types used by Ethernet Commands and Responses
 
 use atat::atat_derive::AtatEnum;
-use heapless::{consts, String, Vec};
-use no_std_net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use no_std_net::Ipv4Addr;
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
@@ -15,7 +14,7 @@ pub enum OnOff {
 #[repr(u8)]
 pub enum EthernetConfigParameter {
     /// <param_val> decides if the network is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     ActiveOnStartup = 0,
     /// <param_val> Phy support mode
@@ -67,7 +66,7 @@ pub enum EthernetConfigParameter {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum EthernetConfig {
     /// <param_val> decides if the network is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
@@ -132,7 +131,7 @@ pub enum EthernetConfig {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum EthernetConfigR {
     /// <param_val> decides if the network is active on start up.
-    /// • 0 (default): inactive
+    /// • 0 (default): Inactive
     /// • 1: active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
