@@ -24,6 +24,10 @@ The driver aims to be compatible with the ublox short range modules:
 [atat]: https://crates.io/crates/atat
 
 ## Documentation
+Design diagram:  
+![design diagram](./Design_diagram.png "Design diagram")
+
+
 Relevant docs:
 - https://www.u-blox.com/en/docs/UBX-14044127
 - https://www.u-blox.com/en/docs/UBX-14044126
