@@ -5,10 +5,8 @@
 ![No Std][no-std-badge]
 ![Test][test]
 [![Code coverage][codecov-badge]][codecov]
-<!--
 [![Crates.io Version][crates-io-badge]][crates-io]
 [![Crates.io Downloads][crates-io-download-badge]][crates-io-download]
--->
 
 ---
 
@@ -87,9 +85,7 @@ dual licensed as above, without any additional terms or conditions.
 [test]: https://github.com/BlackbirdHQ/ublox-short-range-rs/workflows/Test/badge.svg
 [codecov-badge]: https://codecov.io/gh/BlackbirdHQ/ublox-short-range-rs/branch/master/graph/badge.svg
 [codecov]: https://codecov.io/gh/BlackbirdHQ/ublox-short-range-rs
-<!--
 [crates-io]: https://crates.io/crates/ublox-short-range-rs
 [crates-io-badge]: https://img.shields.io/crates/v/ublox-short-range-rs.svg?maxAge=3600
 [crates-io-download]: https://crates.io/crates/ublox-short-range-rs
 [crates-io-download-badge]: https://img.shields.io/crates/d/ublox-short-range-rs.svg?maxAge=3600
--->
