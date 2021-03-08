@@ -1,6 +1,6 @@
 [package]
 name = "ublox-short-range-rs"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 description = "Driver crate for u-blox short range devices, implementation follows 'UBX-14044127 - R40'"
 readme = "README.md"
