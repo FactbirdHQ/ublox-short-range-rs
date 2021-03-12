@@ -5,9 +5,6 @@ extern crate heapless;
 // #[macro_use]
 extern crate nb;
 extern crate no_std_net;
-extern crate packed_struct;
-// #[macro_use]
-extern crate packed_struct_codegen;
 
 #[cfg(test)]
 #[macro_use]

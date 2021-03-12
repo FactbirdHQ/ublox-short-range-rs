@@ -1,10 +1,10 @@
 [package]
 name = "ublox-short-range-rs"
-version = "0.0.1"
+version = "0.1.0"
 authors = ["Mathias Koch <mk@blackbird.online>"]
 description = "Driver crate for u-blox short range devices, implementation follows 'UBX-14044127 - R40'"
-readme = "README.md"
-keywords = ["arm", "cortex-m", "ublox", "wifi", "shortrange", "bluetooth"]
+readme = "../README.md"
+keywords = ["ublox", "wifi", "shortrange", "bluetooth"]
 categories = ["embedded", "no-std"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/BlackbirdHQ/ublox-short-range-rs"
@@ -25,15 +25,6 @@ embedded-hal = "1.0.0-alpha.4"
 embedded-nal = "0.2.0"
 nb = "0.1.2"
 typenum = "^1"
-
-[dependencies.packed_struct]
-version = "0.3"
-default-features = false
-
-[dependencies.packed_struct_codegen]
-version = "0.3"
-default-features = false
-
 
 [features]
 default = ["odin_w2xx", "wifi_ap", "wifi_sta", "socket-udp", "socket-tcp"]
