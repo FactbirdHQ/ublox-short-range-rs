@@ -197,6 +197,10 @@ impl atat::AtatCmd for SwitchToEdmCommand {
     fn force_receive_state(&self) -> bool {
         true
     }
+
+    fn max_timeout_ms(&self) -> u32 {
+        10000u32
+    }
 }
 
 #[cfg(test)]
