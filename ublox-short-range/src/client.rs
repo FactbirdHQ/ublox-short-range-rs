@@ -188,7 +188,7 @@ where
             .map_err(|e| match e {
                 nb::Error::Other(ate) => {
                     match core::str::from_utf8(&req.as_bytes()) {
-                        Ok(s) => defmt::error!("{:?}: [{:str}]", ate, s),
+                        Ok(s) => defmt::error!("{:?}: [{=str}]", ate, s),
                         Err(_) => defmt::error!(
                             "{:?}: {:?}",
                             ate,

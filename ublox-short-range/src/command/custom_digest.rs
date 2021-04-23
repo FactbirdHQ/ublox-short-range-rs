@@ -2,7 +2,7 @@ use crate::command::edm::{
     calc_payload_len,
     types::{PayloadType, AT_COMMAND_POSITION, EDM_OVERHEAD, ENDBYTE, STARTBYTE},
 };
-use atat::atat_log;
+// use atat::atat_log;
 use atat::Error;
 use atat::{helpers::SliceExt, DigestResult, Digester, UrcMatcher};
 use heapless::{ArrayLength, Vec};
@@ -55,13 +55,19 @@ impl Digester for EdmDigester {
         // Debug statement for trace properly
         if buf.len() != 0 {
             match core::str::from_utf8(&buf) {
-                Ok(_s) => atat_log!(trace, "Recived: {:str}, state: {:?}", _s, self.state),
-                Err(_) => atat_log!(
-                    trace,
+                Ok(_s) => defmt::trace!("Recived: {=str}, state: {:?}", _s, self.state),
+                // Ok(_s) => atat_log!(trace, "Recived: {:str}, state: {:?}", _s, self.state),
+                Err(_) => defmt::trace!(
                     "Recived: {:?}, state: {:?}",
                     core::convert::AsRef::<[u8]>::as_ref(&buf),
                     self.state,
                 ),
+                // Err(_) => atat_log!(
+                //     trace,
+                //     "Recived: {:?}, state: {:?}",
+                //     core::convert::AsRef::<[u8]>::as_ref(&buf),
+                //     self.state,
+                // ),
             };
         }
 

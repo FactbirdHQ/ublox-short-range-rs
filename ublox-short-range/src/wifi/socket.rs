@@ -207,7 +207,7 @@ where
             url.push('/').map_err(|_e| Self::Error::BadLength)?;
 
             let mut sockets = self.sockets.try_borrow_mut()?;
-            defmt::trace!("[UDP] Connecting URL! {:str}", url);
+            defmt::trace!("[UDP] Connecting URL! {=str}", url);
             match self.handle_socket_error(
                 || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
                 None,
@@ -464,7 +464,7 @@ where
                 url.pop();
             }
 
-            defmt::trace!("[TCP] Connecting to url! {:str}", url);
+            defmt::trace!("[TCP] Connecting to url! {=str}", url);
 
             let resp = self.handle_socket_error(
                 || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
