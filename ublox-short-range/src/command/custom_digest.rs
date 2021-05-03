@@ -52,6 +52,32 @@ impl Digester for EdmDigester {
         buf: &mut Vec<u8, L>,
         _urc_matcher: &mut impl UrcMatcher,
     ) -> DigestResult<L> {
+        
+        // TODO Handle module restart, tests and set default startupmessage in client, and optimiz this!
+        
+        let start_pos = match buf.windows(1).position(|byte| byte[0] == STARTBYTE) {
+            Some(pos) => pos,
+            None => return DigestResult::None, //handle leading error data. //TODO handle error input before messagestart.
+        };
+        
+        // Trim leading invalid data.
+        if start_pos != 0 {
+            *buf = Vec::from_slice(&buf[start_pos..buf.len()]).unwrap();
+        }
+        
+        // Verify payload length and end byte position
+        if buf.len() < EDM_OVERHEAD {
+            return DigestResult::None;
+        }
+        let payload_len = calc_payload_len(&buf);
+        
+        let edm_len = payload_len + EDM_OVERHEAD;
+        if buf.len() < edm_len {
+            return DigestResult::None;
+        } else if buf[edm_len - 1] != ENDBYTE {
+            return DigestResult::None;
+        }
+        
         // Debug statement for trace properly
         if buf.len() != 0 {
             match core::str::from_utf8(&buf) {
@@ -70,32 +96,6 @@ impl Digester for EdmDigester {
                 // ),
             };
         }
-
-        // TODO Handle module restart, tests and set default startupmessage in client, and optimiz this!
-
-        let start_pos = match buf.windows(1).position(|byte| byte[0] == STARTBYTE) {
-            Some(pos) => pos,
-            None => return DigestResult::None, //handle leading error data. //TODO handle error input before messagestart.
-        };
-
-        // Trim leading invalid data.
-        if start_pos != 0 {
-            *buf = Vec::from_slice(&buf[start_pos..buf.len()]).unwrap();
-        }
-
-        // Verify payload length and end byte position
-        if buf.len() < EDM_OVERHEAD {
-            return DigestResult::None;
-        }
-        let payload_len = calc_payload_len(&buf);
-
-        let edm_len = payload_len + EDM_OVERHEAD;
-        if buf.len() < edm_len {
-            return DigestResult::None;
-        } else if buf[edm_len - 1] != ENDBYTE {
-            return DigestResult::None;
-        }
-
         // Filter message by payload
         match PayloadType::from(buf[4]) {
             PayloadType::ATConfirmation => {

@@ -465,11 +465,11 @@ where
                 if !res {
                     let a = self.urc_attempts.get();
                     if a < self.max_urc_attempts {
-                        defmt::debug!("[EDM_URC] URC handeling failed");
+                        defmt::error!("[EDM_URC] URC handeling failed");
                         self.urc_attempts.set(a + 1);
                         return false;
                     }
-                    defmt::debug!("[EDM_URC] URC thrown away");
+                    defmt::error!("[EDM_URC] URC thrown away");
                 }
                 self.urc_attempts.set(0);
                 true
