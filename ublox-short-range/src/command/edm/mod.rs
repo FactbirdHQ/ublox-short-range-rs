@@ -202,7 +202,8 @@ impl atat::AtatCmd for SwitchToEdmCommand {
     fn max_timeout_ms(&self) -> u32 {
         ChangeMode {
             mode: data_mode::types::Mode::ExtendedDataMode,
-        }.max_timeout_ms()
+        }
+        .max_timeout_ms()
     }
 }
 

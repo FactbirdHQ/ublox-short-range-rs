@@ -44,8 +44,6 @@ pub mod prelude {
     pub use embedded_nal::{TcpClient, UdpClient};
 }
 
-
-
 #[cfg(test)]
 mod tests {
     //! This module is required in order to satisfy the requirements of defmt, while running tests.
