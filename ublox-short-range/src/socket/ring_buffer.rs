@@ -1,7 +1,3 @@
-// Uncomment the #[must_use]s here once [RFC 1940] hits stable.
-// [RFC 1940]: https://github.com/rust-lang/rust/issues/43302
-
-use super::Resettable;
 use super::{Error, Result};
 use core::cmp;
 use heapless::Vec;
@@ -57,17 +53,6 @@ impl<T: Default + Clone, const N: usize> RingBuffer<T, N> {
     /// Return the maximum number of elements in the ring buffer.
     pub fn capacity(&self) -> usize {
         self.storage.capacity()
-    }
-
-    /// Clear the ring buffer, and reset every element.
-    pub fn reset(&mut self)
-    where
-        T: Resettable,
-    {
-        self.clear();
-        for elem in self.storage.iter_mut() {
-            elem.reset();
-        }
     }
 
     /// Return the current number of elements in the ring buffer.
@@ -141,7 +126,7 @@ impl<T: Default + Clone, const N: usize> RingBuffer<T, N> {
     /// or return `Err(Error::Exhausted)` if the buffer is full.
     ///
     /// This function is a shortcut for `ring_buf.enqueue_one_with(Ok)`.
-    pub fn enqueue_one<'b>(&'b mut self) -> Result<&'b mut T> {
+    pub fn enqueue_one(&mut self) -> Result<&mut T> {
         self.enqueue_one_with(Ok)
     }
 
@@ -207,7 +192,6 @@ impl<T: Default + core::fmt::Debug + Clone, const N: usize> RingBuffer<T, N> {
     ///
     /// This function may return a slice smaller than the given size
     /// if the free space in the buffer is not contiguous.
-    // #[must_use]
     pub fn enqueue_many(&mut self, size: usize) -> &mut [T] {
         self.enqueue_many_with(|buf| {
             let size = cmp::min(size, buf.len());
@@ -218,7 +202,6 @@ impl<T: Default + core::fmt::Debug + Clone, const N: usize> RingBuffer<T, N> {
 
     /// Enqueue as many elements from the given slice into the buffer as possible,
     /// and return the amount of elements that could fit.
-    // #[must_use]
     pub fn enqueue_slice(&mut self, data: &[T]) -> usize
     where
         T: Copy,
@@ -290,7 +273,6 @@ impl<T: Default + core::fmt::Debug + Clone, const N: usize> RingBuffer<T, N> {
     ///
     /// This function may return a slice smaller than the given size
     /// if the allocated space in the buffer is not contiguous.
-    // #[must_use]
     pub fn dequeue_many(&mut self, size: usize) -> &mut [T] {
         self.dequeue_many_with(|buf| {
             let size = cmp::min(size, buf.len());
@@ -324,7 +306,6 @@ impl<T: Default + core::fmt::Debug + Clone, const N: usize> RingBuffer<T, N> {
 impl<T: Default + Clone, const N: usize> RingBuffer<T, N> {
     /// Return the largest contiguous slice of unallocated buffer elements starting
     /// at the given offset past the last allocated element, and up to the given size.
-    // #[must_use]
     pub fn get_unallocated(&mut self, offset: usize, mut size: usize) -> &mut [T] {
         let start_at = self.get_idx(self.length + offset);
         // We can't access past the end of unallocated data.
@@ -348,7 +329,6 @@ impl<T: Default + Clone, const N: usize> RingBuffer<T, N> {
     /// Write as many elements from the given slice into unallocated buffer elements
     /// starting at the given offset past the last allocated element, and return
     /// the amount written.
-    // #[must_use]
     pub fn write_unallocated(&mut self, offset: usize, data: &[T]) -> usize
     where
         T: Copy,
@@ -379,7 +359,6 @@ impl<T: Default + Clone, const N: usize> RingBuffer<T, N> {
 
     /// Return the largest contiguous slice of allocated buffer elements starting
     /// at the given offset past the first allocated element, and up to the given size.
-    // #[must_use]
     pub fn get_allocated(&self, offset: usize, mut size: usize) -> &[T] {
         let start_at = self.get_idx(offset);
         // We can't read past the end of the allocated data.
@@ -403,7 +382,6 @@ impl<T: Default + Clone, const N: usize> RingBuffer<T, N> {
     /// Read as many elements from allocated buffer elements into the given slice
     /// starting at the given offset past the first allocated element, and return
     /// the amount read.
-    // #[must_use]
     pub fn read_allocated(&mut self, offset: usize, data: &mut [T]) -> usize
     where
         T: Copy,
@@ -439,7 +417,7 @@ impl<T: Default + core::fmt::Debug + Copy, const N: usize> From<Vec<T, N>> for R
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
