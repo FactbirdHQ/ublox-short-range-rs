@@ -8,6 +8,7 @@ pub mod udp;
 pub(crate) use self::meta::Meta as SocketMeta;
 pub use self::ring_buffer::RingBuffer;
 use embedded_nal::SocketAddr;
+use embedded_time::Clock;
 
 #[cfg(feature = "socket-tcp")]
 pub use tcp::{State as TcpState, TcpSocket};
@@ -32,6 +33,7 @@ pub enum Error {
 
     SocketSetFull,
     InvalidSocket,
+    DuplicateSocket,
 }
 
 type Result<T> = core::result::Result<T, Error>;
@@ -47,7 +49,7 @@ type Result<T> = core::result::Result<T, Error>;
 /// [AnySocket]: trait.AnySocket.html
 /// [SocketSet::get]: struct.SocketSet.html#method.get
 #[non_exhaustive]
-pub enum Socket<const L: usize> {
+pub enum Socket<CLK: Clock, const L: usize> {
     // #[cfg(feature = "socket-raw")]
     // Raw(RawSocket<'a, 'b>),
     // #[cfg(all(
@@ -56,19 +58,19 @@ pub enum Socket<const L: usize> {
     // ))]
     // Icmp(IcmpSocket<'a, 'b>),
     #[cfg(feature = "socket-udp")]
-    Udp(UdpSocket<L>),
+    Udp(UdpSocket<CLK, L>),
     #[cfg(feature = "socket-tcp")]
-    Tcp(TcpSocket<L>),
+    Tcp(TcpSocket<CLK, L>),
 }
 
 #[non_exhaustive]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 pub enum SocketType {
     Udp,
     Tcp,
 }
 
-impl<const L: usize> Socket<L> {
+impl<CLK: Clock, const L: usize> Socket<CLK, L> {
     /// Return the socket handle.
     #[inline]
     pub fn handle(&self) -> SocketHandle {
@@ -123,13 +125,13 @@ impl<const L: usize> Socket<L> {
 }
 
 /// A conversion trait for network sockets.
-pub trait AnySocket<const L: usize>: Sized {
-    fn downcast(socket_ref: SocketRef<'_, Socket<L>>) -> Result<SocketRef<'_, Self>>;
+pub trait AnySocket<CLK: Clock, const L: usize>: Sized {
+    fn downcast(socket_ref: SocketRef<'_, Socket<CLK, L>>) -> Result<SocketRef<'_, Self>>;
 }
 
 #[cfg(feature = "socket-tcp")]
-impl<const L: usize> AnySocket<L> for TcpSocket<L> {
-    fn downcast(ref_: SocketRef<'_, Socket<L>>) -> Result<SocketRef<'_, Self>> {
+impl<CLK: Clock, const L: usize> AnySocket<CLK, L> for TcpSocket<CLK, L> {
+    fn downcast(ref_: SocketRef<'_, Socket<CLK, L>>) -> Result<SocketRef<'_, Self>> {
         match SocketRef::into_inner(ref_) {
             Socket::Tcp(ref mut socket) => Ok(SocketRef::new(socket)),
             _ => Err(Error::Illegal),
@@ -138,8 +140,8 @@ impl<const L: usize> AnySocket<L> for TcpSocket<L> {
 }
 
 #[cfg(feature = "socket-udp")]
-impl<const L: usize> AnySocket<L> for UdpSocket<L> {
-    fn downcast(ref_: SocketRef<'_, Socket<L>>) -> Result<SocketRef<'_, Self>> {
+impl<CLK: Clock, const L: usize> AnySocket<CLK, L> for UdpSocket<CLK, L> {
+    fn downcast(ref_: SocketRef<'_, Socket<CLK, L>>) -> Result<SocketRef<'_, Self>> {
         match SocketRef::into_inner(ref_) {
             Socket::Udp(ref mut socket) => Ok(SocketRef::new(socket)),
             _ => Err(Error::Illegal),

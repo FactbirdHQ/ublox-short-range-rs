@@ -1,21 +1,25 @@
 use super::{Error, Result};
 use crate::socket::{ChannelId, RingBuffer, Socket, SocketHandle, SocketMeta};
+use core::convert::TryInto;
 use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use embedded_time::duration::{Generic, Milliseconds, Seconds};
+use embedded_time::{Clock, Instant};
 
 /// A TCP socket ring buffer.
 pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
-
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum State {
+pub enum State<CLK: Clock> {
     Closed,
     Listen,
     SynSent,
     Established,
     CloseWait,
     TimeWait,
+    /// Block all writes (Socket is closed by remote)
+    ShutdownForWrite(Instant<CLK>),
 }
 
-impl Default for State {
+impl<CLK: Clock> Default for State<CLK> {
     fn default() -> Self {
         State::Closed
     }
@@ -27,27 +31,29 @@ impl Default for State {
 /// Note that, for listening sockets, there is no "backlog"; to be able to simultaneously
 /// accept several connections, as many sockets must be allocated, or any new connection
 /// attempts will be reset.
-pub struct TcpSocket<const L: usize> {
+pub struct TcpSocket<CLK: Clock, const L: usize> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: SocketAddr,
-    state: State,
+    state: State<CLK>,
     rx_buffer: SocketBuffer<L>,
+    read_timeout: Option<Seconds>,
 }
 
-impl<const L: usize> TcpSocket<L> {
+impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
     #[allow(unused_comparisons)] // small usize platforms always pass rx_capacity check
     /// Create a socket using the given buffers.
-    pub fn new(socket_id: usize) -> TcpSocket<L> {
+    pub fn new(socket_id: usize) -> Self {
         let mut meta = SocketMeta::default();
         meta.handle.0 = socket_id;
         TcpSocket {
             meta,
             endpoint: SocketAddrV4::new(Ipv4Addr::unspecified(), 0).into(),
-            state: State::Closed,
+            state: State::default(),
             rx_buffer: SocketBuffer::new(),
             // ca_cert_name: None,
             // c_cert_name: None, //TODO: Make &str with lifetime
             // c_key_name: None,
+            read_timeout: None,
         }
     }
 
@@ -71,8 +77,26 @@ impl<const L: usize> TcpSocket<L> {
 
     /// Return the connection state, in terms of the TCP state machine.
     #[inline]
-    pub fn state(&self) -> State {
-        self.state
+    pub fn state(&self) -> &State<CLK> {
+        &self.state
+    }
+
+    pub fn recycle(&self, ts: &Instant<CLK>) -> bool
+    where
+        Generic<CLK::T>: TryInto<Milliseconds>,
+    {
+        if let Some(read_timeout) = self.read_timeout {
+            match self.state {
+                State::ShutdownForWrite(ref closed_time) => ts
+                    .checked_duration_since(closed_time)
+                    .and_then(|dur| dur.try_into().ok())
+                    .map(|dur: Milliseconds| dur >= read_timeout)
+                    .unwrap_or(false),
+                _ => false,
+            }
+        } else {
+            false
+        }
     }
 
     /// Close the connection.
@@ -275,13 +299,13 @@ impl<const L: usize> TcpSocket<L> {
         self.rx_buffer.len()
     }
 
-    pub fn set_state(&mut self, state: State) {
+    pub fn set_state(&mut self, state: State<CLK>) {
         self.state = state
     }
 }
 
-impl<const L: usize> Into<Socket<L>> for TcpSocket<L> {
-    fn into(self) -> Socket<L> {
+impl<CLK: Clock, const L: usize> Into<Socket<CLK, L>> for TcpSocket<CLK, L> {
+    fn into(self) -> Socket<CLK, L> {
         Socket::Tcp(self)
     }
 }

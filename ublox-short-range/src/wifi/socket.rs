@@ -13,6 +13,7 @@ use crate::{
     UbloxClient,
 };
 use core::fmt::Write;
+use embedded_time::Clock;
 
 #[cfg(feature = "socket-udp")]
 use crate::socket::{UdpSocket, UdpState};
@@ -26,9 +27,10 @@ use embedded_nal::TcpClientStack;
 
 pub(crate) const EGRESS_CHUNK_SIZE: usize = 512;
 
-impl<C, const N: usize, const L: usize> UbloxClient<C, N, L>
+impl<C, CLK, const N: usize, const L: usize> UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
+    CLK: Clock,
 {
     pub(crate) fn handle_socket_error<A: atat::AtatResp, F: Fn() -> Result<A, Error>>(
         &self,
@@ -52,11 +54,11 @@ where
                     let mut sockets = self.sockets.try_borrow_mut()?;
                     match sockets.socket_type(handle) {
                         Some(SocketType::Tcp) => {
-                            let mut tcp = sockets.get::<TcpSocket<L>>(handle)?;
+                            let mut tcp = sockets.get::<TcpSocket<CLK, L>>(handle)?;
                             tcp.close();
                         }
                         Some(SocketType::Udp) => {
-                            let mut udp = sockets.get::<UdpSocket<L>>(handle)?;
+                            let mut udp = sockets.get::<UdpSocket<CLK, L>>(handle)?;
                             udp.close();
                         }
                         None => {}
@@ -82,7 +84,7 @@ where
         match sockets.socket_type_by_channel_id(channel_id) {
             Some(SocketType::Tcp) => {
                 // Handle tcp socket
-                let mut tcp = sockets.get_by_channel::<TcpSocket<L>>(channel_id)?;
+                let mut tcp = sockets.get_by_channel::<TcpSocket<CLK, L>>(channel_id)?;
                 if !tcp.can_recv() {
                     return Err(Error::Busy);
                 }
@@ -91,7 +93,7 @@ where
             }
             Some(SocketType::Udp) => {
                 // Handle udp socket
-                let mut udp = sockets.get_by_channel::<UdpSocket<L>>(channel_id)?;
+                let mut udp = sockets.get_by_channel::<UdpSocket<CLK, L>>(channel_id)?;
 
                 if !udp.can_recv() {
                     return Err(Error::Busy);
@@ -107,9 +109,10 @@ where
 }
 
 #[cfg(feature = "socket-udp")]
-impl<C, const N: usize, const L: usize> UdpClientStack for UbloxClient<C, N, L>
+impl<C, CLK, const N: usize, const L: usize> UdpClientStack for UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
+    CLK: Clock,
 {
     type Error = Error;
 
@@ -164,14 +167,14 @@ where
             0,
         )?;
         let handle = SocketHandle(resp.peer_handle);
-        let mut udp = sockets.get::<UdpSocket<L>>(*socket)?;
+        let mut udp = sockets.get::<UdpSocket<CLK, L>>(*socket)?;
         udp.endpoint = remote;
         udp.meta.handle = handle;
         *socket = handle;
 
         while {
             let mut sockets = self.sockets.try_borrow_mut()?;
-            let udp = sockets.get::<UdpSocket<L>>(*socket)?;
+            let udp = sockets.get::<UdpSocket<CLK, L>>(*socket)?;
             udp.state() == UdpState::Closed
         } {
             self.spin()?;
@@ -199,7 +202,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let udp = sockets
-            .get::<UdpSocket<L>>(*socket)
+            .get::<UdpSocket<CLK, L>>(*socket)
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         if !udp.is_open() {
@@ -240,7 +243,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let mut udp = sockets
-            .get::<UdpSocket<L>>(*socket)
+            .get::<UdpSocket<CLK, L>>(*socket)
             .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
 
         let us = udp
@@ -254,7 +257,7 @@ where
         defmt::debug!("[UDP] Closelosing socket: {:?}", socket.0);
         let mut sockets = self.sockets.try_borrow_mut()?;
         //If no sockets excists, nothing to close.
-        if let Some(ref mut udp) = sockets.get::<UdpSocket<L>>(socket).ok() {
+        if let Some(ref mut udp) = sockets.get::<UdpSocket<CLK, L>>(socket).ok() {
             self.handle_socket_error(
                 || {
                     self.send_at(ClosePeerConnection {
@@ -272,9 +275,10 @@ where
 }
 
 #[cfg(feature = "socket-tcp")]
-impl<C, const N: usize, const L: usize> TcpClientStack for UbloxClient<C, N, L>
+impl<C, CLK, const N: usize, const L: usize> TcpClientStack for UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
+    CLK: Clock,
 {
     type Error = Error;
 
@@ -327,7 +331,7 @@ where
         let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
         //If no socket is found we stop here
         let mut tcp = sockets
-            .get::<TcpSocket<L>>(*socket)
+            .get::<TcpSocket<CLK, L>>(*socket)
             .map_err(Self::Error::from)?;
 
         let mut url_builder = PeerUrlBuilder::new();
@@ -361,9 +365,9 @@ where
         while {
             let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
             let tcp = sockets
-                .get::<TcpSocket<L>>(*socket)
+                .get::<TcpSocket<CLK, L>>(*socket)
                 .map_err(Self::Error::from)?;
-            tcp.state() == TcpState::SynSent
+            matches!(tcp.state(), TcpState::SynSent)
         } {
             self.spin()?;
         }
@@ -381,8 +385,8 @@ where
         }
 
         let mut sockets = self.sockets.try_borrow_mut()?;
-        let socket_ref = sockets.get::<TcpSocket<L>>(*socket)?;
-        Ok(socket_ref.state() == TcpState::Established)
+        let socket_ref = sockets.get::<TcpSocket<CLK, L>>(*socket)?;
+        Ok(matches!(socket_ref.state(), TcpState::Established))
     }
 
     /// Write to the stream. Returns the number of bytes written is returned
@@ -410,7 +414,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let tcp = sockets
-            .get::<TcpSocket<L>>(*socket)
+            .get::<TcpSocket<CLK, L>>(*socket)
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         if !tcp.may_send() {
@@ -448,7 +452,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let mut tcp = sockets
-            .get::<TcpSocket<L>>(*socket)
+            .get::<TcpSocket<CLK, L>>(*socket)
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         tcp.recv_slice(buffer)
@@ -481,9 +485,9 @@ where
         let mut sockets = self.sockets.try_borrow_mut()?;
 
         // If the socket is not found it is already removed
-        if let Some(ref mut tcp) = sockets.get::<TcpSocket<L>>(socket).ok() {
+        if let Some(ref mut tcp) = sockets.get::<TcpSocket<CLK, L>>(socket).ok() {
             //If socket is not closed that means a connection excists which has to be closed
-            if tcp.state() != TcpState::Closed {
+            if !matches!(tcp.state(), TcpState::Closed) {
                 match self.handle_socket_error(
                     || {
                         self.send_at(ClosePeerConnection {

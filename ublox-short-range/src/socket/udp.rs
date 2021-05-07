@@ -2,6 +2,7 @@ use core::cmp::min;
 
 use super::{ChannelId, Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
 pub use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use embedded_time::Clock;
 
 /// A UDP socket ring buffer.
 pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
@@ -22,17 +23,18 @@ impl Default for State {
 ///
 /// A UDP socket is bound to a specific endpoint, and owns transmit and receive
 /// packet buffers.
-pub struct UdpSocket<const L: usize> {
+pub struct UdpSocket<CLK: Clock, const L: usize> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: SocketAddr,
     _available_data: usize,
     state: State,
     rx_buffer: SocketBuffer<L>,
+    _fixme: Option<CLK>,
 }
 
-impl<const L: usize> UdpSocket<L> {
+impl<CLK: Clock, const L: usize> UdpSocket<CLK, L> {
     /// Create an UDP socket with the given buffers.
-    pub fn new(socket_id: usize) -> UdpSocket<L> {
+    pub fn new(socket_id: usize) -> Self {
         let mut meta = SocketMeta::default();
         meta.handle.0 = socket_id;
         UdpSocket {
@@ -41,6 +43,7 @@ impl<const L: usize> UdpSocket<L> {
             state: State::Closed,
             _available_data: 0,
             rx_buffer: SocketBuffer::new(),
+            _fixme: None,
         }
     }
 
@@ -76,7 +79,7 @@ impl<const L: usize> UdpSocket<L> {
     /// This function returns `Err(Error::Illegal)` if the socket was open
     /// (see [is_open](#method.is_open)), and `Err(Error::Unaddressable)`
     /// if the port in the given endpoint is zero.
-    pub fn bind<T: Into<SocketAddr>>(&mut self, endpoint: T) -> Result<()> {
+    pub fn bind<U: Into<SocketAddr>>(&mut self, endpoint: U) -> Result<()> {
         if self.is_open() {
             return Err(Error::Illegal);
         }
@@ -198,8 +201,8 @@ impl<const L: usize> UdpSocket<L> {
     }
 }
 
-impl<const L: usize> Into<Socket<L>> for UdpSocket<L> {
-    fn into(self) -> Socket<L> {
+impl<CLK: Clock, const L: usize> Into<Socket<CLK, L>> for UdpSocket<CLK, L> {
+    fn into(self) -> Socket<CLK, L> {
         Socket::Udp(self)
     }
 }

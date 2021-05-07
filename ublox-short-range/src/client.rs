@@ -16,6 +16,7 @@ use crate::{
 };
 use core::cell::{Cell, RefCell};
 use embedded_nal::{IpAddr, SocketAddr};
+use embedded_time::Clock;
 
 #[macro_export]
 macro_rules! wait_for_unsolicited {
@@ -60,26 +61,28 @@ pub struct SecurityCredentials {
     pub c_key_name: Option<heapless::String<16>>,
 }
 
-pub struct UbloxClient<C, const N: usize, const L: usize>
+pub struct UbloxClient<C, CLK, const N: usize, const L: usize>
 where
     C: atat::AtatClient,
+    CLK: 'static + Clock,
 {
     pub(crate) initialized: Cell<bool>,
     serial_mode: Cell<SerialMode>,
     pub(crate) wifi_connection: RefCell<Option<WifiConnection>>,
     pub(crate) client: RefCell<C>,
-    pub(crate) sockets: RefCell<&'static mut SocketSet<N, L>>,
+    pub(crate) sockets: RefCell<&'static mut SocketSet<CLK, N, L>>,
     pub(crate) dns_state: Cell<DNSState>,
     pub(crate) urc_attempts: Cell<u8>,
     pub(crate) max_urc_attempts: u8,
     pub(crate) security_credentials: Option<SecurityCredentials>,
 }
 
-impl<C, const N: usize, const L: usize> UbloxClient<C, N, L>
+impl<C, CLK, const N: usize, const L: usize> UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
+    CLK: 'static + Clock,
 {
-    pub fn new(client: C, socket_set: &'static mut SocketSet<N, L>) -> Self {
+    pub fn new(client: C, socket_set: &'static mut SocketSet<CLK, N, L>) -> Self {
         UbloxClient {
             initialized: Cell::new(false),
             serial_mode: Cell::new(SerialMode::Cmd),
@@ -217,14 +220,16 @@ where
                                     let handle = SocketHandle(msg.handle);
                                     match sockets.socket_type(handle) {
                                         Some(SocketType::Tcp) => {
-                                            if let Ok(mut tcp) = sockets.get::<TcpSocket<L>>(handle)
+                                            if let Ok(mut tcp) =
+                                                sockets.get::<TcpSocket<CLK, L>>(handle)
                                             {
                                                 tcp.close();
                                                 sockets.remove(handle).ok();
                                             }
                                         }
                                         Some(SocketType::Udp) => {
-                                            if let Ok(mut udp) = sockets.get::<UdpSocket<L>>(handle)
+                                            if let Ok(mut udp) =
+                                                sockets.get::<UdpSocket<CLK, L>>(handle)
                                             {
                                                 udp.close();
                                             }
@@ -363,7 +368,7 @@ where
                             match sockets.socket_type_by_endpoint(&endpoint) {
                                 Some(SocketType::Tcp) => {
                                     if let Ok(mut tcp) =
-                                        sockets.get_by_endpoint::<TcpSocket<L>>(&endpoint)
+                                        sockets.get_by_endpoint::<TcpSocket<CLK, L>>(&endpoint)
                                     {
                                         tcp.meta.channel_id.0 = event.channel_id;
                                         tcp.set_state(TcpState::Established);
@@ -375,7 +380,7 @@ where
                                 }
                                 Some(SocketType::Udp) => {
                                     if let Ok(mut udp) =
-                                        sockets.get_by_endpoint::<UdpSocket<L>>(&endpoint)
+                                        sockets.get_by_endpoint::<UdpSocket<CLK, L>>(&endpoint)
                                     {
                                         udp.meta.channel_id.0 = event.channel_id;
                                         udp.set_state(UdpState::Established);
@@ -406,7 +411,7 @@ where
                             match sockets.socket_type_by_endpoint(&endpoint) {
                                 Some(SocketType::Tcp) => {
                                     if let Ok(mut tcp) =
-                                        sockets.get_by_endpoint::<TcpSocket<L>>(&endpoint)
+                                        sockets.get_by_endpoint::<TcpSocket<CLK, L>>(&endpoint)
                                     {
                                         tcp.meta.channel_id.0 = event.channel_id;
                                         tcp.set_state(TcpState::Established);
@@ -417,7 +422,7 @@ where
                                 }
                                 Some(SocketType::Udp) => {
                                     if let Ok(mut udp) =
-                                        sockets.get_by_endpoint::<UdpSocket<L>>(&endpoint)
+                                        sockets.get_by_endpoint::<UdpSocket<CLK, L>>(&endpoint)
                                     {
                                         udp.meta.channel_id.0 = event.channel_id;
                                         udp.set_state(UdpState::Established);
