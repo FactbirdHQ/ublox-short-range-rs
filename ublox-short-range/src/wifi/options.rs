@@ -1,5 +1,5 @@
+use embedded_nal::Ipv4Addr;
 use heapless::{consts, String};
-use no_std_net::Ipv4Addr;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]

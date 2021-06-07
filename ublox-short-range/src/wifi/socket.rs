@@ -2,11 +2,9 @@
 // implements TCP and UDP for WiFi client
 
 // use embedded_hal::digital::v2::OutputPin;
+use atat::serde_at::{to_string, SerializeOptions};
 pub use embedded_nal::{nb, AddrType, IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use heapless::{consts, ArrayLength, String};
-pub use no_std_net::{Ipv4Addr, Ipv6Addr};
-// use serde::{Serialize};
-use atat::serde_at::{to_string, SerializeOptions};
 use typenum::marker_traits::Unsigned;
 
 use crate::{

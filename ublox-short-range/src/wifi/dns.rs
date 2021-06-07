@@ -1,7 +1,6 @@
 use crate::client::DNSState;
-use embedded_nal::{AddrType, Dns};
+use embedded_nal::{AddrType, Dns, IpAddr};
 use heapless::{consts, ArrayLength, String};
-use no_std_net::IpAddr;
 
 use crate::{
     command::ping::*,

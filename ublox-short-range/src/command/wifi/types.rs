@@ -2,8 +2,8 @@
 
 use atat::atat_derive::AtatEnum;
 use atat::serde_at::CharVec;
+use embedded_nal::{Ipv4Addr, Ipv6Addr};
 use heapless::{consts, String, Vec};
-use no_std_net::{Ipv4Addr, Ipv6Addr};
 use serde::Deserialize;
 
 #[derive(Clone, PartialEq, AtatEnum)]

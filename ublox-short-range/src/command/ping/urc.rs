@@ -1,8 +1,8 @@
 //! Responses for Ping Commands
 use super::types::*;
 use atat::atat_derive::AtatResp;
+use embedded_nal::IpAddr;
 use heapless::{consts, String};
-use no_std_net::IpAddr;
 /// 16.1 Ping command +UPING
 ///
 /// The ping command is the common method to know if a remote host is reachable on the Internet.

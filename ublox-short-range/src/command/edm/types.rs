@@ -1,5 +1,5 @@
+use embedded_nal::{Ipv4Addr, Ipv6Addr};
 use heapless::{consts, Vec};
-use no_std_net::{Ipv4Addr, Ipv6Addr};
 
 /// Start byte, Length: u16, Id+Type: u16, Endbyte
 // type EdmAtCmdOverhead = (u8, u16, u16, u8);
