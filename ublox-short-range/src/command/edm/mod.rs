@@ -6,7 +6,7 @@ use crate::command::{data_mode, data_mode::ChangeMode};
 use crate::command::{NoResponse, Urc};
 /// Containing EDM structs with custom serialaization and deserilaisation.
 use atat::AtatCmd;
-use heapless::{consts, ArrayLength, Vec};
+use heapless::Vec;
 use types::*;
 
 #[inline]
@@ -20,19 +20,18 @@ pub(crate) fn calc_payload_len(resp: &[u8]) -> usize {
 // using the <change_after_confirm> parameter. Instead the <change_after_confirm> parameter must
 // be set to 0 and the serial settings will take effect when the module is reset.
 #[derive(Debug, Clone)]
-pub(crate) struct EdmAtCmdWrapper<T: AtatCmd>(pub T);
+pub(crate) struct EdmAtCmdWrapper<T: AtatCmd<LEN>, const LEN: usize>(pub T);
 
-impl<T> atat::AtatCmd for EdmAtCmdWrapper<T>
+impl<T, const LEN: usize> atat::AtatCmd<1024> for EdmAtCmdWrapper<T, LEN>
 where
-    T: AtatCmd,
-    <T as atat::AtatCmd>::CommandLen: core::ops::Add<EdmAtCmdOverhead>,
-    <<T as atat::AtatCmd>::CommandLen as core::ops::Add<EdmAtCmdOverhead>>::Output: ArrayLength<u8>,
+    T: AtatCmd<LEN, Error = atat::GenericError>,
 {
     type Response = T::Response;
-    type CommandLen =
-        <<T as atat::AtatCmd>::CommandLen as core::ops::Add<EdmAtCmdOverhead>>::Output;
+    type Error = atat::GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+    const FORCE_RECEIVE_STATE: bool = true;
+
+    fn as_bytes(&self) -> Vec<u8, 1024> {
         let at_vec = self.0.as_bytes();
         let payload_len = (at_vec.len() + 2) as u16;
         [
@@ -49,7 +48,11 @@ where
         .collect()
     }
 
-    fn parse(&self, resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
+    fn parse(
+        &self,
+        resp: Result<&[u8], &atat::InternalError>,
+    ) -> core::result::Result<Self::Response, atat::Error> {
+        let resp = resp?;
         if resp.len() < PAYLOAD_OVERHEAD
             || !resp.starts_with(&[STARTBYTE])
             || !resp.ends_with(&[ENDBYTE])
@@ -73,15 +76,7 @@ where
             at_resp = &resp[AT_COMMAND_POSITION..pos];
         }
 
-        self.0.parse(at_resp)
-    }
-
-    fn force_receive_state(&self) -> bool {
-        true
-    }
-
-    fn max_timeout_ms(&self) -> u32 {
-        self.0.max_timeout_ms()
+        self.0.parse(Ok(at_resp))
     }
 }
 
@@ -91,11 +86,11 @@ pub struct EdmDataCommand<'a> {
     pub data: &'a [u8],
 }
 
-impl<'a> atat::AtatCmd for EdmDataCommand<'a> {
+impl<'a, const LEN: usize> atat::AtatCmd<LEN> for EdmDataCommand<'a> {
     type Response = NoResponse;
-    type CommandLen = <DataPackageSize as core::ops::Add<consts::U4>>::Output;
+    type Error = atat::GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+    fn as_bytes(&self) -> Vec<u8, LEN> {
         let payload_len = (self.data.len() + 3) as u16;
         [
             STARTBYTE,
@@ -112,59 +107,51 @@ impl<'a> atat::AtatCmd for EdmDataCommand<'a> {
         .collect()
     }
 
-    fn parse(&self, _resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
+    fn parse(
+        &self,
+        _resp: Result<&[u8], &atat::InternalError>,
+    ) -> core::result::Result<Self::Response, atat::Error> {
         Ok(NoResponse)
-    }
-
-    fn max_timeout_ms(&self) -> u32 {
-        10000
-    }
-
-    fn expects_response_code(&self) -> bool {
-        false
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct EdmResendConnectEventsCommand;
 
-impl atat::AtatCmd for EdmResendConnectEventsCommand {
+impl<const LEN: usize> atat::AtatCmd<LEN> for EdmResendConnectEventsCommand {
     type Response = NoResponse;
-    type CommandLen = consts::U8;
+    type Error = atat::GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
-        Vec::from_slice(&[
+    fn as_bytes(&self) -> Vec<u8, LEN> {
+        [
             STARTBYTE,
             0x00,
             0x02,
             0x00,
             PayloadType::ResendConnectEventsCommand as u8,
             ENDBYTE,
-        ])
-        .unwrap()
+        ]
+        .iter()
+        .cloned()
+        .collect()
     }
 
-    fn parse(&self, _resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
+    fn parse(
+        &self,
+        _resp: Result<&[u8], &atat::InternalError>,
+    ) -> core::result::Result<Self::Response, atat::Error> {
         Ok(NoResponse)
-    }
-
-    fn max_timeout_ms(&self) -> u32 {
-        10000
-    }
-
-    fn expects_response_code(&self) -> bool {
-        false
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SwitchToEdmCommand;
 
-impl atat::AtatCmd for SwitchToEdmCommand {
+impl<const LEN: usize> atat::AtatCmd<LEN> for SwitchToEdmCommand {
     type Response = NoResponse;
-    type CommandLen = <ChangeMode as atat::AtatCmd>::CommandLen;
+    type Error = atat::GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
+    fn as_bytes(&self) -> Vec<u8, LEN> {
         ChangeMode {
             mode: data_mode::types::Mode::ExtendedDataMode,
         }
@@ -173,7 +160,11 @@ impl atat::AtatCmd for SwitchToEdmCommand {
         .collect()
     }
 
-    fn parse(&self, resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
+    fn parse(
+        &self,
+        resp: Result<&[u8], &atat::InternalError>,
+    ) -> core::result::Result<Self::Response, atat::Error> {
+        let resp = resp?;
         // Parse EDM startup command
         let correct = &[0xAAu8, 0x00, 0x02, 0x00, 0x71, 0x55]; // &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]; //AA 00 06 00 44 41 54 0D 0A 0D 0A 4F 4B 0D 0A 55 ?
         if resp.len() != correct.len() {
@@ -188,17 +179,6 @@ impl atat::AtatCmd for SwitchToEdmCommand {
         }
         Ok(NoResponse)
     }
-
-    fn force_receive_state(&self) -> bool {
-        true
-    }
-
-    fn max_timeout_ms(&self) -> u32 {
-        ChangeMode {
-            mode: data_mode::types::Mode::ExtendedDataMode,
-        }
-        .max_timeout_ms()
-    }
 }
 
 #[cfg(test)]
@@ -208,10 +188,7 @@ mod test {
         system::{responses::SystemStatusResponse, types::StatusID, SystemStatus},
         AT,
     };
-    use atat::{
-        heapless::{consts, Vec},
-        AtatCmd, Error,
-    };
+    use atat::{heapless::Vec, AtatCmd, Error};
 
     #[test]
     fn parse_at_commands() {
@@ -219,7 +196,7 @@ mod test {
         let correct_response = NoResponse;
 
         // AT-command: "AT"
-        let correct_cmd = Vec::<u8, consts::U10>::from_slice(&[
+        let correct_cmd = Vec::<u8, 10>::from_slice(&[
             0xAAu8, 0x00, 0x06, 0x00, 0x44, 0x41, 0x54, 0x0D, 0x0a, 0x55,
         ])
         .unwrap();
@@ -233,7 +210,7 @@ mod test {
             0x55,
         ];
         assert_eq!(parse.as_bytes(), correct_cmd);
-        assert_eq!(parse.parse(response), Ok(correct_response));
+        assert_eq!(parse.parse(Ok(response)), Ok(correct_response));
 
         let parse = EdmAtCmdWrapper(SystemStatus {
             status_id: StatusID::SavedStatus,
@@ -243,7 +220,7 @@ mod test {
             status_val: 100,
         };
         // AT-command: "at+umstat=1"
-        let correct = Vec::<u8, consts::U19>::from_slice(&[
+        let correct = Vec::<u8, 19usize>::from_slice(&[
             0xAAu8, 0x00, 0x0F, 0x00, 0x44, 0x41, 0x54, 0x2b, 0x55, 0x4d, 0x53, 0x54, 0x41, 0x54,
             0x3d, 0x31, 0x0D, 0x0A, 0x55,
         ])
@@ -273,7 +250,7 @@ mod test {
             0x55,
         ];
         assert_eq!(parse.as_bytes(), correct);
-        assert_eq!(parse.parse(response), Ok(correct_response));
+        assert_eq!(parse.parse(Ok(response)), Ok(correct_response));
     }
 
     #[test]
@@ -289,7 +266,7 @@ mod test {
             0x55,
         ];
         assert_eq!(
-            parse.parse(response),
+            parse.parse(Ok(response)),
             Err(Error::InvalidResponse),
             "Response shorter than indicated not invalid"
         );
@@ -322,7 +299,7 @@ mod test {
             0x55,
         ];
         assert_eq!(
-            parse.parse(response),
+            parse.parse(Ok(response)),
             Err(Error::InvalidResponse),
             "Response longer than indicated not invalid"
         );
@@ -351,7 +328,7 @@ mod test {
             0x00,
         ];
         assert_eq!(
-            parse.parse(response),
+            parse.parse(Ok(response)),
             Err(Error::InvalidResponse),
             "Response wrong endbyte not invalid"
         );
@@ -380,7 +357,7 @@ mod test {
             0x55,
         ];
         assert_eq!(
-            parse.parse(response),
+            parse.parse(Ok(response)),
             Err(Error::InvalidResponse),
             "Response wrong startbyte not invalid"
         );
@@ -394,8 +371,8 @@ mod test {
             0x55,
         ];
         assert_eq!(
-            parse.parse(response),
-            Err(Error::ParseString),
+            parse.parse(Ok(response)),
+            Err(Error::Parse),
             "Response wrong not invalid"
         );
     }
@@ -403,9 +380,11 @@ mod test {
     #[test]
     fn change_to_edm_cmd() {
         let resp = &[0xAAu8, 0x00, 0x02, 0x00, 0x71, 0x55];
-        let correct =
-            Vec::<u8, <ChangeMode as atat::AtatCmd>::CommandLen>::from_slice(b"ATO2\r\n").unwrap();
-        assert_eq!(SwitchToEdmCommand.as_bytes(), correct);
-        assert_eq!(SwitchToEdmCommand.parse(resp).unwrap(), NoResponse);
+        let correct = Vec::<_, 6>::from_slice(b"ATO2\r\n").unwrap();
+        assert_eq!(AtatCmd::<6>::as_bytes(&SwitchToEdmCommand), correct);
+        assert_eq!(
+            AtatCmd::<6>::parse(&SwitchToEdmCommand, Ok(resp)).unwrap(),
+            NoResponse
+        );
     }
 }

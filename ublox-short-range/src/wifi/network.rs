@@ -2,7 +2,7 @@ use crate::command::wifi::types::{OperationMode, ScanedWifiNetwork};
 use crate::error::WifiError;
 use crate::hex::from_hex;
 use atat::serde_at::CharVec;
-use heapless::{consts, String};
+use heapless::String;
 
 use core::convert::TryFrom;
 
@@ -14,9 +14,9 @@ pub enum WifiMode {
 
 #[derive(Debug)]
 pub struct WifiNetwork {
-    pub bssid: CharVec<consts::U20>,
+    pub bssid: CharVec<20>,
     pub op_mode: OperationMode,
-    pub ssid: String<consts::U64>,
+    pub ssid: String<64>,
     pub channel: u8,
     pub rssi: i32,
     pub authentication_suites: u8,

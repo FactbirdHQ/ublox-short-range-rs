@@ -1,13 +1,13 @@
 use super::{AnySocket, Error, Result, Socket, SocketRef, SocketType};
 
 use embedded_nal::SocketAddr;
-use heapless::{ArrayLength, Vec};
+use heapless::Vec;
 use serde::{Deserialize, Serialize};
 /// An item of a socket set.
 ///
 /// The only reason this struct is public is to allow the socket set storage
 /// to be allocated externally.
-pub struct Item<L: ArrayLength<u8>> {
+pub struct Item<const L: usize> {
     socket: Socket<L>,
     refs: usize,
 }
@@ -46,23 +46,15 @@ pub struct ChannelId(pub u8);
 
 /// An extensible set of sockets.
 #[derive(Default)]
-pub struct Set<N, L>
-where
-    N: ArrayLength<Option<Item<L>>>,
-    L: ArrayLength<u8>,
-{
+pub struct Set<const N: usize, const L: usize> {
     pub sockets: Vec<Option<Item<L>>, N>,
 }
 
-impl<N, L> Set<N, L>
-where
-    N: ArrayLength<Option<Item<L>>>,
-    L: ArrayLength<u8>,
-{
+impl<const N: usize, const L: usize> Set<N, L> {
     /// Create a socket set using the provided storage.
     pub fn new() -> Set<N, L> {
         let mut sockets = Vec::new();
-        while sockets.len() < N::to_usize() {
+        while sockets.len() < N {
             sockets.push(None).ok();
         }
         Set { sockets }
@@ -70,7 +62,7 @@ where
 
     /// Get the maximum number of sockets the set can hold
     pub fn capacity(&self) -> usize {
-        N::to_usize()
+        N
     }
 
     /// Get the current number of initialized sockets, the set is holding

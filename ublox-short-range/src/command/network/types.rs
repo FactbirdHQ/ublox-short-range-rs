@@ -2,8 +2,7 @@
 
 use atat::atat_derive::AtatEnum;
 use embedded_nal::{IpAddr, Ipv4Addr, Ipv6Addr};
-use heapless::{consts, String};
-
+use heapless::String;
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum OnOff {
@@ -15,7 +14,7 @@ pub enum OnOff {
 pub enum NetworkStatus {
     /// 0: The <status_val> is the interface hardware address (displayed only if applicable).
     #[at_arg(value = 0)]
-    HardwareAddress(String<consts::U64>),
+    HardwareAddress(String<64>),
     /// 1: The <status_val> is the current status of the network interface (Layer-3).
     /// • 0: Network down
     /// • 1: Network up

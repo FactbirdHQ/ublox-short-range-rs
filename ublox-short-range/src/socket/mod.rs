@@ -8,7 +8,6 @@ pub mod udp;
 pub(crate) use self::meta::Meta as SocketMeta;
 pub use self::ring_buffer::RingBuffer;
 use embedded_nal::SocketAddr;
-use heapless::ArrayLength;
 
 #[cfg(feature = "socket-tcp")]
 pub use tcp::{State as TcpState, TcpSocket};
@@ -50,7 +49,7 @@ type Result<T> = core::result::Result<T, Error>;
 /// [AnySocket]: trait.AnySocket.html
 /// [SocketSet::get]: struct.SocketSet.html#method.get
 #[non_exhaustive]
-pub enum Socket<L: ArrayLength<u8>> {
+pub enum Socket<const L: usize> {
     // #[cfg(feature = "socket-raw")]
     // Raw(RawSocket<'a, 'b>),
     // #[cfg(all(
@@ -71,7 +70,7 @@ pub enum SocketType {
     Tcp,
 }
 
-impl<L: ArrayLength<u8>> Socket<L> {
+impl<const L: usize> Socket<L> {
     pub fn get_type(&self) -> SocketType {
         match self {
             Socket::Tcp(_) => SocketType::Tcp,
@@ -101,7 +100,7 @@ macro_rules! dispatch_socket {
     };
 }
 
-impl<L: ArrayLength<u8>> Socket<L> {
+impl<const L: usize> Socket<L> {
     /// Return the socket handle.
     #[inline]
     pub fn handle(&self) -> SocketHandle {
@@ -127,14 +126,14 @@ impl<L: ArrayLength<u8>> Socket<L> {
     // }
 }
 
-impl<L: ArrayLength<u8>> SocketSession for Socket<L> {
+impl<const L: usize> SocketSession for Socket<L> {
     fn finish(&mut self) {
         dispatch_socket!(mut self, |socket| socket.finish())
     }
 }
 
 /// A conversion trait for network sockets.
-pub trait AnySocket<L: ArrayLength<u8>>: SocketSession + Sized {
+pub trait AnySocket<const L: usize>: SocketSession + Sized {
     fn downcast(socket_ref: SocketRef<'_, Socket<L>>) -> Result<SocketRef<'_, Self>>;
 }
 
@@ -147,7 +146,7 @@ pub trait Resettable {
 
 macro_rules! from_socket {
     ($socket:ty, $variant:ident) => {
-        impl<L: ArrayLength<u8>> AnySocket<L> for $socket {
+        impl<const L: usize> AnySocket<L> for $socket {
             fn downcast(ref_: SocketRef<'_, Socket<L>>) -> Result<SocketRef<'_, Self>> {
                 match SocketRef::into_inner(ref_) {
                     Socket::$variant(ref mut socket) => Ok(SocketRef::new(socket)),

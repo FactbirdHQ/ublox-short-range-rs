@@ -1,13 +1,12 @@
 use embedded_nal::{Ipv4Addr, Ipv6Addr};
-use heapless::{consts, Vec};
+use heapless::Vec;
 
 /// Start byte, Length: u16, Id+Type: u16, Endbyte
 // type EdmAtCmdOverhead = (u8, u16, u16, u8);
 
-pub type EdmAtCmdOverhead = consts::U6;
 pub type ChannelId = u8;
-pub type DataPackageSize = consts::U540;
-
+pub const EDM_ATCMD_OVERHEAD: usize = 6;
+pub const DATA_PACKAGE_SIZE: usize = 540;
 pub const STARTBYTE: u8 = 0xAA;
 pub const ENDBYTE: u8 = 0x55;
 pub const EDM_SIZE_FILTER: u8 = 0x0F;
@@ -76,7 +75,7 @@ impl From<u8> for PayloadType {
 pub struct BluetoothConnectEvent {
     pub channel_id: ChannelId,
     pub profile: BluetoothConnectType,
-    pub bd_address: Vec<u8, consts::U6>,
+    pub bd_address: Vec<u8, 6>,
     pub frame_size: u16,
 }
 
@@ -102,7 +101,7 @@ pub struct IPv6ConnectEvent {
 #[derive(Debug, Clone, PartialEq)]
 pub struct DataEvent {
     pub channel_id: ChannelId,
-    pub data: Vec<u8, DataPackageSize>,
+    pub data: Vec<u8, DATA_PACKAGE_SIZE>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

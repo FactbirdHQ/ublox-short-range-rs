@@ -1,6 +1,6 @@
 //! Responses for Data Mode
 use atat::atat_derive::AtatResp;
-use heapless::{consts, String};
+use heapless::String;
 
 /// 5.2 Connect peer +UDCP
 #[derive(Clone, AtatResp)]
@@ -15,11 +15,11 @@ pub struct PeerListResponse {
     #[at_arg(position = 0)]
     pub peer_handle: usize,
     #[at_arg(position = 1)]
-    pub protocol: String<consts::U64>,
+    pub protocol: String<64>,
     #[at_arg(position = 2)]
-    pub local_address: String<consts::U64>,
+    pub local_address: String<64>,
     #[at_arg(position = 3)]
-    pub remote_address: String<consts::U64>,
+    pub remote_address: String<64>,
 }
 
 /// 5.12 Bind +UDBIND

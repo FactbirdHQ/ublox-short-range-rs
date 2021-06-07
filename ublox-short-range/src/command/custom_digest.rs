@@ -3,9 +3,9 @@ use crate::command::edm::{
     types::{PayloadType, AT_COMMAND_POSITION, EDM_OVERHEAD, ENDBYTE, STARTBYTE},
 };
 // use atat::atat_log;
-use atat::Error;
+use atat::InternalError;
 use atat::{helpers::SliceExt, DigestResult, Digester, UrcMatcher};
-use heapless::{ArrayLength, Vec};
+use heapless::Vec;
 
 /// State of the `EDMDigester`, used to filter responses
 #[derive(Debug, Copy, Clone, Hash, PartialEq, Eq, defmt::Format)]
@@ -47,7 +47,7 @@ impl Digester for EdmDigester {
         self.state = State::ReceivingResponse;
     }
 
-    fn digest<L: ArrayLength<u8>>(
+    fn digest<const L: usize>(
         &mut self,
         buf: &mut Vec<u8, L>,
         _urc_matcher: &mut impl UrcMatcher,
@@ -106,7 +106,7 @@ impl Digester for EdmDigester {
                         || resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION + 2)
                             == Some(b"ERROR")
                     {
-                        return_val = DigestResult::Response(Err(Error::InvalidResponse));
+                        return_val = DigestResult::Response(Err(InternalError::InvalidResponse));
                     } else {
                         return_val = DigestResult::Response(Ok(Vec::from_slice(resp).unwrap()));
                     }
@@ -163,19 +163,18 @@ mod test {
     use super::*;
     use atat::{ComQueue, ResQueue, UrcQueue};
     use atat::{Command, DefaultUrcMatcher, IngressManager};
-    use heapless::{consts, spsc::Queue};
+    use heapless::spsc::Queue;
 
-    type TestRxBufLen = consts::U256;
-    type TestUrcCapacity = consts::U10;
+    const TEST_RX_BUF_LEN: usize = 256;
+    const TEST_URC_CAPACITY: usize = 10;
 
     macro_rules! setup_ingressmanager {
         () => {{
-            static mut RES_Q: ResQueue<TestRxBufLen> = Queue(heapless::i::Queue::u8());
+            static mut RES_Q: ResQueue<TEST_RX_BUF_LEN> = Queue::new();
             let (res_p, res_c) = unsafe { RES_Q.split() };
-            static mut URC_Q: UrcQueue<TestRxBufLen, TestUrcCapacity> =
-                Queue(heapless::i::Queue::u8());
+            static mut URC_Q: UrcQueue<TEST_RX_BUF_LEN, TEST_URC_CAPACITY> = Queue::new();
             let (urc_p, urc_c) = unsafe { URC_Q.split() };
-            static mut COM_Q: ComQueue = Queue(heapless::i::Queue::u8());
+            static mut COM_Q: ComQueue = Queue::new();
             let (com_p, com_c) = unsafe { COM_Q.split() };
             (
                 IngressManager::with_customs(
@@ -202,7 +201,7 @@ mod test {
 
         //Payload: "OK\r\n"
         let data = &[0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
-        let empty_ok_response = Vec::<u8, TestRxBufLen>::from_slice(&[
+        let empty_ok_response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(&[
             0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
         ])
         .unwrap();
@@ -228,7 +227,7 @@ mod test {
         at_pars.write(data);
 
         at_pars.digest();
-        assert_eq!(res_c.dequeue(), Some(Err(Error::InvalidResponse)));
+        assert_eq!(res_c.dequeue(), Some(Err(InternalError::InvalidResponse)));
         assert_eq!(urc_c.dequeue(), None);
     }
 
@@ -250,7 +249,7 @@ mod test {
         at_pars.digest();
         assert_eq!(
             res_c.dequeue(),
-            Some(Ok(Vec::<u8, TestRxBufLen>::from_slice(response).unwrap()))
+            Some(Ok(Vec::<u8, TEST_RX_BUF_LEN>::from_slice(response).unwrap()))
         );
         assert_eq!(urc_c.dequeue(), None);
     }
@@ -275,7 +274,7 @@ mod test {
         at_pars.digest();
         assert_eq!(
             urc_c.dequeue(),
-            Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap())
+            Some(Vec::<u8, TEST_RX_BUF_LEN>::from_slice(result).unwrap())
         );
         assert_eq!(res_c.dequeue(), None);
     }
@@ -330,7 +329,7 @@ mod test {
         at_pars.digest();
         assert_eq!(
             urc_c.dequeue(),
-            Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap())
+            Some(Vec::<u8, TEST_RX_BUF_LEN>::from_slice(result).unwrap())
         );
         assert_eq!(res_c.dequeue(), None);
     }
@@ -385,7 +384,7 @@ mod test {
         at_pars.digest();
         assert_eq!(
             urc_c.dequeue(),
-            Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap())
+            Some(Vec::<u8, TEST_RX_BUF_LEN>::from_slice(result).unwrap())
         );
         assert_eq!(res_c.dequeue(), None);
 
@@ -435,7 +434,7 @@ mod test {
         at_pars.digest();
         assert_eq!(
             urc_c.dequeue(),
-            Some(Vec::<u8, TestRxBufLen>::from_slice(result).unwrap())
+            Some(Vec::<u8, TEST_RX_BUF_LEN>::from_slice(result).unwrap())
         );
         assert_eq!(res_c.dequeue(), None);
     }
@@ -469,7 +468,7 @@ mod test {
 
         //Payload: "OK\r\n"
         let data = &[0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
-        let empty_ok_response = Vec::<u8, TestRxBufLen>::from_slice(&[
+        let empty_ok_response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(&[
             0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
         ])
         .unwrap();

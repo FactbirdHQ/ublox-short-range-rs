@@ -16,7 +16,6 @@ use crate::{
 };
 use core::cell::{Cell, RefCell};
 use embedded_nal::{IpAddr, SocketAddr};
-use heapless::{consts, ArrayLength};
 
 #[macro_export]
 macro_rules! wait_for_unsolicited {
@@ -56,16 +55,14 @@ pub enum DNSState {
 
 #[derive(PartialEq, Clone)]
 pub struct SecurityCredentials {
-    pub ca_cert_name: Option<heapless::String<consts::U16>>,
-    pub c_cert_name: Option<heapless::String<consts::U16>>, //TODO: Make &str with lifetime
-    pub c_key_name: Option<heapless::String<consts::U16>>,
+    pub ca_cert_name: Option<heapless::String<16>>,
+    pub c_cert_name: Option<heapless::String<16>>, //TODO: Make &str with lifetime
+    pub c_key_name: Option<heapless::String<16>>,
 }
 
-pub struct UbloxClient<C, N, L>
+pub struct UbloxClient<C, const N: usize, const L: usize>
 where
     C: atat::AtatClient,
-    N: 'static + ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: 'static + ArrayLength<u8>,
 {
     pub(crate) initialized: Cell<bool>,
     serial_mode: Cell<SerialMode>,
@@ -78,11 +75,9 @@ where
     pub(crate) security_credentials: Option<SecurityCredentials>,
 }
 
-impl<C, N, L> UbloxClient<C, N, L>
+impl<C, const N: usize, const L: usize> UbloxClient<C, N, L>
 where
     C: atat::AtatClient,
-    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: ArrayLength<u8>,
 {
     pub fn new(client: C, socket_set: &'static mut SocketSet<N, L>) -> Self {
         UbloxClient {
@@ -103,7 +98,7 @@ where
 
         //Switch to EDM on Init. If in EDM, fail and check with autosense
         if self.serial_mode.get() != SerialMode::ExtendedData {
-            self.send_internal(&SwitchToEdmCommand, true)?;
+            self.send_internal::<SwitchToEdmCommand, L>(&SwitchToEdmCommand, true)?;
             self.serial_mode.set(SerialMode::ExtendedData);
         }
 
@@ -170,11 +165,14 @@ where
         Ok(())
     }
 
-    pub(crate) fn send_internal<A: atat::AtatCmd>(
+    pub(crate) fn send_internal<A, const LEN: usize>(
         &self,
         req: &A,
         check_urc: bool,
-    ) -> Result<A::Response, Error> {
+    ) -> Result<A::Response, Error>
+    where
+        A: atat::AtatCmd<LEN, Error = atat::GenericError>,
+    {
         if check_urc {
             if let Err(_e) = self.handle_urc() {
                 #[cfg(features = "logging")]
@@ -219,14 +217,14 @@ where
                                     let handle = SocketHandle(msg.handle);
                                     match sockets.socket_type(handle) {
                                         Some(SocketType::Tcp) => {
-                                            if let Ok(mut tcp) = sockets.get::<TcpSocket<_>>(handle)
+                                            if let Ok(mut tcp) = sockets.get::<TcpSocket<L>>(handle)
                                             {
                                                 tcp.close();
                                                 sockets.remove(handle).ok();
                                             }
                                         }
                                         Some(SocketType::Udp) => {
-                                            if let Ok(mut udp) = sockets.get::<UdpSocket<_>>(handle)
+                                            if let Ok(mut udp) = sockets.get::<UdpSocket<L>>(handle)
                                             {
                                                 udp.close();
                                             }
@@ -365,7 +363,7 @@ where
                             match sockets.socket_type_by_endpoint(&endpoint) {
                                 Some(SocketType::Tcp) => {
                                     if let Ok(mut tcp) =
-                                        sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint)
+                                        sockets.get_by_endpoint::<TcpSocket<L>>(&endpoint)
                                     {
                                         tcp.meta.channel_id.0 = event.channel_id;
                                         tcp.set_state(TcpState::Established);
@@ -377,7 +375,7 @@ where
                                 }
                                 Some(SocketType::Udp) => {
                                     if let Ok(mut udp) =
-                                        sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)
+                                        sockets.get_by_endpoint::<UdpSocket<L>>(&endpoint)
                                     {
                                         udp.meta.channel_id.0 = event.channel_id;
                                         udp.set_state(UdpState::Established);
@@ -408,7 +406,7 @@ where
                             match sockets.socket_type_by_endpoint(&endpoint) {
                                 Some(SocketType::Tcp) => {
                                     if let Ok(mut tcp) =
-                                        sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint)
+                                        sockets.get_by_endpoint::<TcpSocket<L>>(&endpoint)
                                     {
                                         tcp.meta.channel_id.0 = event.channel_id;
                                         tcp.set_state(TcpState::Established);
@@ -419,7 +417,7 @@ where
                                 }
                                 Some(SocketType::Udp) => {
                                     if let Ok(mut udp) =
-                                        sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)
+                                        sockets.get_by_endpoint::<UdpSocket<L>>(&endpoint)
                                     {
                                         udp.meta.channel_id.0 = event.channel_id;
                                         udp.set_state(UdpState::Established);
@@ -479,14 +477,9 @@ where
 
     /// Send AT command
     /// Automaticaly waraps commands in EDM context
-    pub fn send_at<A>(&self, cmd: A) -> Result<A::Response, Error>
+    pub fn send_at<A, const LEN: usize>(&self, cmd: A) -> Result<A::Response, Error>
     where
-        A: atat::AtatCmd,
-        <A as atat::AtatCmd>::CommandLen:
-            core::ops::Add<crate::command::edm::types::EdmAtCmdOverhead>,
-        <<A as atat::AtatCmd>::CommandLen as core::ops::Add<
-            crate::command::edm::types::EdmAtCmdOverhead,
-        >>::Output: ArrayLength<u8>,
+        A: atat::AtatCmd<LEN, Error = atat::GenericError>,
     {
         if !self.initialized.get() {
             self.init()?;

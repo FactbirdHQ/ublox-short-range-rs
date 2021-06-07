@@ -1,12 +1,10 @@
 use core::cmp::min;
 
-use heapless::ArrayLength;
-
 use super::{ChannelId, Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
 pub use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 /// A UDP socket ring buffer.
-pub type SocketBuffer<N> = RingBuffer<u8, N>;
+pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum State {
@@ -24,7 +22,7 @@ impl Default for State {
 ///
 /// A UDP socket is bound to a specific endpoint, and owns transmit and receive
 /// packet buffers.
-pub struct UdpSocket<L: ArrayLength<u8>> {
+pub struct UdpSocket<const L: usize> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: SocketAddr,
     _available_data: usize,
@@ -32,7 +30,7 @@ pub struct UdpSocket<L: ArrayLength<u8>> {
     rx_buffer: SocketBuffer<L>,
 }
 
-impl<L: ArrayLength<u8>> UdpSocket<L> {
+impl<const L: usize> UdpSocket<L> {
     /// Create an UDP socket with the given buffers.
     pub fn new(socket_id: usize) -> UdpSocket<L> {
         let mut meta = SocketMeta::default();
@@ -200,7 +198,7 @@ impl<L: ArrayLength<u8>> UdpSocket<L> {
     }
 }
 
-impl<L: ArrayLength<u8>> Into<Socket<L>> for UdpSocket<L> {
+impl<const L: usize> Into<Socket<L>> for UdpSocket<L> {
     fn into(self) -> Socket<L> {
         Socket::Udp(self)
     }

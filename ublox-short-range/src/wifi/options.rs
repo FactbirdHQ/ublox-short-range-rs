@@ -1,5 +1,5 @@
 use embedded_nal::Ipv4Addr;
-use heapless::{consts, String};
+use heapless::String;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
@@ -58,8 +58,8 @@ impl HotspotOptions {
 pub struct ConnectionOptions {
     pub config_id: Option<u8>,
 
-    pub ssid: String<consts::U64>,
-    pub password: Option<String<consts::U63>>,
+    pub ssid: String<64>,
+    pub password: Option<String<63>>,
 
     pub ip: Option<Ipv4Addr>,
     pub subnet: Option<Ipv4Addr>,
@@ -91,12 +91,12 @@ impl ConnectionOptions {
         self
     }
 
-    pub fn ssid(mut self, ssid: String<consts::U64>) -> Self {
+    pub fn ssid(mut self, ssid: String<64>) -> Self {
         self.ssid = ssid;
         self
     }
 
-    pub fn password(mut self, password: String<consts::U63>) -> Self {
+    pub fn password(mut self, password: String<63>) -> Self {
         self.password = Some(password);
         self
     }

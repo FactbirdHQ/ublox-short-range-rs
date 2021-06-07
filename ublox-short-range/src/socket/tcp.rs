@@ -1,11 +1,9 @@
-use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use heapless::ArrayLength;
-
 use super::{Error, Result};
 use crate::socket::{ChannelId, RingBuffer, Socket, SocketHandle, SocketMeta};
+use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 /// A TCP socket ring buffer.
-pub type SocketBuffer<N> = RingBuffer<u8, N>;
+pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum State {
@@ -29,14 +27,14 @@ impl Default for State {
 /// Note that, for listening sockets, there is no "backlog"; to be able to simultaneously
 /// accept several connections, as many sockets must be allocated, or any new connection
 /// attempts will be reset.
-pub struct TcpSocket<L: ArrayLength<u8>> {
+pub struct TcpSocket<const L: usize> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: SocketAddr,
     state: State,
     rx_buffer: SocketBuffer<L>,
 }
 
-impl<L: ArrayLength<u8>> TcpSocket<L> {
+impl<const L: usize> TcpSocket<L> {
     #[allow(unused_comparisons)] // small usize platforms always pass rx_capacity check
     /// Create a socket using the given buffers.
     pub fn new(socket_id: usize) -> TcpSocket<L> {
@@ -282,7 +280,7 @@ impl<L: ArrayLength<u8>> TcpSocket<L> {
     }
 }
 
-impl<L: ArrayLength<u8>> Into<Socket<L>> for TcpSocket<L> {
+impl<const L: usize> Into<Socket<L>> for TcpSocket<L> {
     fn into(self) -> Socket<L> {
         Socket::Tcp(self)
     }

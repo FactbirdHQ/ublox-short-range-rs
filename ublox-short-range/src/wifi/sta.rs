@@ -17,25 +17,23 @@ use atat::AtatClient;
 
 // use core::convert::TryFrom;
 use core::convert::TryFrom;
-use heapless::{consts, ArrayLength, Vec};
+use heapless::Vec;
 
 /// Wireless network connectivity functionality.
 pub trait WifiConnectivity {
     /// Makes an attempt to connect to a selected wireless network with password specified.
     fn connect(&self, options: ConnectionOptions) -> Result<(), WifiConnectionError>;
 
-    fn scan(&self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError>;
+    fn scan(&self) -> Result<Vec<WifiNetwork, 32>, WifiError>;
 
     fn is_connected(&self) -> bool;
 
     fn disconnect(&self) -> Result<(), WifiConnectionError>;
 }
 
-impl<T, N, L> WifiConnectivity for UbloxClient<T, N, L>
+impl<T, const N: usize, const L: usize> WifiConnectivity for UbloxClient<T, N, L>
 where
     T: AtatClient,
-    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: ArrayLength<u8>,
 {
     /// Attempts to connect to a wireless network with the given connection options.
     fn connect(&self, options: ConnectionOptions) -> Result<(), WifiConnectionError> {
@@ -167,7 +165,7 @@ where
         Ok(())
     }
 
-    fn scan(&self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError> {
+    fn scan(&self) -> Result<Vec<WifiNetwork, 32>, WifiError> {
         match self.send_internal(&EdmAtCmdWrapper(WifiScan { ssid: None }), true) {
             Ok(resp) => resp
                 .network_list

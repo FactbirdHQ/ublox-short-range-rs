@@ -1,7 +1,7 @@
 //! Responses for WiFi Commands
 use super::types::*;
 use atat::atat_derive::AtatResp;
-use heapless::{consts, String, Vec};
+use heapless::{String, Vec};
 
 /// 7.1 Wi-Fi station configuration +UWSC
 #[derive(Clone, AtatResp)]
@@ -16,7 +16,7 @@ pub struct GetWifiStationConfigResponse {
 #[derive(Clone, AtatResp)]
 pub struct WifiScanResponse {
     #[at_arg(position = 0)]
-    pub network_list: Vec<ScanedWifiNetwork, consts::U32>,
+    pub network_list: Vec<ScanedWifiNetwork, 32>,
 }
 
 /// 7.5 Wi-Fi station status +UWSSTAT
@@ -55,7 +55,7 @@ pub struct WiFiAPStationListResponse {
     #[at_arg(position = 0)]
     pub id: u32,
     #[at_arg(position = 1)]
-    pub mac_addr: String<consts::U20>,
+    pub mac_addr: String<20>,
     #[at_arg(position = 2)]
     pub rssi: i32,
 }
@@ -64,5 +64,5 @@ pub struct WiFiAPStationListResponse {
 #[derive(Clone, AtatResp)]
 pub struct WifiMacResponse {
     #[at_arg(position = 0)]
-    pub mac_addr: String<consts::U20>,
+    pub mac_addr: String<20>,
 }

@@ -1,5 +1,4 @@
 use core::ops::{Deref, DerefMut};
-use heapless::ArrayLength;
 
 // #[cfg(all(
 //     feature = "socket-icmp",
@@ -31,9 +30,9 @@ pub trait Session {
 // ))]
 // impl<'a, 'b> Session for IcmpSocket<'a, 'b> {}
 #[cfg(feature = "socket-udp")]
-impl<L: ArrayLength<u8>> Session for UdpSocket<L> {}
+impl<const L: usize> Session for UdpSocket<L> {}
 #[cfg(feature = "socket-tcp")]
-impl<L: ArrayLength<u8>> Session for TcpSocket<L> {}
+impl<const L: usize> Session for TcpSocket<L> {}
 
 /// A smart pointer to a socket.
 ///

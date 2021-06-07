@@ -35,7 +35,7 @@ pub mod prelude {
     #[cfg(any(feature = "wifi_sta"))]
     pub use crate::wifi::sta::WifiConnectivity;
     #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
-    pub use embedded_nal::{TcpClient, UdpClient};
+    pub use embedded_nal::{TcpClientStack, UdpClientStack};
 }
 
 #[cfg(test)]

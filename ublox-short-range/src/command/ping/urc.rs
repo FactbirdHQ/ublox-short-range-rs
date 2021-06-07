@@ -2,7 +2,7 @@
 use super::types::*;
 use atat::atat_derive::AtatResp;
 use embedded_nal::IpAddr;
-use heapless::{consts, String};
+use heapless::String;
 /// 16.1 Ping command +UPING
 ///
 /// The ping command is the common method to know if a remote host is reachable on the Internet.
@@ -30,7 +30,7 @@ pub struct PingResponse {
     #[at_arg(position = 1)]
     pub ping_size: u16,
     #[at_arg(position = 2)]
-    pub hostname: String<consts::U64>,
+    pub hostname: String<64>,
     #[at_arg(position = 3)]
     pub ip: IpAddr,
     #[at_arg(position = 4)]

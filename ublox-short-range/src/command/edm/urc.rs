@@ -23,7 +23,7 @@ impl AtatUrc for EdmEvent {
     type Response = EdmEvent;
 
     /// Parse the response into a `Self::Response` instance.
-    fn parse(resp: &[u8]) -> Result<Self::Response, atat::Error> {
+    fn parse(resp: &[u8]) -> Option<Self::Response> {
         //
         // defmt::info!("[Parse URC] {:?}", resp);
         //Startup message?
@@ -33,7 +33,7 @@ impl AtatUrc for EdmEvent {
             .position(|window| window == STARTUPMESSAGE)
             == Some(0)
         {
-            return Ok(EdmEvent::StartUp);
+            return EdmEvent::StartUp.into();
         }
 
         if resp.len() < PAYLOAD_OVERHEAD
@@ -42,13 +42,13 @@ impl AtatUrc for EdmEvent {
         {
             //
             // defmt::info!("[Parse URC Error] {:?}", resp);
-            return Err(atat::Error::InvalidResponse);
+            return None;
         };
         let payload_len = calc_payload_len(resp);
         if resp.len() != payload_len + EDM_OVERHEAD {
             //
             // defmt::info!("[Parse URC Error] {:?}", resp);
-            return Err(atat::Error::InvalidResponse);
+            return None;
         }
 
         match resp[4].into() {
@@ -56,18 +56,18 @@ impl AtatUrc for EdmEvent {
                 //
                 // defmt::info!("[Parse URC AT-CMD]: {:?}", &resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len]);
                 let cmd = Urc::parse(&resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len])?;
-                Ok(EdmEvent::ATEvent(cmd))
+                EdmEvent::ATEvent(cmd).into()
             }
 
             PayloadType::ConnectEvent => {
                 if payload_len < 4 {
-                    return Err(atat::Error::InvalidResponse);
+                    return None;
                 }
 
                 match resp[6].into() {
                     ConnectType::IPv4 => {
                         if payload_len != 17 {
-                            return Err(atat::Error::InvalidResponse);
+                            return None;
                         }
                         let event = IPv4ConnectEvent {
                             channel_id: resp[5],
@@ -79,13 +79,13 @@ impl AtatUrc for EdmEvent {
                         };
 
                         if event.protocol == Protocol::Unknown {
-                            return Err(atat::Error::InvalidResponse);
+                            return None;
                         }
-                        Ok(EdmEvent::IPv4ConnectEvent(event))
+                        EdmEvent::IPv4ConnectEvent(event).into()
                     }
                     ConnectType::IPv6 => {
                         if payload_len != 41 {
-                            return Err(atat::Error::InvalidResponse);
+                            return None;
                         }
                         let event = IPv6ConnectEvent {
                             channel_id: resp[5],
@@ -105,39 +105,39 @@ impl AtatUrc for EdmEvent {
                         };
 
                         if event.protocol == Protocol::Unknown {
-                            return Err(atat::Error::InvalidResponse);
+                            return None;
                         }
-                        Ok(EdmEvent::IPv6ConnectEvent(event))
+                        EdmEvent::IPv6ConnectEvent(event).into()
                     }
-                    _ => Err(atat::Error::InvalidResponse),
+                    _ => None,
                 }
             }
 
             PayloadType::DisconnectEvent => {
                 if payload_len != 3 {
-                    return Err(atat::Error::InvalidResponse);
+                    return None;
                 }
-                Ok(EdmEvent::DisconnectEvent(resp[5]))
+                EdmEvent::DisconnectEvent(resp[5]).into()
             }
 
             PayloadType::DataEvent => {
                 if payload_len < 4 {
-                    return Err(atat::Error::InvalidResponse);
+                    return None;
                 }
 
-                let vec: Vec<u8, DataPackageSize> = Vec::from_slice(&resp[6..payload_len + 3])
-                    .map_err(|_e| atat::Error::InvalidResponse)?;
-                let event = DataEvent {
-                    channel_id: resp[5],
-                    data: vec,
-                };
-                Ok(EdmEvent::DataEvent(event))
+                Vec::from_slice(&resp[6..payload_len + 3])
+                    .ok()
+                    .map(|vec| DataEvent {
+                        channel_id: resp[5],
+                        data: vec,
+                    })
+                    .map(EdmEvent::DataEvent)
             }
 
             _ => {
                 //
                 // defmt::info!("[Parse URC Error] {:?}", resp);
-                Err(atat::Error::InvalidResponse)
+                None
             }
         }
     }
@@ -146,7 +146,7 @@ impl AtatUrc for EdmEvent {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::command::{data_mode::urc::PeerDisconnected, edm::types::DataPackageSize, Urc};
+    use crate::command::{data_mode::urc::PeerDisconnected, edm::types::DATA_PACKAGE_SIZE, Urc};
     use atat::{heapless::Vec, AtatUrc};
 
     #[test]
@@ -174,7 +174,7 @@ mod test {
         ];
         let urc = EdmEvent::ATEvent(Urc::PeerDisconnected(PeerDisconnected { handle: 3 }));
         let parsed_urc = EdmEvent::parse(resp);
-        assert_eq!(parsed_urc, Ok(urc), "Parsing URC failed");
+        assert_eq!(parsed_urc, Some(urc), "Parsing URC failed");
     }
 
     #[test]
@@ -193,7 +193,11 @@ mod test {
             local_port: 4000,
         });
         let parsed_event = EdmEvent::parse(resp);
-        assert_eq!(parsed_event, Ok(event), "Parsing IPv4 Connect Event failed");
+        assert_eq!(
+            parsed_event,
+            Some(event),
+            "Parsing IPv4 Connect Event failed"
+        );
     }
 
     #[test]
@@ -214,7 +218,11 @@ mod test {
             local_port: 4000,
         });
         let parsed_event = EdmEvent::parse(resp);
-        assert_eq!(parsed_event, Ok(event), "Parsing IPv6 Connect Event failed");
+        assert_eq!(
+            parsed_event,
+            Some(event),
+            "Parsing IPv6 Connect Event failed"
+        );
     }
 
     #[test]
@@ -223,7 +231,7 @@ mod test {
         let resp = &[0xAA, 0x00, 0x03, 0x00, 0x21, 0x03, 0x55];
         let event = EdmEvent::DisconnectEvent(3);
         let parsed_event = EdmEvent::parse(resp);
-        assert_eq!(parsed_event, Ok(event), "Parsing Disconnect Event failed");
+        assert_eq!(parsed_event, Some(event), "Parsing Disconnect Event failed");
     }
 
     #[test]
@@ -232,9 +240,9 @@ mod test {
         let resp = &[0xAA, 0x00, 0x05, 0x00, 0x31, 0x03, 0x12, 0x34, 0x55];
         let event = EdmEvent::DataEvent(DataEvent {
             channel_id: 3,
-            data: Vec::<u8, DataPackageSize>::from_slice(&[0x12, 0x34]).unwrap(),
+            data: Vec::<u8, DATA_PACKAGE_SIZE>::from_slice(&[0x12, 0x34]).unwrap(),
         });
         let parsed_event = EdmEvent::parse(resp);
-        assert_eq!(parsed_event, Ok(event), "Parsing Data Event failed");
+        assert_eq!(parsed_event, Some(event), "Parsing Data Event failed");
     }
 }

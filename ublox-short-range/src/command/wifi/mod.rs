@@ -4,7 +4,7 @@ pub mod types;
 pub mod urc;
 
 use atat::atat_derive::AtatCmd;
-use heapless::{consts, Vec};
+use heapless::Vec;
 use responses::*;
 use types::*;
 
@@ -89,7 +89,7 @@ pub struct WifiScan<'a> {
 #[at_cmd("+UWCL", WifiScanResponse, timeout_ms = 10000)]
 pub struct SetChannelList {
     #[at_arg(position = 0)]
-    pub channels: Vec<u8, consts::U10>,
+    pub channels: Vec<u8, 10>,
 }
 
 /// 7.5 Wi-Fi station status +UWSSTAT

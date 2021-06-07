@@ -10,8 +10,6 @@ use crate::{
 use atat::serde_at::CharVec;
 use atat::AtatClient;
 
-use heapless::{consts, ArrayLength};
-
 pub trait WifiHotspot {
     /// Creates wireless hotspot service for host machine.
     fn create_hotspot(
@@ -26,11 +24,9 @@ pub trait WifiHotspot {
     fn stop_hotspot(&mut self) -> Result<bool, WifiHotspotError>;
 }
 
-impl<T, N, L> WifiHotspot for UbloxClient<T, N, L>
+impl<T, const N: usize, const L: usize> WifiHotspot for UbloxClient<T, N, L>
 where
     T: AtatClient,
-    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: ArrayLength<u8>,
 {
     /// Creates wireless hotspot service for host machine.
     fn create_hotspot(
@@ -39,7 +35,7 @@ where
         configuration: HotspotOptions,
     ) -> Result<(), WifiHotspotError> {
         let _network = WifiNetwork {
-            bssid: CharVec::<consts::U20>::new(),
+            bssid: CharVec::<20>::new(),
             op_mode: OperationMode::AdHoc,
             ssid: options.ssid,
             channel: configuration.channel.unwrap() as u8,

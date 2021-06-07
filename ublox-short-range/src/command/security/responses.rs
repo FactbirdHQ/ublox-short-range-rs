@@ -1,7 +1,7 @@
 //! Responses for Security Commands
 use super::types::*;
 use atat::atat_derive::AtatResp;
-use heapless::{consts, String};
+use heapless::String;
 
 /// 11.1 SSL/TLS certificates import produces: '>'
 #[derive(Clone, PartialEq, AtatResp)]
@@ -23,10 +23,10 @@ pub struct SecurityDataImport {
     /// Unique identifier of an imported certificate or private key. If an existing name is
     /// used, the data will be overridden. The maximum length is 32 characters.
     #[at_arg(position = 2)]
-    internal_name: String<consts::U32>,
+    internal_name: String<32>,
     /// MD5 formatted string.
     #[at_arg(position = 3)]
-    md5_string: String<consts::U128>,
+    md5_string: String<128>,
 }
 
 /// 10.2 Network status +UNSTAT
@@ -38,8 +38,8 @@ pub struct SecurityDataMD5 {
     /// Unique identifier of an imported certificate or private key. If an existing name is
     /// used, the data will be overridden. The maximum length is 32 characters.
     #[at_arg(position = 1)]
-    internal_name: String<consts::U32>,
+    internal_name: String<32>,
     /// MD5 formatted string.
     #[at_arg(position = 2)]
-    md5_string: String<consts::U128>,
+    md5_string: String<128>,
 }

@@ -3,7 +3,7 @@
 use atat::atat_derive::AtatEnum;
 use atat::serde_at::CharVec;
 use embedded_nal::{Ipv4Addr, Ipv6Addr};
-use heapless::{consts, String, Vec};
+use heapless::{String, Vec};
 use serde::Deserialize;
 
 #[derive(Clone, PartialEq, AtatEnum)]
@@ -127,7 +127,7 @@ pub enum WifiStationConfig {
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default value is an
     /// empty string ("").
     #[at_arg(value = 2)]
-    SSID(String<consts::U64>),
+    SSID(String<64>),
     /// Authentication - <param_val> is the authentication type.
     /// • 1 (default): Open
     /// • 2: WPA/WPA2 PSK
@@ -145,11 +145,11 @@ pub enum WifiStationConfig {
     /// Authentication " is supported.
     #[at_arg(value = 6)]
     WEPKeys(
-        String<consts::U13>,
-        Option<String<consts::U13>>,
-        Option<String<consts::U13>>,
-        Option<String<consts::U13>>,
-        Option<String<consts::U13>>,
+        String<13>,
+        Option<String<13>>,
+        Option<String<13>>,
+        Option<String<13>>,
+        Option<String<13>>,
     ),
     ///  Active Key - <param_val1> is the WEP active TX key (factory default 0 means that
     /// Open authentication with WEP encryption is disabled). Range 1-4.
@@ -158,37 +158,37 @@ pub enum WifiStationConfig {
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase (8-63
     /// ASCII characters as a string) for WPA/WPA2 PSK.
     #[at_arg(value = 8)]
-    WpaPskOrPassphrase(String<consts::U63>),
+    WpaPskOrPassphrase(String<63>),
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     #[at_arg(value = 9)]
-    EAPPassword(String<consts::U31>),
+    EAPPassword(String<31>),
     /// User name - <param_val1> is the public user name for LEAP and PEAP; string with
     /// a maximum length of 31.
     #[at_arg(value = 10)]
-    UserName(String<consts::U31>),
+    UserName(String<31>),
     /// Domain name - <param_val1> is the public domain name for LEAP and PEAP; string
     /// with a maximum length of 63. The domain name is an optional parameter.
     #[at_arg(value = 11)]
-    DomainName(String<consts::U63>),
+    DomainName(String<63>),
     /// Client certificate name - <param_val1> is the internal client certificate name
     /// for EAP-TLS as defined in the SSL/TLS certificates and private keys manager
     /// +USECMNG command; string with a maximum length of 32.
     /// Supported software versions 4.0.0 onwards
     #[at_arg(value = 12)]
-    ClientCertificateName(String<consts::U32>),
+    ClientCertificateName(String<32>),
     /// Client private key - <param_val1> is the internal client private key name for EAP-
     /// TLS as defined in the SSL/TLS certificates and private keys manager +USECMNG
     /// command; string with a maximum length of 32.
     /// Supported software versions 4.0.0 onwards
     #[at_arg(value = 13)]
-    ClientPrivateKey(String<consts::U32>),
+    ClientPrivateKey(String<32>),
     /// CA certificate name - <param_val1> is the internal CA certificate name for EAP-
     /// TLS as defined in the SSL/TLS certificates and private keys manager +USECMNG
     /// command; string with a maximum length of 32.
     /// Supported software versions 5.0.0 onwards
     #[at_arg(value = 14)]
-    CACertificateName(String<consts::U32>),
+    CACertificateName(String<32>),
     /// Validate CA certificate. The default value is On; Setting this value to Off means no CA
     /// Certificate validation has been done. For example at+uwsc=0,15,0 would mean that
     /// the server CA Certificate is not validated during authentication.
@@ -261,7 +261,7 @@ pub enum WifiStationConfigR {
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default value is an
     /// empty string ("").
     #[at_arg(value = 2)]
-    SSID(String<consts::U64>),
+    SSID(String<64>),
     /// Authentication - <param_val> is the authentication type.
     /// • 1 (default): Open
     /// • 2: WPA/WPA2 PSK
@@ -279,11 +279,11 @@ pub enum WifiStationConfigR {
     /// Authentication " is supported.
     #[at_arg(value = 6)]
     WEPKeys(
-        String<consts::U13>,
-        Option<String<consts::U13>>,
-        Option<String<consts::U13>>,
-        Option<String<consts::U13>>,
-        Option<String<consts::U13>>,
+        String<13>,
+        Option<String<13>>,
+        Option<String<13>>,
+        Option<String<13>>,
+        Option<String<13>>,
     ),
     ///  Active Key - <param_val1> is the WEP active TX key (factory default 0 means that
     /// Open authentication with WEP encryption is disabled). Range 1-4.
@@ -292,37 +292,37 @@ pub enum WifiStationConfigR {
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase (8-63
     /// ASCII characters as a string) for WPA/WPA2 PSK.
     #[at_arg(value = 8)]
-    WpaPskOrPassphrase(String<consts::U63>),
+    WpaPskOrPassphrase(String<63>),
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     #[at_arg(value = 9)]
-    EAPPassword(String<consts::U31>),
+    EAPPassword(String<31>),
     /// User name - <param_val1> is the public user name for LEAP and PEAP; string with
     /// a maximum length of 31.
     #[at_arg(value = 10)]
-    UserName(String<consts::U31>),
+    UserName(String<31>),
     /// Domain name - <param_val1> is the public domain name for LEAP and PEAP; string
     /// with a maximum length of 63. The domain name is an optional parameter.
     #[at_arg(value = 11)]
-    DomainName(String<consts::U63>),
+    DomainName(String<63>),
     /// Client certificate name - <param_val1> is the internal client certificate name
     /// for EAP-TLS as defined in the SSL/TLS certificates and private keys manager
     /// +USECMNG command; string with a maximum length of 32.
     /// Supported software versions 4.0.0 onwards
     #[at_arg(value = 12)]
-    ClientCertificateName(String<consts::U32>),
+    ClientCertificateName(String<32>),
     /// Client private key - <param_val1> is the internal client private key name for EAP-
     /// TLS as defined in the SSL/TLS certificates and private keys manager +USECMNG
     /// command; string with a maximum length of 32.
     /// Supported software versions 4.0.0 onwards
     #[at_arg(value = 13)]
-    ClientPrivateKey(String<consts::U32>),
+    ClientPrivateKey(String<32>),
     /// CA certificate name - <param_val1> is the internal CA certificate name for EAP-
     /// TLS as defined in the SSL/TLS certificates and private keys manager +USECMNG
     /// command; string with a maximum length of 32.
     /// Supported software versions 5.0.0 onwards
     #[at_arg(value = 14)]
-    CACertificateName(String<consts::U32>),
+    CACertificateName(String<32>),
     /// Validate CA certificate. The default value is On; Setting this value to Off means no CA
     /// Certificate validation has been done. For example at+uwsc=0,15,0 would mean that
     /// the server CA Certificate is not validated during authentication.
@@ -448,9 +448,9 @@ pub enum StatusId {
 
 #[derive(Clone, PartialEq, Deserialize)]
 pub struct ScanedWifiNetwork {
-    pub bssid: CharVec<consts::U20>,
+    pub bssid: CharVec<20>,
     pub op_mode: OperationMode,
-    pub ssid: String<consts::U64>,
+    pub ssid: String<64>,
     pub channel: u8,
     pub rssi: i32,
     /// Bit 0 = Shared secret
@@ -476,9 +476,9 @@ pub struct ScanedWifiNetwork {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum WifiStatus {
     #[at_arg(value = 0)]
-    SSID(String<consts::U64>),
+    SSID(String<64>),
     #[at_arg(value = 1)]
-    BSSID(CharVec<consts::U20>),
+    BSSID(CharVec<20>),
     #[at_arg(value = 2)]
     Channel(u8),
     ///The <status_val> is the current status of the station, possible values of status_val
@@ -491,7 +491,7 @@ pub enum WifiStatus {
     /// The <status_val> is the mobility domain of the last or current connection
     /// This tag is supported by ODIN-W2 from software version 6.0.0 onwards only.
     #[at_arg(value = 7)]
-    MobilityDomain(String<consts::U64>),
+    MobilityDomain(String<64>),
     /// The <status_val> is the region to which the module complies according to the
     /// accepted Wi-Fi channels:
     /// This tag is supported by ODIN-W2 from software version 6.0.0 onwards only.
@@ -923,7 +923,7 @@ pub enum AccessPointConfig {
     /// SSID - <param_val1> is the Service Set identification of the access point. The
     /// factory-programmed value is ("UBXWifi").
     #[at_arg(value = 1)]
-    SSID(String<consts::U64>),
+    SSID(String<64>),
     /// <param_val1> is the channel. Factory programmed value is 6.
     #[at_arg(value = 4)]
     Channel(u8),
@@ -1008,19 +1008,11 @@ pub enum AccessPointConfig {
     /// White List - <param_val1>...<param_val10> List of MAC addresses of stations that
     /// is allowed to connect or 0 to allow all. The factory default is 0.
     #[at_arg(value = 19)]
-    WhiteList(
-        String<consts::U20>,
-        String<consts::U20>,
-        String<consts::U20>,
-    ),
+    WhiteList(String<20>, String<20>, String<20>),
     /// Black List - <param_val1>...<param_val10> List of MAC addresses of stations that
     /// will be rejected or 0 to not reject any. The factory default is 0.
     #[at_arg(value = 20)]
-    BlackList(
-        String<consts::U20>,
-        String<consts::U20>,
-        String<consts::U20>,
-    ),
+    BlackList(String<20>, String<20>, String<20>),
     /// IPv4 Mode - <param_val1> to set the way to retrieve an IP address
     /// • 1:(default) Static
     #[at_arg(value = 100)]
@@ -1204,7 +1196,7 @@ pub enum AccessPointConfigResponse {
     /// SSID - <param_val1> is the Service Set identification of the access point. The
     /// factory-programmed value is ("UBXWifi").
     #[at_arg(value = 1)]
-    SSID(String<consts::U64>),
+    SSID(String<64>),
     /// <param_val1> is the channel. Factory programmed value is 6.
     #[at_arg(value = 4)]
     Channel(u8),
@@ -1289,19 +1281,11 @@ pub enum AccessPointConfigResponse {
     /// White List - <param_val1>...<param_val10> List of MAC addresses of stations that
     /// is allowed to connect or 0 to allow all. The factory default is 0.
     #[at_arg(value = 19)]
-    WhiteList(
-        String<consts::U64>,
-        String<consts::U64>,
-        String<consts::U64>,
-    ),
+    WhiteList(String<64>, String<64>, String<64>),
     /// Black List - <param_val1>...<param_val10> List of MAC addresses of stations that
     /// will be rejected or 0 to not reject any. The factory default is 0.
     #[at_arg(value = 20)]
-    BlackList(
-        String<consts::U64>,
-        String<consts::U64>,
-        String<consts::U64>,
-    ),
+    BlackList(String<64>, String<64>, String<64>),
     /// IPv4 Mode - <param_val1> to set the way to retrieve an IP address
     /// • 1:(default) Static
     #[at_arg(value = 100)]
@@ -1373,8 +1357,8 @@ pub enum Passkey<'a> {
 
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum PasskeyR {
-    Passphrase(String<consts::U64>),
-    PSK(Vec<u8, consts::U64>),
+    Passphrase(String<64>),
+    PSK(Vec<u8, 64>),
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
@@ -1441,10 +1425,10 @@ pub enum AccessPointStatusId {
 pub enum AccessPointStatus {
     /// The <status_val> is the currently used SSID.
     #[at_arg(value = 0)]
-    SSID(String<consts::U64>),
+    SSID(String<64>),
     /// The <status_val> is the currently used BSSID.
     #[at_arg(value = 1)]
-    BSSID(CharVec<consts::U20>),
+    BSSID(CharVec<20>),
     /// The <status_val> is the currently used channel.
     #[at_arg(value = 2)]
     Channel(u32),
@@ -1458,7 +1442,7 @@ pub enum AccessPointStatus {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum AccessPointStatusValue {
     Unsigned(u8),
-    String(String<consts::U64>),
+    String(String<64>),
 }
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]
