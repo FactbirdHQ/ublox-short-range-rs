@@ -1,11 +1,5 @@
 #![no_std]
 
-extern crate heapless;
-
-// #[macro_use]
-extern crate nb;
-extern crate no_std_net;
-
 #[cfg(test)]
 #[macro_use]
 mod test_helpers;
