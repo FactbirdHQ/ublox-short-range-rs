@@ -33,22 +33,20 @@ where
         <<T as atat::AtatCmd>::CommandLen as core::ops::Add<EdmAtCmdOverhead>>::Output;
 
     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
-        let mut s: Vec<u8, Self::CommandLen> = Vec::new();
         let at_vec = self.0.as_bytes();
         let payload_len = (at_vec.len() + 2) as u16;
-        s.extend(
-            [
-                STARTBYTE,
-                (payload_len >> 8) as u8 & EDM_SIZE_FILTER,
-                (payload_len & 0xffu16) as u8,
-                0x00,
-                PayloadType::ATRequest as u8,
-            ]
-            .iter(),
-        );
-        s.extend(at_vec.iter());
-        s.push(ENDBYTE).unwrap_or_else(|_| core::unreachable!());
-        return s;
+        [
+            STARTBYTE,
+            (payload_len >> 8) as u8 & EDM_SIZE_FILTER,
+            (payload_len & 0xffu16) as u8,
+            0x00,
+            PayloadType::ATRequest as u8,
+        ]
+        .iter()
+        .cloned()
+        .chain(at_vec)
+        .chain(core::iter::once(ENDBYTE))
+        .collect()
     }
 
     fn parse(&self, resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
@@ -98,22 +96,20 @@ impl<'a> atat::AtatCmd for EdmDataCommand<'a> {
     type CommandLen = <DataPackageSize as core::ops::Add<consts::U4>>::Output;
 
     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
-        let mut s: Vec<u8, Self::CommandLen> = Vec::new();
         let payload_len = (self.data.len() + 3) as u16;
-        s.extend(
-            [
-                STARTBYTE,
-                (payload_len >> 8) as u8 & EDM_SIZE_FILTER,
-                (payload_len & 0xffu16) as u8,
-                0x00,
-                PayloadType::DataCommand as u8,
-                self.channel,
-            ]
-            .iter(),
-        );
-        s.extend(self.data);
-        s.push(ENDBYTE).unwrap_or_else(|_| core::unreachable!());
-        return s;
+        [
+            STARTBYTE,
+            (payload_len >> 8) as u8 & EDM_SIZE_FILTER,
+            (payload_len & 0xffu16) as u8,
+            0x00,
+            PayloadType::DataCommand as u8,
+            self.channel,
+        ]
+        .iter()
+        .cloned()
+        .chain(self.data.iter().cloned())
+        .chain(core::iter::once(ENDBYTE))
+        .collect()
     }
 
     fn parse(&self, _resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
@@ -137,19 +133,15 @@ impl atat::AtatCmd for EdmResendConnectEventsCommand {
     type CommandLen = consts::U8;
 
     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
-        let mut s: Vec<u8, Self::CommandLen> = Vec::new();
-        s.extend(
-            [
-                STARTBYTE,
-                0x00,
-                0x02,
-                0x00,
-                PayloadType::ResendConnectEventsCommand as u8,
-                ENDBYTE,
-            ]
-            .iter(),
-        );
-        return s;
+        Vec::from_slice(&[
+            STARTBYTE,
+            0x00,
+            0x02,
+            0x00,
+            PayloadType::ResendConnectEventsCommand as u8,
+            ENDBYTE,
+        ])
+        .unwrap()
     }
 
     fn parse(&self, _resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {
@@ -173,10 +165,12 @@ impl atat::AtatCmd for SwitchToEdmCommand {
     type CommandLen = <ChangeMode as atat::AtatCmd>::CommandLen;
 
     fn as_bytes(&self) -> Vec<u8, Self::CommandLen> {
-        return ChangeMode {
+        ChangeMode {
             mode: data_mode::types::Mode::ExtendedDataMode,
         }
-        .as_bytes();
+        .as_bytes()
+        .into_iter()
+        .collect()
     }
 
     fn parse(&self, resp: &[u8]) -> core::result::Result<Self::Response, atat::Error> {

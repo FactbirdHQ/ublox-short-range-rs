@@ -133,7 +133,7 @@ impl Digester for EdmDigester {
                 let urc_trimmed = urc.trim_start(&[b'\n', b'\r']);
 
                 let mut resp = Vec::from_slice(header).unwrap();
-                resp.extend(urc_trimmed);
+                resp.extend_from_slice(urc_trimmed).unwrap();
                 resp[2] -= (urc.len() - urc_trimmed.len()) as u8;
 
                 *buf = Vec::from_slice(remaining).unwrap();
