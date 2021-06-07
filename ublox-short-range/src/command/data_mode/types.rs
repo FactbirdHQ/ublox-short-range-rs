@@ -1,5 +1,6 @@
 //! Argument and parameter types used by Data Mode Commands and Responses
 use atat::atat_derive::AtatEnum;
+use heapless::{consts, String};
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
@@ -42,12 +43,12 @@ pub enum ConnectScheme {
     Both = 0b110,
 }
 #[derive(Clone, PartialEq, AtatEnum)]
-pub enum ServerConfig<'a> {
-    Type(ServerType<'a>),
-    Url(#[at_arg(len = 128)] &'a str),
+pub enum ServerConfig {
+    Type(ServerType),
+    Url(String<consts::U128>),
 }
 #[derive(Clone, PartialEq, AtatEnum)]
-pub enum ServerType<'a> {
+pub enum ServerType {
     #[at_arg(value = 0)]
     Dissabled,
     #[at_arg(value = 1)]
@@ -55,11 +56,11 @@ pub enum ServerType<'a> {
     #[at_arg(value = 2)]
     UDP(u16, UDPBehaviour, IPVersion),
     #[at_arg(value = 3)]
-    SSP(#[at_arg(len = 15)] &'a str),
+    SSP(String<consts::U15>),
     #[at_arg(value = 4)]
-    DUN(#[at_arg(len = 15)] &'a str),
+    DUN(String<consts::U15>),
     #[at_arg(value = 5)]
-    UUID(#[at_arg(len = 15)] &'a str, #[at_arg(len = 37)] &'a str),
+    UUID(String<consts::U15>, String<consts::U37>),
     #[at_arg(value = 6)]
     SPS,
     #[at_arg(value = 8)]

@@ -113,12 +113,12 @@ where
         self.send_internal(
             &EdmAtCmdWrapper(SetWifiStationConfig {
                 config_id: config_id,
-                config_param: WifiStationConfig::SSID(&options.ssid),
+                config_param: WifiStationConfig::SSID(options.ssid.clone()),
             }),
             true,
         )?;
 
-        if let Some(pass) = options.password {
+        if let Some(pass) = options.password.clone() {
             // Use WPA2 as authentication type
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
@@ -132,7 +132,7 @@ where
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
                     config_id: config_id,
-                    config_param: WifiStationConfig::WpaPskOrPassphrase(&pass),
+                    config_param: WifiStationConfig::WpaPskOrPassphrase(pass),
                 }),
                 true,
             )?;
