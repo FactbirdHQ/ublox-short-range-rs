@@ -158,7 +158,7 @@ pub enum WifiStationConfig {
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase (8-63
     /// ASCII characters as a string) for WPA/WPA2 PSK.
     #[at_arg(value = 8)]
-    WpaPskOrPassphrase(String<63>),
+    WpaPskOrPassphrase(String<64>),
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     #[at_arg(value = 9)]
@@ -292,7 +292,7 @@ pub enum WifiStationConfigR {
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase (8-63
     /// ASCII characters as a string) for WPA/WPA2 PSK.
     #[at_arg(value = 8)]
-    WpaPskOrPassphrase(String<63>),
+    WpaPskOrPassphrase(String<64>),
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     #[at_arg(value = 9)]

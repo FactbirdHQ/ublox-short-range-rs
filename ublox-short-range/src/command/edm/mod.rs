@@ -30,6 +30,7 @@ where
     type Error = atat::GenericError;
 
     const FORCE_RECEIVE_STATE: bool = true;
+    const MAX_TIMEOUT_MS: u32 = T::MAX_TIMEOUT_MS;
 
     fn as_bytes(&self) -> Vec<u8, 1024> {
         let at_vec = self.0.as_bytes();
@@ -52,31 +53,36 @@ where
         &self,
         resp: Result<&[u8], &atat::InternalError>,
     ) -> core::result::Result<Self::Response, atat::Error> {
-        let resp = resp?;
-        if resp.len() < PAYLOAD_OVERHEAD
-            || !resp.starts_with(&[STARTBYTE])
-            || !resp.ends_with(&[ENDBYTE])
-        {
-            return Err(atat::Error::InvalidResponse);
-        };
-        let payload_len = calc_payload_len(resp);
-        if resp.len() != payload_len + EDM_OVERHEAD || resp[4] != PayloadType::ATConfirmation as u8
-        {
-            return Err(atat::Error::InvalidResponse);
-        }
-        // Isolate the AT_response
-        let mut at_resp = &resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len];
+        let resp = resp.and_then(|resp| {
+            if resp.len() < PAYLOAD_OVERHEAD
+                || !resp.starts_with(&[STARTBYTE])
+                || !resp.ends_with(&[ENDBYTE])
+            {
+                return Err(&atat::InternalError::InvalidResponse);
+            };
 
-        //Recieved OK response code in EDM response?
-        if let Some(pos) = resp
-            .windows(b"\r\nOK".len())
-            .position(|window| window == b"\r\nOK")
-        {
-            //Cutting OK out leaves an empth string for NoResponse, for other responses just removes "\r\nOK\r\n"
-            at_resp = &resp[AT_COMMAND_POSITION..pos];
-        }
+            let payload_len = calc_payload_len(resp);
 
-        self.0.parse(Ok(at_resp))
+            if resp.len() != payload_len + EDM_OVERHEAD
+                || resp[4] != PayloadType::ATConfirmation as u8
+            {
+                return Err(&atat::InternalError::InvalidResponse);
+            }
+
+            // Recieved OK response code in EDM response?
+            match resp
+                .windows(b"\r\nOK".len())
+                .position(|window| window == b"\r\nOK")
+            {
+                // Cutting OK out leaves an empth string for NoResponse, for
+                // other responses just removes "\r\nOK\r\n"
+                Some(pos) => Ok(&resp[AT_COMMAND_POSITION..pos]),
+                // Isolate the AT_response
+                None => Ok(&resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len]),
+            }
+        });
+
+        self.0.parse(resp)
     }
 }
 
@@ -220,7 +226,7 @@ mod test {
             status_val: 100,
         };
         // AT-command: "at+umstat=1"
-        let correct = Vec::<u8, 19usize>::from_slice(&[
+        let correct = Vec::<u8, 19>::from_slice(&[
             0xAAu8, 0x00, 0x0F, 0x00, 0x44, 0x41, 0x54, 0x2b, 0x55, 0x4d, 0x53, 0x54, 0x41, 0x54,
             0x3d, 0x31, 0x0D, 0x0A, 0x55,
         ])

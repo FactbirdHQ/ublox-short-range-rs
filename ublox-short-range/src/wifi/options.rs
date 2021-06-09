@@ -59,7 +59,7 @@ pub struct ConnectionOptions {
     pub config_id: Option<u8>,
 
     pub ssid: String<64>,
-    pub password: Option<String<63>>,
+    pub password: Option<String<64>>,
 
     pub ip: Option<Ipv4Addr>,
     pub subnet: Option<Ipv4Addr>,
@@ -96,7 +96,7 @@ impl ConnectionOptions {
         self
     }
 
-    pub fn password(mut self, password: String<63>) -> Self {
+    pub fn password(mut self, password: String<64>) -> Self {
         self.password = Some(password);
         self
     }
