@@ -5,8 +5,6 @@
 pub use embedded_nal::{nb, AddrType, IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use heapless::String;
 // use serde::{Serialize};
-use atat::serde_at::{to_string, SerializeOptions};
-
 use crate::{
     command::data_mode::*,
     command::edm::{EdmAtCmdWrapper, EdmDataCommand},
@@ -14,6 +12,7 @@ use crate::{
     socket::{ChannelId, SocketHandle, SocketType},
     UbloxClient,
 };
+use core::fmt::Write;
 
 #[cfg(feature = "socket-udp")]
 use crate::socket::{UdpSocket, UdpState};
@@ -156,66 +155,20 @@ where
             return Err(Error::Network);
         }
 
-        {
-            let mut url = String::<128>::from("udp://");
-            let workspace: String<43>;
-            let mut ip_str = String::<43>::from("[");
-            let port: String<8>;
+        let url = PeerUrlBuilder::new().address(&remote).udp()?;
+        let mut sockets = self.sockets.try_borrow_mut()?;
+        defmt::trace!("[UDP] Connecting URL! {=str}", url);
+        let resp = self.handle_socket_error(
+            || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
+            None,
+            0,
+        )?;
+        let handle = SocketHandle(resp.peer_handle);
+        let mut udp = sockets.get::<UdpSocket<L>>(*socket)?;
+        udp.endpoint = remote;
+        udp.meta.handle = handle;
+        *socket = handle;
 
-            match remote.ip() {
-                IpAddr::V4(ip) => {
-                    ip_str = to_string(
-                        &ip,
-                        String::<1>::new(),
-                        SerializeOptions {
-                            value_sep: false,
-                            cmd_prefix: &"",
-                            termination: &"",
-                        },
-                    )
-                    .map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(&ip_str[1..ip_str.len() - 1])
-                        .map_err(|_e| Self::Error::BadLength)?;
-                }
-                IpAddr::V6(ip) => {
-                    workspace = to_string(&ip, String::<1>::new(), SerializeOptions::default())
-                        .map_err(|_e| Self::Error::BadLength)?;
-
-                    ip_str
-                        .push_str(&workspace[1..workspace.len() - 1])
-                        .map_err(|_e| Self::Error::BadLength)?;
-                    ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
-                }
-            }
-            url.push(':').map_err(|_e| Self::Error::BadLength)?;
-
-            port = to_string(
-                &remote.port(),
-                String::<1>::new(),
-                SerializeOptions::default(),
-            )
-            .map_err(|_e| Self::Error::BadLength)?;
-            url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
-            url.push('/').map_err(|_e| Self::Error::BadLength)?;
-
-            let mut sockets = self.sockets.try_borrow_mut()?;
-            defmt::trace!("[UDP] Connecting URL! {=str}", url);
-            match self.handle_socket_error(
-                || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
-                None,
-                0,
-            ) {
-                Ok(resp) => {
-                    let handle = SocketHandle(resp.peer_handle);
-                    let mut udp = sockets.get::<UdpSocket<L>>(*socket)?;
-                    udp.endpoint = remote;
-                    udp.meta.handle = handle;
-                    *socket = handle;
-                }
-                Err(e) => return Err(e),
-            }
-        }
         while {
             let mut sockets = self.sockets.try_borrow_mut()?;
             let udp = sockets.get::<UdpSocket<L>>(*socket)?;
@@ -371,99 +324,40 @@ where
             return Err(nb::Error::Other(Error::Network));
         }
 
-        {
-            let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
+        let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
+        //If no socket is found we stop here
+        let mut tcp = sockets
+            .get::<TcpSocket<L>>(*socket)
+            .map_err(Self::Error::from)?;
 
-            //If no socket is found we stop here
-            let mut tcp = sockets
-                .get::<TcpSocket<L>>(*socket)
-                .map_err(Self::Error::from)?;
+        let mut url_builder = PeerUrlBuilder::new();
+        self.security_credentials
+            .as_ref()
+            .and_then(|cred| cred.ca_cert_name.as_ref())
+            .map(|ca| url_builder.ca(ca));
+        self.security_credentials
+            .as_ref()
+            .and_then(|cred| cred.c_cert_name.as_ref())
+            .map(|cert| url_builder.cert(cert));
+        self.security_credentials
+            .as_ref()
+            .and_then(|cred| cred.c_key_name.as_ref())
+            .map(|pkey| url_builder.pkey(pkey));
+        let url = url_builder.address(&remote).tcp()?;
 
-            //TODO: Optimize! and when possible rewrite to ufmt!
-            let mut url = String::<128>::from("tcp://");
-            let workspace: String<43>;
-            let mut ip_str = String::<43>::from("[");
-            let port: String<8>;
+        defmt::trace!("[TCP] Connecting to url! {=str}", url);
 
-            match remote.ip() {
-                IpAddr::V4(ip) => {
-                    ip_str = to_string(
-                        &ip,
-                        String::<1>::new(),
-                        SerializeOptions {
-                            value_sep: false,
-                            cmd_prefix: &"",
-                            termination: &"",
-                        },
-                    )
-                    .map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(&ip_str[1..ip_str.len() - 1])
-                        .map_err(|_e| Self::Error::BadLength)?;
-                }
-                IpAddr::V6(ip) => {
-                    workspace = to_string(&ip, String::<1>::new(), SerializeOptions::default())
-                        .map_err(|_e| Self::Error::BadLength)?;
+        let resp = self.handle_socket_error(
+            || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
+            Some(*socket),
+            0,
+        )?;
+        let handle = SocketHandle(resp.peer_handle);
+        tcp.set_state(TcpState::SynSent);
+        tcp.endpoint = remote;
+        tcp.meta.handle = handle;
+        *socket = handle;
 
-                    ip_str
-                        .push_str(&workspace[1..workspace.len() - 1])
-                        .map_err(|_e| Self::Error::BadLength)?;
-                    ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
-                }
-            }
-            url.push(':').map_err(|_e| Self::Error::BadLength)?;
-
-            port = to_string(
-                &remote.port(),
-                String::<1>::new(),
-                SerializeOptions::default(),
-            )
-            .map_err(|_e| Self::Error::BadLength)?;
-            url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
-            url.push('/').map_err(|_e| Self::Error::BadLength)?;
-
-            // if tcp.c_cert_name != None || tcp.c_key_name != None || tcp.ca_cert_name != None {
-            if let Some(ref credentials) = self.security_credentials {
-                url.push('?').map_err(|_e| Self::Error::BadLength)?;
-
-                // if let Some(ref ca) = tcp.ca_cert_name{
-                if let Some(ref ca) = credentials.ca_cert_name {
-                    url.push_str(&"ca=").map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(ca).map_err(|_e| Self::Error::BadLength)?;
-                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
-                }
-
-                // if let Some(ref client) = tcp.c_cert_name{
-                if let Some(ref client) = credentials.c_cert_name {
-                    url.push_str(&"cert=")
-                        .map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(client).map_err(|_e| Self::Error::BadLength)?;
-                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
-                }
-
-                // if let Some(ref key) = tcp.c_key_name {
-                if let Some(ref key) = credentials.c_key_name {
-                    url.push_str(&"privKey=")
-                        .map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(key).map_err(|_e| Self::Error::BadLength)?;
-                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
-                }
-                url.pop();
-            }
-
-            defmt::trace!("[TCP] Connecting to url! {=str}", url);
-
-            let resp = self.handle_socket_error(
-                || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
-                Some(*socket),
-                0,
-            )?;
-            let handle = SocketHandle(resp.peer_handle);
-            tcp.set_state(TcpState::SynSent);
-            tcp.endpoint = remote;
-            tcp.meta.handle = handle;
-            *socket = handle;
-        }
         while {
             let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
             let tcp = sockets
@@ -610,5 +504,158 @@ where
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+struct PeerUrlBuilder<'a> {
+    hostname: Option<&'a str>,
+    ip_addr: Option<IpAddr>,
+    port: Option<u16>,
+    ca: Option<&'a str>,
+    cert: Option<&'a str>,
+    pkey: Option<&'a str>,
+    local_port: Option<u16>,
+}
+
+impl<'a> PeerUrlBuilder<'a> {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn write_domain(&self, s: &mut String<128>) -> Result<(), Error> {
+        let port = self.port.ok_or(Error::Network)?;
+        let addr = self
+            .ip_addr
+            .and_then(|ip| write!(s, "{}/", SocketAddr::new(ip, port)).ok());
+        let host = self
+            .hostname
+            .and_then(|host| write!(s, "{}:{}/", host, port).ok());
+
+        addr.xor(host).ok_or(Error::Network)
+    }
+
+    fn udp(&self) -> Result<String<128>, Error> {
+        let mut s = String::new();
+        write!(&mut s, "udp://").ok();
+        self.write_domain(&mut s)?;
+
+        // Start writing query parameters
+        write!(&mut s, "?").ok();
+        self.local_port
+            .map(|v| write!(&mut s, "local_port={}&", v).ok());
+        // Remove trailing '&' or '?' if no query.
+        s.pop();
+
+        Ok(s)
+    }
+
+    fn tcp(&mut self) -> Result<String<128>, Error> {
+        let mut s = String::new();
+        write!(&mut s, "tcp://").ok();
+        self.write_domain(&mut s)?;
+
+        // Start writing query parameters
+        write!(&mut s, "?").ok();
+        self.local_port
+            .map(|v| write!(&mut s, "local_port={}&", v).ok());
+        self.ca.map(|v| write!(&mut s, "ca={}&", v).ok());
+        self.cert.map(|v| write!(&mut s, "cert={}&", v).ok());
+        self.pkey.map(|v| write!(&mut s, "privKey={}&", v).ok());
+        // Remove trailing '&' or '?' if no query.
+        s.pop();
+
+        Ok(s)
+    }
+
+    fn address(&mut self, addr: &SocketAddr) -> &mut Self {
+        self.ip_addr(addr.ip()).port(addr.port())
+    }
+
+    #[allow(dead_code)]
+    fn hostname(&mut self, hostname: &'a str) -> &mut Self {
+        self.hostname.replace(hostname);
+        self
+    }
+
+    /// maximum length 64
+    fn ip_addr(&mut self, ip_addr: IpAddr) -> &mut Self {
+        self.ip_addr.replace(ip_addr);
+        self
+    }
+
+    /// port number
+    fn port(&mut self, port: u16) -> &mut Self {
+        self.port.replace(port);
+        self
+    }
+
+    fn ca(&mut self, ca: &'a str) -> &mut Self {
+        self.ca.replace(ca);
+        self
+    }
+
+    fn cert(&mut self, cert: &'a str) -> &mut Self {
+        self.cert.replace(cert);
+        self
+    }
+
+    fn pkey(&mut self, pkey: &'a str) -> &mut Self {
+        self.pkey.replace(pkey);
+        self
+    }
+
+    #[allow(dead_code)]
+    fn local_port(&mut self, local_port: u16) -> &mut Self {
+        self.local_port.replace(local_port);
+        self
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn udp_ipv4_url() {
+        let address = "192.168.0.1:8080".parse().unwrap();
+        let url = PeerUrlBuilder::new().address(&address).udp().unwrap();
+        assert_eq!(url, "udp://192.168.0.1:8080/");
+    }
+
+    #[test]
+    fn udp_ipv6_url() {
+        let address = "[FE80:0000:0000:0000:0202:B3FF:FE1E:8329]:8080"
+            .parse()
+            .unwrap();
+        let url = PeerUrlBuilder::new().address(&address).udp().unwrap();
+        assert_eq!(url, "udp://[fe80::202:b3ff:fe1e:8329]:8080/");
+    }
+
+    #[test]
+    fn udp_hostname_url() {
+        let url = PeerUrlBuilder::new()
+            .hostname("example.org")
+            .port(2000)
+            .local_port(2001)
+            .udp()
+            .unwrap();
+        assert_eq!(url, "udp://example.org:2000/?local_port=2001");
+    }
+
+    #[test]
+    fn tcp_certs() {
+        let url = PeerUrlBuilder::new()
+            .hostname("example.org")
+            .port(2000)
+            .ca("ca.crt")
+            .cert("client.crt")
+            .pkey("client.key")
+            .tcp()
+            .unwrap();
+        assert_eq!(
+            url,
+            "tcp://example.org:2000/?ca=ca.crt&cert=client.crt&privKey=client.key"
+        );
     }
 }
