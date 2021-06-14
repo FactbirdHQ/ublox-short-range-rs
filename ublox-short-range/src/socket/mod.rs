@@ -16,7 +16,7 @@ pub use tcp::{State as TcpState, TcpSocket};
 pub use udp::{State as UdpState, UdpSocket};
 
 pub use self::ref_::Ref as SocketRef;
-pub use self::set::{ChannelId, Handle as SocketHandle, Set as SocketSet};
+pub use self::set::{ChannelId, Handle as SocketHandle, Set as SocketSet, SocketIndicator};
 
 /// The error type for the networking stack.
 #[non_exhaustive]

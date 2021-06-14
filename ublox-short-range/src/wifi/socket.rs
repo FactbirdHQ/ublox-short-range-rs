@@ -9,7 +9,7 @@ use crate::{
     command::data_mode::*,
     command::edm::{EdmAtCmdWrapper, EdmDataCommand},
     error::Error,
-    socket::{ChannelId, SocketHandle, SocketType},
+    socket::{ChannelId, SocketHandle, SocketIndicator, SocketType},
     UbloxClient,
 };
 use core::fmt::Write;
@@ -52,18 +52,11 @@ where
                 // Close socket upon reciving invalid response
                 if let Some(handle) = socket {
                     let mut sockets = self.sockets.try_borrow_mut()?;
-                    match sockets.socket_type(handle) {
-                        Some(SocketType::Tcp) => {
-                            let mut tcp = sockets.get::<TcpSocket<CLK, L>>(handle)?;
-                            tcp.close();
-                        }
-                        Some(SocketType::Udp) => {
-                            let mut udp = sockets.get::<UdpSocket<CLK, L>>(handle)?;
-                            udp.close();
-                        }
-                        None => {}
-                    }
-                    sockets.remove(handle)?;
+                    self.send_at(ClosePeerConnection {
+                        peer_handle: handle.0,
+                    })
+                    .ok();
+                    sockets.remove(handle.into())?;
                 }
                 Err(e)
             }
@@ -80,11 +73,12 @@ where
             return Ok(0);
         }
         let mut sockets = self.sockets.try_borrow_mut()?;
+        let indicator = SocketIndicator::ChannelId(channel_id.0);
 
-        match sockets.socket_type_by_channel_id(channel_id) {
+        match sockets.socket_type(indicator) {
             Some(SocketType::Tcp) => {
                 // Handle tcp socket
-                let mut tcp = sockets.get_by_channel::<TcpSocket<CLK, L>>(channel_id)?;
+                let mut tcp = sockets.get::<TcpSocket<CLK, L>>(indicator)?;
                 if !tcp.can_recv() {
                     return Err(Error::Busy);
                 }
@@ -93,7 +87,7 @@ where
             }
             Some(SocketType::Udp) => {
                 // Handle udp socket
-                let mut udp = sockets.get_by_channel::<UdpSocket<CLK, L>>(channel_id)?;
+                let mut udp = sockets.get::<UdpSocket<CLK, L>>(indicator)?;
 
                 if !udp.can_recv() {
                     return Err(Error::Busy);
@@ -101,7 +95,7 @@ where
                 Ok(udp.rx_enqueue_slice(data))
             }
             _ => {
-                defmt::error!("SocketNotFound {:?}", channel_id);
+                defmt::error!("SocketNotFound {:?}", indicator);
                 Err(Error::SocketNotFound)
             }
         }
@@ -167,14 +161,14 @@ where
             0,
         )?;
         let handle = SocketHandle(resp.peer_handle);
-        let mut udp = sockets.get::<UdpSocket<CLK, L>>(*socket)?;
+        let mut udp = sockets.get::<UdpSocket<CLK, L>>(socket.clone().into())?;
         udp.endpoint = remote;
         udp.meta.handle = handle;
         *socket = handle;
 
         while {
             let mut sockets = self.sockets.try_borrow_mut()?;
-            let udp = sockets.get::<UdpSocket<CLK, L>>(*socket)?;
+            let udp = sockets.get::<UdpSocket<CLK, L>>(socket.clone().into())?;
             udp.state() == UdpState::Closed
         } {
             self.spin()?;
@@ -202,7 +196,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let udp = sockets
-            .get::<UdpSocket<CLK, L>>(*socket)
+            .get::<UdpSocket<CLK, L>>(socket.clone().into())
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         if !udp.is_open() {
@@ -243,7 +237,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let mut udp = sockets
-            .get::<UdpSocket<CLK, L>>(*socket)
+            .get::<UdpSocket<CLK, L>>(socket.clone().into())
             .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
 
         let us = udp
@@ -257,7 +251,7 @@ where
         defmt::debug!("[UDP] Closelosing socket: {:?}", socket.0);
         let mut sockets = self.sockets.try_borrow_mut()?;
         //If no sockets excists, nothing to close.
-        if let Some(ref mut udp) = sockets.get::<UdpSocket<CLK, L>>(socket).ok() {
+        if let Some(ref mut udp) = sockets.get::<UdpSocket<CLK, L>>(socket.clone().into()).ok() {
             self.handle_socket_error(
                 || {
                     self.send_at(ClosePeerConnection {
@@ -331,7 +325,7 @@ where
         let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
         //If no socket is found we stop here
         let mut tcp = sockets
-            .get::<TcpSocket<CLK, L>>(*socket)
+            .get::<TcpSocket<CLK, L>>(socket.clone().into())
             .map_err(Self::Error::from)?;
 
         let mut url_builder = PeerUrlBuilder::new();
@@ -365,7 +359,7 @@ where
         while {
             let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
             let tcp = sockets
-                .get::<TcpSocket<CLK, L>>(*socket)
+                .get::<TcpSocket<CLK, L>>(socket.clone().into())
                 .map_err(Self::Error::from)?;
             matches!(tcp.state(), TcpState::SynSent)
         } {
@@ -385,7 +379,7 @@ where
         }
 
         let mut sockets = self.sockets.try_borrow_mut()?;
-        let socket_ref = sockets.get::<TcpSocket<CLK, L>>(*socket)?;
+        let socket_ref = sockets.get::<TcpSocket<CLK, L>>(socket.clone().into())?;
         Ok(matches!(socket_ref.state(), TcpState::Established))
     }
 
@@ -414,7 +408,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let tcp = sockets
-            .get::<TcpSocket<CLK, L>>(*socket)
+            .get::<TcpSocket<CLK, L>>(socket.clone().into())
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         if !tcp.may_send() {
@@ -452,7 +446,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let mut tcp = sockets
-            .get::<TcpSocket<CLK, L>>(*socket)
+            .get::<TcpSocket<CLK, L>>((*socket).into())
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         tcp.recv_slice(buffer)
@@ -485,7 +479,7 @@ where
         let mut sockets = self.sockets.try_borrow_mut()?;
 
         // If the socket is not found it is already removed
-        if let Some(ref mut tcp) = sockets.get::<TcpSocket<CLK, L>>(socket).ok() {
+        if let Some(ref mut tcp) = sockets.get::<TcpSocket<CLK, L>>(socket.into()).ok() {
             //If socket is not closed that means a connection excists which has to be closed
             if !matches!(tcp.state(), TcpState::Closed) {
                 match self.handle_socket_error(
@@ -504,7 +498,7 @@ where
             } else {
                 //No connection exists the socket should be removed from the set here
                 tcp.close();
-                sockets.remove(socket)?;
+                sockets.remove(socket.into())?;
             }
         }
         Ok(())

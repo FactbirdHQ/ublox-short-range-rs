@@ -37,6 +37,36 @@ pub struct Handle(pub usize);
 )]
 pub struct ChannelId(pub u8);
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SocketIndicator<'a> {
+    Handle(usize),
+    ChannelId(u8),
+    Endpoint(&'a SocketAddr),
+}
+
+impl<'a> From<Handle> for SocketIndicator<'a> {
+    fn from(handle: Handle) -> Self {
+        Self::Handle(handle.0)
+    }
+}
+
+impl<'a> defmt::Format for SocketIndicator<'a> {
+    fn format(&self, fmt: defmt::Formatter) {
+        match self {
+            SocketIndicator::Handle(n) => defmt::write!(fmt, "Handle({})", n,),
+            SocketIndicator::ChannelId(n) => defmt::write!(fmt, "ChannelId({})", n,),
+            SocketIndicator::Endpoint(e) => match e {
+                SocketAddr::V4(v4) => {
+                    defmt::write!(fmt, "Endpoint(v4:{}:{})", <u32>::from(*v4.ip()), v4.port())
+                }
+                SocketAddr::V6(v6) => {
+                    defmt::write!(fmt, "Endpoint(v6:{}:{})", <u128>::from(*v6.ip()), v6.port())
+                }
+            },
+        };
+    }
+}
+
 /// An extensible set of sockets.
 #[derive(Default)]
 pub struct Set<CLK: Clock, const N: usize, const L: usize> {
@@ -71,61 +101,14 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
     /// Get the type of a specific socket in the set.
     ///
     /// Returned as a [`SocketType`]
-    pub fn socket_type(&self, handle: Handle) -> Option<SocketType> {
-        match self.sockets.iter().find_map(|i| {
-            if let Some(ref s) = i {
-                if s.handle().0 == handle.0 {
-                    Some(s)
-                } else {
-                    None
-                }
-            } else {
-                None
+    pub fn socket_type(&self, indicator: SocketIndicator) -> Option<SocketType> {
+        if let Ok(index) = self.index_of(indicator) {
+            if let Some(socket) = self.sockets.get(index) {
+                return socket.as_ref().map(|s| s.get_type());
             }
-        }) {
-            Some(socket) => Some(socket.get_type()),
-            None => None,
         }
-    }
 
-    /// Get the type of a specific socket in the set.
-    ///
-    /// Returned as a [`SocketType`]
-    pub fn socket_type_by_channel_id(&self, channel_id: ChannelId) -> Option<SocketType> {
-        match self.sockets.iter().find_map(|i| {
-            if let Some(ref s) = i {
-                if s.channel_id().0 == channel_id.0 {
-                    Some(s)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }) {
-            Some(socket) => Some(socket.get_type()),
-            None => None,
-        }
-    }
-
-    /// Get the type of a specific socket in the set.
-    ///
-    /// Returned as a [`SocketType`]
-    pub fn socket_type_by_endpoint(&self, endpoint: &SocketAddr) -> Option<SocketType> {
-        match self.sockets.iter().find_map(|i| {
-            if let Some(ref s) = i {
-                if s.endpoint() == endpoint {
-                    Some(s)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }) {
-            Some(socket) => Some(socket.get_type()),
-            None => None,
-        }
+        None
     }
 
     /// Add a socket to the set with the reference count 1, and return its handle.
@@ -144,82 +127,46 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
         Err(Error::SocketSetFull)
     }
 
-    /// Get a socket from the set by its handle, as mutable.
-    pub fn get<U: AnySocket<CLK, L>>(&mut self, handle: Handle) -> Result<SocketRef<U>> {
-        match self.sockets.iter_mut().find_map(|i| {
-            if let Some(ref mut s) = i {
-                if s.handle().0 == handle.0 {
-                    Some(s)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }) {
-            Some(socket) => Ok(U::downcast(SocketRef::new(socket))?),
-            None => Err(Error::InvalidSocket),
-        }
-    }
-
-    /// Get a socket from the set by its channel id, as mutable.
-    pub fn get_by_channel<U: AnySocket<CLK, L>>(
+    /// Get a socket from the set by its indicator, as mutable.
+    pub fn get<T: AnySocket<CLK, L>>(
         &mut self,
-        channel_id: ChannelId,
-    ) -> Result<SocketRef<U>> {
-        match self.sockets.iter_mut().find_map(|i| {
-            if let Some(ref mut s) = i {
-                if s.channel_id().0 == channel_id.0 {
-                    Some(s)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }) {
-            Some(socket) => Ok(U::downcast(SocketRef::new(socket))?),
+        indicator: SocketIndicator,
+    ) -> Result<SocketRef<T>> {
+        let index = self.index_of(indicator)?;
+
+        match self.sockets.get_mut(index).ok_or(Error::InvalidSocket)? {
+            Some(socket) => Ok(T::downcast(SocketRef::new(socket))?),
             None => Err(Error::InvalidSocket),
         }
     }
 
-    /// Get a socket from the set by its endpoint, as mutable.
-    pub fn get_by_endpoint<U: AnySocket<CLK, L>>(
-        &mut self,
-        endpoint: &SocketAddr,
-    ) -> Result<SocketRef<U>> {
-        match self.sockets.iter_mut().find_map(|i| {
-            if let Some(ref mut s) = i {
-                if s.endpoint() == endpoint {
-                    Some(s)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }) {
-            Some(socket) => Ok(U::downcast(SocketRef::new(socket))?),
-            None => Err(Error::InvalidSocket),
-        }
-    }
-
-    /// Remove a socket from the set, without changing its state.
-    pub fn remove(&mut self, handle: Handle) -> Result<Socket<CLK, L>> {
-        let index = self
-            .sockets
-            .iter_mut()
+    /// Get the index of a given socket in the set.
+    fn index_of(&self, indicator: SocketIndicator) -> Result<usize> {
+        self.sockets
+            .iter()
             .position(|i| {
-                if let Some(s) = i {
-                    return s.handle().0 == handle.0;
-                }
-                false
+                i.as_ref().map_or(false, |s| match indicator {
+                    SocketIndicator::ChannelId(id) => s.channel_id().0 == id,
+                    SocketIndicator::Handle(handle) => s.handle().0 == handle,
+                    SocketIndicator::Endpoint(add) => *s.endpoint() == *add,
+                })
             })
-            .ok_or(Error::InvalidSocket)?;
+            .ok_or(Error::InvalidSocket)
+    }
 
-        let socket: &mut Option<Socket<CLK, L>> = unsafe { self.sockets.get_unchecked_mut(index) };
+    /// Remove a socket from the set
+    pub fn remove(&mut self, indicator: SocketIndicator) -> Result<()> {
+        let index = self.index_of(indicator)?;
+        let socket = self.sockets.get_mut(index).ok_or(Error::InvalidSocket)?;
 
-        socket.take().ok_or(Error::InvalidSocket)
+        defmt::trace!(
+            "Removing socket! {} {}",
+            indicator,
+            socket.as_ref().map(|i| i.get_type())
+        );
+
+        socket.take().ok_or(Error::InvalidSocket)?;
+        Ok(())
     }
 
     // /// Prune the sockets in this set.

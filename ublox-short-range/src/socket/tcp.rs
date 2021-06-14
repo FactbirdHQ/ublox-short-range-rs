@@ -99,6 +99,13 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
         }
     }
 
+    pub fn closed_by_remote(&mut self, ts: Instant<CLK>)
+    where
+        Generic<CLK::T>: TryInto<Milliseconds>,
+    {
+        self.set_state(State::ShutdownForWrite(ts));
+    }
+
     /// Close the connection.
     pub fn close(&mut self) {
         self.set_state(State::Closed);
