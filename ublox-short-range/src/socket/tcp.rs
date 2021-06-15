@@ -9,19 +9,19 @@ use embedded_time::{Clock, Instant};
 pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum State<CLK: Clock> {
-    Closed,
-    Listen,
-    SynSent,
-    Established,
-    CloseWait,
-    TimeWait,
+    /// Freshly created, unsullied
+    Created,
+    /// TCP Syn sent
+    WaitingForConnect,
+    /// TCP connected or UDP has an address
+    Connected,
     /// Block all writes (Socket is closed by remote)
     ShutdownForWrite(Instant<CLK>),
 }
 
 impl<CLK: Clock> Default for State<CLK> {
     fn default() -> Self {
-        State::Closed
+        State::Created
     }
 }
 
@@ -90,8 +90,7 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
                 State::ShutdownForWrite(ref closed_time) => ts
                     .checked_duration_since(closed_time)
                     .and_then(|dur| dur.try_into().ok())
-                    .map(|dur: Milliseconds| dur >= read_timeout)
-                    .unwrap_or(false),
+                    .map_or(false, |dur: Milliseconds| dur >= read_timeout),
                 _ => false,
             }
         } else {
@@ -106,81 +105,6 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
         self.set_state(State::ShutdownForWrite(ts));
     }
 
-    /// Close the connection.
-    pub fn close(&mut self) {
-        self.set_state(State::Closed);
-    }
-
-    /// Return whether the socket is passively listening for incoming connections.
-    ///
-    /// In terms of the TCP state machine, the socket must be in the `LISTEN` state.
-    #[inline]
-    pub fn is_listening(&self) -> bool {
-        match self.state {
-            State::Listen => true,
-            _ => false,
-        }
-    }
-
-    /// Return whether the socket is open.
-    ///
-    /// This function returns true if the socket will process incoming or dispatch outgoing
-    /// packets. Note that this does not mean that it is possible to send or receive data through
-    /// the socket; for that, use [can_send](#method.can_send) or [can_recv](#method.can_recv).
-    ///
-    /// In terms of the TCP state machine, the socket must not be in the `CLOSED`
-    /// or `TIME-WAIT` states.
-    #[inline]
-    pub fn is_open(&self) -> bool {
-        match self.state {
-            State::Closed => false,
-            State::TimeWait => false,
-            _ => true,
-        }
-    }
-
-    /// Return whether a connection is active.
-    ///
-    /// This function returns true if the socket is actively exchanging packets with
-    /// a remote endpoint. Note that this does not mean that it is possible to send or receive
-    /// data through the socket; for that, use [can_send](#method.can_send) or
-    /// [can_recv](#method.can_recv).
-    ///
-    /// If a connection is established, [abort](#method.close) will send a reset to
-    /// the remote endpoint.
-    ///
-    /// In terms of the TCP state machine, the socket must be in the `CLOSED`, `TIME-WAIT`,
-    /// or `LISTEN` state.
-    #[inline]
-    pub fn is_active(&self) -> bool {
-        match self.state {
-            State::Closed => false,
-            State::TimeWait => false,
-            State::Listen => false,
-            _ => true,
-        }
-    }
-
-    /// Return whether the transmit half of the full-duplex connection is open.
-    ///
-    /// This function returns true if it's possible to send data and have it arrive
-    /// to the remote endpoint. However, it does not make any guarantees about the state
-    /// of the transmit buffer, and even if it returns true, [send](#method.send) may
-    /// not be able to enqueue any octets.
-    ///
-    /// In terms of the TCP state machine, the socket must be in the `ESTABLISHED` or
-    /// `CLOSE-WAIT` state.
-    #[inline]
-    pub fn may_send(&self) -> bool {
-        match self.state {
-            State::Established => true,
-            // In CLOSE-WAIT, the remote endpoint has closed our receive half of the connection
-            // but we still can transmit indefinitely.
-            State::CloseWait => true,
-            _ => false,
-        }
-    }
-
     /// Return whether the receive half of the full-duplex connection is open.
     ///
     /// This function returns true if it's possible to receive data from the remote endpoint.
@@ -192,7 +116,7 @@ impl<CLK: Clock, const L: usize> TcpSocket<CLK, L> {
     #[inline]
     pub fn may_recv(&self) -> bool {
         match self.state {
-            State::Established => true,
+            State::Connected | State::ShutdownForWrite(_) => true,
             // If we have something in the receive buffer, we can receive that.
             _ if !self.rx_buffer.is_empty() => true,
             _ => false,

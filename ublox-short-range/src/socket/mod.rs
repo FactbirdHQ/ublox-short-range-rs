@@ -7,8 +7,10 @@ pub mod udp;
 
 pub(crate) use self::meta::Meta as SocketMeta;
 pub use self::ring_buffer::RingBuffer;
+use core::convert::TryInto;
 use embedded_nal::SocketAddr;
-use embedded_time::Clock;
+use embedded_time::duration::{Generic, Milliseconds};
+use embedded_time::{Clock, Instant};
 
 #[cfg(feature = "socket-tcp")]
 pub use tcp::{State as TcpState, TcpSocket};
@@ -120,6 +122,16 @@ impl<CLK: Clock, const L: usize> Socket<CLK, L> {
             Socket::Udp(ref socket) => &socket.meta,
             #[cfg(feature = "socket-tcp")]
             Socket::Tcp(ref socket) => &socket.meta,
+        }
+    }
+
+    pub fn recycle(&self, ts: &Instant<CLK>) -> bool
+    where
+        Generic<CLK::T>: TryInto<Milliseconds>,
+    {
+        match self {
+            Socket::Tcp(s) => s.recycle(ts),
+            Socket::Udp(s) => s.recycle(ts),
         }
     }
 }

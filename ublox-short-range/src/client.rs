@@ -15,7 +15,9 @@ use crate::{
     wifi::connection::{NetworkState, WiFiState, WifiConnection},
 };
 use core::cell::{Cell, RefCell};
+use core::convert::TryInto;
 use embedded_nal::{IpAddr, SocketAddr};
+use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
 
 #[macro_export]
@@ -75,14 +77,16 @@ where
     pub(crate) urc_attempts: Cell<u8>,
     pub(crate) max_urc_attempts: u8,
     pub(crate) security_credentials: Option<SecurityCredentials>,
+    pub(crate) timer: CLK,
 }
 
 impl<C, CLK, const N: usize, const L: usize> UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
     CLK: 'static + Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
-    pub fn new(client: C, socket_set: &'static mut SocketSet<CLK, N, L>) -> Self {
+    pub fn new(client: C, timer: CLK, socket_set: &'static mut SocketSet<CLK, N, L>) -> Self {
         UbloxClient {
             initialized: Cell::new(false),
             serial_mode: Cell::new(SerialMode::Cmd),
@@ -93,6 +97,7 @@ where
             max_urc_attempts: 5,
             urc_attempts: Cell::new(0),
             security_credentials: None,
+            timer,
         }
     }
 
@@ -223,8 +228,8 @@ where
                                             if let Ok(mut tcp) =
                                                 sockets.get::<TcpSocket<CLK, L>>(indicator)
                                             {
-                                                tcp.close();
-                                                sockets.remove(indicator).ok();
+                                                let ts = self.timer.try_now().unwrap();
+                                                tcp.closed_by_remote(ts);
                                             }
                                         }
                                         Some(SocketType::Udp) => {
@@ -371,7 +376,7 @@ where
                                     if let Ok(mut tcp) = sockets.get::<TcpSocket<CLK, L>>(indicator)
                                     {
                                         tcp.meta.channel_id.0 = event.channel_id;
-                                        tcp.set_state(TcpState::Established);
+                                        tcp.set_state(TcpState::Connected);
                                         true
                                     } else {
                                         defmt::debug!("[EDM_URC] Socket not found!");
@@ -413,7 +418,7 @@ where
                                     if let Ok(mut tcp) = sockets.get::<TcpSocket<CLK, L>>(indicator)
                                     {
                                         tcp.meta.channel_id.0 = event.channel_id;
-                                        tcp.set_state(TcpState::Established);
+                                        tcp.set_state(TcpState::Connected);
                                         true
                                     } else {
                                         false

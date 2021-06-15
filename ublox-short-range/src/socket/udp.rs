@@ -1,8 +1,10 @@
 use core::cmp::min;
 
 use super::{ChannelId, Error, Result, RingBuffer, Socket, SocketHandle, SocketMeta};
-pub use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
-use embedded_time::Clock;
+use core::convert::TryInto;
+use embedded_nal::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use embedded_time::duration::{Generic, Milliseconds, Seconds};
+use embedded_time::{Clock, Instant};
 
 /// A UDP socket ring buffer.
 pub type SocketBuffer<const N: usize> = RingBuffer<u8, N>;
@@ -27,9 +29,10 @@ pub struct UdpSocket<CLK: Clock, const L: usize> {
     pub(crate) meta: SocketMeta,
     pub(crate) endpoint: SocketAddr,
     _available_data: usize,
+    read_timeout: Option<Seconds>,
     state: State,
     rx_buffer: SocketBuffer<L>,
-    _fixme: Option<CLK>,
+    closed_time: Option<Instant<CLK>>,
 }
 
 impl<CLK: Clock, const L: usize> UdpSocket<CLK, L> {
@@ -42,8 +45,9 @@ impl<CLK: Clock, const L: usize> UdpSocket<CLK, L> {
             endpoint: SocketAddrV4::new(Ipv4Addr::unspecified(), 0).into(),
             state: State::Closed,
             _available_data: 0,
+            read_timeout: Some(Seconds(15)),
             rx_buffer: SocketBuffer::new(),
-            _fixme: None,
+            closed_time: None,
         }
     }
 
@@ -74,6 +78,22 @@ impl<CLK: Clock, const L: usize> UdpSocket<CLK, L> {
     pub fn set_state(&mut self, state: State) {
         self.state = state
     }
+
+    pub fn recycle(&self, ts: &Instant<CLK>) -> bool
+    where
+        Generic<CLK::T>: TryInto<Milliseconds>,
+    {
+        if let Some(read_timeout) = self.read_timeout {
+            self.closed_time
+                .and_then(|ref closed_time| ts.checked_duration_since(closed_time))
+                .and_then(|dur| dur.try_into().ok())
+                .map(|dur: Milliseconds<u32>| dur >= read_timeout)
+                .unwrap_or(false)
+        } else {
+            false
+        }
+    }
+
     /// Bind the socket to the given endpoint.
     ///
     /// This function returns `Err(Error::Illegal)` if the socket was open

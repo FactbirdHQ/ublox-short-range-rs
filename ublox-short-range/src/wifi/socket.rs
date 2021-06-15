@@ -12,7 +12,9 @@ use crate::{
     socket::{ChannelId, SocketHandle, SocketIndicator, SocketType},
     UbloxClient,
 };
+use core::convert::TryInto;
 use core::fmt::Write;
+use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
 
 #[cfg(feature = "socket-udp")]
@@ -31,6 +33,7 @@ impl<C, CLK, const N: usize, const L: usize> UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
     CLK: Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     pub(crate) fn handle_socket_error<A: atat::AtatResp, F: Fn() -> Result<A, Error>>(
         &self,
@@ -107,6 +110,7 @@ impl<C, CLK, const N: usize, const L: usize> UdpClientStack for UbloxClient<C, C
 where
     C: atat::AtatClient,
     CLK: Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     type Error = Error;
 
@@ -115,6 +119,21 @@ where
     type UdpSocket = SocketHandle;
 
     fn socket(&mut self) -> Result<Self::UdpSocket, Self::Error> {
+        if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
+            // Check if there are any unused sockets available
+            if sockets.len() >= sockets.capacity() {
+                if let Ok(ts) = self.timer.try_now() {
+                    // Check if there are any sockets closed by remote, and close it
+                    // if it has exceeded its timeout, in order to recycle it.
+                    if sockets.recycle(&ts) {
+                        return Err(Error::Network);
+                    }
+                } else {
+                    return Err(Error::Network);
+                }
+            }
+        }
+
         defmt::debug!("[UDP] Opening socket");
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected() {
@@ -123,6 +142,7 @@ where
         } else {
             return Err(Error::Network);
         }
+
         if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
             if let Ok(h) = sockets.add(UdpSocket::new(0)) {
                 Ok(h)
@@ -273,6 +293,7 @@ impl<C, CLK, const N: usize, const L: usize> TcpClientStack for UbloxClient<C, C
 where
     C: atat::AtatClient,
     CLK: Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     type Error = Error;
 
@@ -351,7 +372,7 @@ where
             0,
         )?;
         let handle = SocketHandle(resp.peer_handle);
-        tcp.set_state(TcpState::SynSent);
+        tcp.set_state(TcpState::WaitingForConnect);
         tcp.endpoint = remote;
         tcp.meta.handle = handle;
         *socket = handle;
@@ -361,7 +382,7 @@ where
             let tcp = sockets
                 .get::<TcpSocket<CLK, L>>(socket.clone().into())
                 .map_err(Self::Error::from)?;
-            matches!(tcp.state(), TcpState::SynSent)
+            matches!(tcp.state(), TcpState::WaitingForConnect)
         } {
             self.spin()?;
         }
@@ -380,7 +401,7 @@ where
 
         let mut sockets = self.sockets.try_borrow_mut()?;
         let socket_ref = sockets.get::<TcpSocket<CLK, L>>(socket.clone().into())?;
-        Ok(matches!(socket_ref.state(), TcpState::Established))
+        Ok(matches!(socket_ref.state(), TcpState::Connected))
     }
 
     /// Write to the stream. Returns the number of bytes written is returned
@@ -411,8 +432,8 @@ where
             .get::<TcpSocket<CLK, L>>(socket.clone().into())
             .map_err(|e| nb::Error::Other(e.into()))?;
 
-        if !tcp.may_send() {
-            return Err(nb::Error::Other(Error::SocketClosed));
+        if !matches!(tcp.state(), TcpState::Connected) {
+            return Err(nb::Error::Other(Error::SocketNotConnected));
         }
 
         for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
@@ -481,7 +502,10 @@ where
         // If the socket is not found it is already removed
         if let Some(ref mut tcp) = sockets.get::<TcpSocket<CLK, L>>(socket.into()).ok() {
             //If socket is not closed that means a connection excists which has to be closed
-            if !matches!(tcp.state(), TcpState::Closed) {
+            if !matches!(
+                tcp.state(),
+                TcpState::ShutdownForWrite(_) | TcpState::Created
+            ) {
                 match self.handle_socket_error(
                     || {
                         self.send_at(ClosePeerConnection {
@@ -494,10 +518,8 @@ where
                     Err(Error::AT(atat::Error::InvalidResponse)) | Ok(_) => (),
                     Err(e) => return Err(e.into()),
                 }
-                tcp.close();
             } else {
                 //No connection exists the socket should be removed from the set here
-                tcp.close();
                 sockets.remove(socket.into())?;
             }
         }

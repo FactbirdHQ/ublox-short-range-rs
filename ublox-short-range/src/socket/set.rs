@@ -1,7 +1,8 @@
 use super::{AnySocket, Error, Result, Socket, SocketRef, SocketType};
-
+use core::convert::TryInto;
 use embedded_nal::SocketAddr;
-use embedded_time::Clock;
+use embedded_time::duration::{Generic, Milliseconds};
+use embedded_time::{Clock, Instant};
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
 
@@ -206,6 +207,17 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
     //         }
     //     }
     // }
+
+    pub fn recycle(&mut self, ts: &Instant<CLK>) -> bool
+    where
+        Generic<CLK::T>: TryInto<Milliseconds>,
+    {
+        let h = self.iter().find(|(_, s)| s.recycle(ts)).map(|(h, _)| h);
+        if h.is_none() {
+            return false;
+        }
+        self.remove(h.unwrap().into()).is_ok()
+    }
 
     /// Iterate every socket in this set.
     pub fn iter(&self) -> impl Iterator<Item = (Handle, &Socket<CLK, L>)> {
