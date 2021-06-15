@@ -4,14 +4,6 @@ use embedded_nal::SocketAddr;
 use embedded_time::Clock;
 use heapless::Vec;
 use serde::{Deserialize, Serialize};
-/// An item of a socket set.
-///
-/// The only reason this struct is public is to allow the socket set storage
-/// to be allocated externally.
-pub struct Item<CLK: Clock, const L: usize> {
-    socket: Socket<CLK, L>,
-    refs: usize,
-}
 
 /// A handle, identifying a socket in a set.
 #[derive(
@@ -48,7 +40,7 @@ pub struct ChannelId(pub u8);
 /// An extensible set of sockets.
 #[derive(Default)]
 pub struct Set<CLK: Clock, const N: usize, const L: usize> {
-    pub sockets: Vec<Option<Item<CLK, L>>, N>,
+    pub sockets: Vec<Option<Socket<CLK, L>>, N>,
 }
 
 impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
@@ -82,7 +74,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
     pub fn socket_type(&self, handle: Handle) -> Option<SocketType> {
         match self.sockets.iter().find_map(|i| {
             if let Some(ref s) = i {
-                if s.socket.handle().0 == handle.0 {
+                if s.handle().0 == handle.0 {
                     Some(s)
                 } else {
                     None
@@ -91,7 +83,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
                 None
             }
         }) {
-            Some(item) => Some(item.socket.get_type()),
+            Some(socket) => Some(socket.get_type()),
             None => None,
         }
     }
@@ -102,7 +94,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
     pub fn socket_type_by_channel_id(&self, channel_id: ChannelId) -> Option<SocketType> {
         match self.sockets.iter().find_map(|i| {
             if let Some(ref s) = i {
-                if s.socket.channel_id().0 == channel_id.0 {
+                if s.channel_id().0 == channel_id.0 {
                     Some(s)
                 } else {
                     None
@@ -111,7 +103,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
                 None
             }
         }) {
-            Some(item) => Some(item.socket.get_type()),
+            Some(socket) => Some(socket.get_type()),
             None => None,
         }
     }
@@ -122,7 +114,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
     pub fn socket_type_by_endpoint(&self, endpoint: &SocketAddr) -> Option<SocketType> {
         match self.sockets.iter().find_map(|i| {
             if let Some(ref s) = i {
-                if s.socket.endpoint() == endpoint {
+                if s.endpoint() == endpoint {
                     Some(s)
                 } else {
                     None
@@ -131,7 +123,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
                 None
             }
         }) {
-            Some(item) => Some(item.socket.get_type()),
+            Some(socket) => Some(socket.get_type()),
             None => None,
         }
     }
@@ -145,7 +137,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
         for slot in self.sockets.iter_mut() {
             if slot.is_none() {
                 let handle = socket.handle();
-                *slot = Some(Item { socket, refs: 1 });
+                *slot = Some(socket);
                 return Ok(handle);
             }
         }
@@ -156,7 +148,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
     pub fn get<U: AnySocket<CLK, L>>(&mut self, handle: Handle) -> Result<SocketRef<U>> {
         match self.sockets.iter_mut().find_map(|i| {
             if let Some(ref mut s) = i {
-                if s.socket.handle().0 == handle.0 {
+                if s.handle().0 == handle.0 {
                     Some(s)
                 } else {
                     None
@@ -165,7 +157,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
                 None
             }
         }) {
-            Some(item) => Ok(U::downcast(SocketRef::new(&mut item.socket))?),
+            Some(socket) => Ok(U::downcast(SocketRef::new(socket))?),
             None => Err(Error::InvalidSocket),
         }
     }
@@ -177,7 +169,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
     ) -> Result<SocketRef<U>> {
         match self.sockets.iter_mut().find_map(|i| {
             if let Some(ref mut s) = i {
-                if s.socket.channel_id().0 == channel_id.0 {
+                if s.channel_id().0 == channel_id.0 {
                     Some(s)
                 } else {
                     None
@@ -186,7 +178,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
                 None
             }
         }) {
-            Some(item) => Ok(U::downcast(SocketRef::new(&mut item.socket))?),
+            Some(socket) => Ok(U::downcast(SocketRef::new(socket))?),
             None => Err(Error::InvalidSocket),
         }
     }
@@ -198,7 +190,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
     ) -> Result<SocketRef<U>> {
         match self.sockets.iter_mut().find_map(|i| {
             if let Some(ref mut s) = i {
-                if s.socket.endpoint() == endpoint {
+                if s.endpoint() == endpoint {
                     Some(s)
                 } else {
                     None
@@ -207,7 +199,7 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
                 None
             }
         }) {
-            Some(item) => Ok(U::downcast(SocketRef::new(&mut item.socket))?),
+            Some(socket) => Ok(U::downcast(SocketRef::new(socket))?),
             None => Err(Error::InvalidSocket),
         }
     }
@@ -219,60 +211,15 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
             .iter_mut()
             .position(|i| {
                 if let Some(s) = i {
-                    return s.socket.handle().0 == handle.0;
+                    return s.handle().0 == handle.0;
                 }
                 false
             })
             .ok_or(Error::InvalidSocket)?;
 
-        let item: &mut Option<Item<CLK, L>> = unsafe { self.sockets.get_unchecked_mut(index) };
+        let socket: &mut Option<Socket<CLK, L>> = unsafe { self.sockets.get_unchecked_mut(index) };
 
-        item.take()
-            .ok_or(Error::InvalidSocket)
-            .map(|item| item.socket)
-    }
-
-    /// Increase reference count by 1.
-    pub fn retain(&mut self, handle: Handle) -> Result<()> {
-        match self.sockets.iter_mut().find_map(|i| {
-            if let Some(ref mut s) = i {
-                if s.socket.handle().0 == handle.0 {
-                    Some(s)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }) {
-            Some(v) => v.refs += 1,
-            None => return Err(Error::InvalidSocket),
-        };
-        Ok(())
-    }
-
-    /// Decrease reference count by 1.
-    pub fn release(&mut self, handle: Handle) -> Result<()> {
-        match self.sockets.iter_mut().find_map(|i| {
-            if let Some(ref mut s) = i {
-                if s.socket.handle().0 == handle.0 {
-                    Some(s)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }) {
-            Some(v) => {
-                if v.refs == 0 {
-                    return Err(Error::Illegal);
-                }
-                v.refs -= 1;
-                Ok(())
-            }
-            None => Err(Error::InvalidSocket),
-        }
+        socket.take().ok_or(Error::InvalidSocket)
     }
 
     // /// Prune the sockets in this set.
@@ -315,8 +262,8 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
 
     /// Iterate every socket in this set.
     pub fn iter(&self) -> impl Iterator<Item = (Handle, &Socket<CLK, L>)> {
-        self.sockets.iter().filter_map(|i| {
-            if let Some(Item { ref socket, .. }) = i {
+        self.sockets.iter().filter_map(|slot| {
+            if let Some(socket) = slot {
                 Some((Handle(socket.handle().0), socket))
             } else {
                 None
@@ -326,8 +273,8 @@ impl<CLK: Clock, const N: usize, const L: usize> Set<CLK, N, L> {
 
     /// Iterate every socket in this set, as SocketRef.
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (Handle, SocketRef<Socket<CLK, L>>)> {
-        self.sockets.iter_mut().filter_map(|i| {
-            if let Some(Item { ref mut socket, .. }) = i {
+        self.sockets.iter_mut().filter_map(|slot| {
+            if let Some(socket) = slot {
                 Some((Handle(socket.handle().0), SocketRef::new(socket)))
             } else {
                 None
