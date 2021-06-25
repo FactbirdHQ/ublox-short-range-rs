@@ -153,11 +153,11 @@ impl atat::AtatCmd<6> for EdmResendConnectEventsCommand {
 #[derive(Debug, Clone)]
 pub struct SwitchToEdmCommand;
 
-impl atat::AtatCmd<4> for SwitchToEdmCommand{
+impl atat::AtatCmd<6> for SwitchToEdmCommand{
     type Response = NoResponse;
     type Error = atat::GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, 4> {
+    fn as_bytes(&self) -> Vec<u8, 6> {
         ChangeMode {
             mode: data_mode::types::Mode::ExtendedDataMode,
         }
@@ -387,9 +387,9 @@ mod test {
     fn change_to_edm_cmd() {
         let resp = &[0xAAu8, 0x00, 0x02, 0x00, 0x71, 0x55];
         let correct = Vec::<_, 6>::from_slice(b"ATO2\r\n").unwrap();
-        assert_eq!(AtatCmd::<6>::as_bytes(&SwitchToEdmCommand), correct);
+        assert_eq!(SwitchToEdmCommand.as_bytes(), correct);
         assert_eq!(
-            AtatCmd::<6>::parse(&SwitchToEdmCommand, Ok(resp)).unwrap(),
+            SwitchToEdmCommand.parse(Ok(resp)).unwrap(),
             NoResponse
         );
     }
