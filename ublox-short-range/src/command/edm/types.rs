@@ -5,7 +5,6 @@ use heapless::Vec;
 // type EdmAtCmdOverhead = (u8, u16, u16, u8);
 
 pub type ChannelId = u8;
-pub const EDM_ATCMD_OVERHEAD: usize = 6;
 pub const DATA_PACKAGE_SIZE: usize = 540;
 pub const STARTBYTE: u8 = 0xAA;
 pub const ENDBYTE: u8 = 0x55;

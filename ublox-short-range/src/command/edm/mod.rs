@@ -86,17 +86,88 @@ where
     }
 }
 
+/////////////////////// Temp Solution for fixed size ///////////////////////
+#[derive(Debug, Clone)]
+pub(crate) struct BigEdmAtCmdWrapper<T: AtatCmd<LEN>, const LEN: usize>(pub T);
+
+impl<T, const LEN: usize> atat::AtatCmd<2054> for BigEdmAtCmdWrapper<T, LEN>
+where
+    T: AtatCmd<LEN, Error = atat::GenericError>,
+{
+    type Response = T::Response;
+    type Error = atat::GenericError;
+
+    const FORCE_RECEIVE_STATE: bool = true;
+    const MAX_TIMEOUT_MS: u32 = T::MAX_TIMEOUT_MS;
+
+    fn as_bytes(&self) -> Vec<u8, 1024> {
+        let at_vec = self.0.as_bytes();
+        let payload_len = (at_vec.len() + 2) as u16;
+        [
+            STARTBYTE,
+            (payload_len >> 8) as u8 & EDM_SIZE_FILTER,
+            (payload_len & 0xffu16) as u8,
+            0x00,
+            PayloadType::ATRequest as u8,
+        ]
+        .iter()
+        .cloned()
+        .chain(at_vec)
+        .chain(core::iter::once(ENDBYTE))
+        .collect()
+    }
+
+    fn parse(
+        &self,
+        resp: Result<&[u8], &atat::InternalError>,
+    ) -> core::result::Result<Self::Response, atat::Error> {
+        let resp = resp.and_then(|resp| {
+            if resp.len() < PAYLOAD_OVERHEAD
+                || !resp.starts_with(&[STARTBYTE])
+                || !resp.ends_with(&[ENDBYTE])
+            {
+                return Err(&atat::InternalError::InvalidResponse);
+            };
+
+            let payload_len = calc_payload_len(resp);
+
+            if resp.len() != payload_len + EDM_OVERHEAD
+                || resp[4] != PayloadType::ATConfirmation as u8
+            {
+                return Err(&atat::InternalError::InvalidResponse);
+            }
+
+            // Recieved OK response code in EDM response?
+            match resp
+                .windows(b"\r\nOK".len())
+                .position(|window| window == b"\r\nOK")
+            {
+                // Cutting OK out leaves an empth string for NoResponse, for
+                // other responses just removes "\r\nOK\r\n"
+                Some(pos) => Ok(&resp[AT_COMMAND_POSITION..pos]),
+                // Isolate the AT_response
+                None => Ok(&resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len]),
+            }
+        });
+
+        self.0.parse(resp)
+    }
+}
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 #[derive(Debug, Clone)]
 pub struct EdmDataCommand<'a> {
     pub channel: u8,
     pub data: &'a [u8],
 }
-// wifi::socket::EGRESS_CHUNK_SIZE + EDM_OVERHEAD = 512 + 4 = 516
-impl<'a> atat::AtatCmd<516> for EdmDataCommand<'a> {
+// wifi::socket::EGRESS_CHUNK_SIZE + PAYLOAD_OVERHEAD = 512 + 6 = 518
+impl<'a> atat::AtatCmd<518> for EdmDataCommand<'a> {
     type Response = NoResponse;
     type Error = atat::GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, 516> {
+    fn as_bytes(&self) -> Vec<u8, 518> {
         let payload_len = (self.data.len() + 3) as u16;
         [
             STARTBYTE,
