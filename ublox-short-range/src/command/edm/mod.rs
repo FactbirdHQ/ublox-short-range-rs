@@ -91,12 +91,12 @@ pub struct EdmDataCommand<'a> {
     pub channel: u8,
     pub data: &'a [u8],
 }
-
-impl<'a, const LEN: usize> atat::AtatCmd<LEN> for EdmDataCommand<'a> {
+// wifi::socket::EGRESS_CHUNK_SIZE + EDM_OVERHEAD = 512 + 4 = 516
+impl<'a> atat::AtatCmd<516> for EdmDataCommand<'a> {
     type Response = NoResponse;
     type Error = atat::GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, LEN> {
+    fn as_bytes(&self) -> Vec<u8, 516> {
         let payload_len = (self.data.len() + 3) as u16;
         [
             STARTBYTE,
@@ -124,11 +124,11 @@ impl<'a, const LEN: usize> atat::AtatCmd<LEN> for EdmDataCommand<'a> {
 #[derive(Debug, Clone)]
 pub struct EdmResendConnectEventsCommand;
 
-impl<const LEN: usize> atat::AtatCmd<LEN> for EdmResendConnectEventsCommand {
+impl atat::AtatCmd<6> for EdmResendConnectEventsCommand {
     type Response = NoResponse;
     type Error = atat::GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, LEN> {
+    fn as_bytes(&self) -> Vec<u8, 6> {
         [
             STARTBYTE,
             0x00,
@@ -153,11 +153,11 @@ impl<const LEN: usize> atat::AtatCmd<LEN> for EdmResendConnectEventsCommand {
 #[derive(Debug, Clone)]
 pub struct SwitchToEdmCommand;
 
-impl<const LEN: usize> atat::AtatCmd<LEN> for SwitchToEdmCommand {
+impl atat::AtatCmd<4> for SwitchToEdmCommand{
     type Response = NoResponse;
     type Error = atat::GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, LEN> {
+    fn as_bytes(&self) -> Vec<u8, 4> {
         ChangeMode {
             mode: data_mode::types::Mode::ExtendedDataMode,
         }

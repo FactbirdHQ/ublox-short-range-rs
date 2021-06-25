@@ -98,7 +98,7 @@ where
 
         //Switch to EDM on Init. If in EDM, fail and check with autosense
         if self.serial_mode.get() != SerialMode::ExtendedData {
-            self.send_internal::<SwitchToEdmCommand, L>(&SwitchToEdmCommand, true)?;
+            self.send_internal(&SwitchToEdmCommand, true)?;
             self.serial_mode.set(SerialMode::ExtendedData);
         }
 

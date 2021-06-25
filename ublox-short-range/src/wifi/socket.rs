@@ -24,7 +24,7 @@ use crate::socket::{TcpSocket, TcpState};
 #[cfg(feature = "socket-tcp")]
 use embedded_nal::TcpClientStack;
 
-const EGRESS_CHUNK_SIZE: usize = 512;
+pub(crate) const EGRESS_CHUNK_SIZE: usize = 512;
 
 impl<C, const N: usize, const L: usize> UbloxClient<C, N, L>
 where
@@ -209,7 +209,7 @@ where
         for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
             self.handle_socket_error(
                 || {
-                    self.send_internal::<EdmDataCommand, L>(
+                    self.send_internal(
                         &EdmDataCommand {
                             channel: udp.channel_id().0,
                             data: chunk,
@@ -420,7 +420,7 @@ where
         for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
             self.handle_socket_error(
                 || {
-                    self.send_internal::<EdmDataCommand, L>(
+                    self.send_internal(
                         &EdmDataCommand {
                             channel: tcp.channel_id().0,
                             data: chunk,
