@@ -1,10 +1,10 @@
 use crate::{
     client::SecurityCredentials,
+    command::edm::BigEdmAtCmdWrapper,
     command::security::{types::*, *},
     error::Error,
     socket::SocketHandle,
     UbloxClient,
-    command::edm::BigEdmAtCmdWrapper,
 };
 use heapless::String;
 
@@ -47,9 +47,12 @@ where
             password: None,
         })?;
 
-        self.send_internal(&BigEdmAtCmdWrapper(SendSecurityDataImport {
-            data: atat::serde_at::ser::Bytes(certificate),
-        }), false)?;
+        self.send_internal(
+            &BigEdmAtCmdWrapper(SendSecurityDataImport {
+                data: atat::serde_at::ser::Bytes(certificate),
+            }),
+            false,
+        )?;
 
         match self.security_credentials {
             Some(ref mut creds) => {
@@ -84,9 +87,12 @@ where
             password: None,
         })?;
 
-        self.send_internal(&BigEdmAtCmdWrapper(SendSecurityDataImport {
-            data: atat::serde_at::ser::Bytes(root_ca),
-        }), false)?;
+        self.send_internal(
+            &BigEdmAtCmdWrapper(SendSecurityDataImport {
+                data: atat::serde_at::ser::Bytes(root_ca),
+            }),
+            false,
+        )?;
 
         match self.security_credentials {
             Some(ref mut creds) => {
@@ -126,9 +132,12 @@ where
             password,
         })?;
 
-        self.send_internal(&BigEdmAtCmdWrapper(SendSecurityDataImport {
-            data: atat::serde_at::ser::Bytes(private_key),
-        }), false)?;
+        self.send_internal(
+            &BigEdmAtCmdWrapper(SendSecurityDataImport {
+                data: atat::serde_at::ser::Bytes(private_key),
+            }),
+            false,
+        )?;
 
         match self.security_credentials {
             Some(ref mut creds) => {

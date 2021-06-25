@@ -100,7 +100,7 @@ where
     const FORCE_RECEIVE_STATE: bool = true;
     const MAX_TIMEOUT_MS: u32 = T::MAX_TIMEOUT_MS;
 
-    fn as_bytes(&self) -> Vec<u8, 1024> {
+    fn as_bytes(&self) -> Vec<u8, 2054> {
         let at_vec = self.0.as_bytes();
         let payload_len = (at_vec.len() + 2) as u16;
         [
@@ -154,8 +154,6 @@ where
     }
 }
 //////////////////////////////////////////////////////////////////////////////////////////////
-
-
 
 #[derive(Debug, Clone)]
 pub struct EdmDataCommand<'a> {
@@ -224,7 +222,7 @@ impl atat::AtatCmd<6> for EdmResendConnectEventsCommand {
 #[derive(Debug, Clone)]
 pub struct SwitchToEdmCommand;
 
-impl atat::AtatCmd<6> for SwitchToEdmCommand{
+impl atat::AtatCmd<6> for SwitchToEdmCommand {
     type Response = NoResponse;
     type Error = atat::GenericError;
 
@@ -459,9 +457,6 @@ mod test {
         let resp = &[0xAAu8, 0x00, 0x02, 0x00, 0x71, 0x55];
         let correct = Vec::<_, 6>::from_slice(b"ATO2\r\n").unwrap();
         assert_eq!(SwitchToEdmCommand.as_bytes(), correct);
-        assert_eq!(
-            SwitchToEdmCommand.parse(Ok(resp)).unwrap(),
-            NoResponse
-        );
+        assert_eq!(SwitchToEdmCommand.parse(Ok(resp)).unwrap(), NoResponse);
     }
 }
