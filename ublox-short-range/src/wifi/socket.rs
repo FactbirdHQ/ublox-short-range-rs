@@ -3,38 +3,37 @@
 
 // use embedded_hal::digital::v2::OutputPin;
 pub use embedded_nal::{nb, AddrType, IpAddr, SocketAddr, SocketAddrV4, SocketAddrV6};
-use heapless::{consts, ArrayLength, String};
-pub use no_std_net::{Ipv4Addr, Ipv6Addr};
+use heapless::String;
 // use serde::{Serialize};
-use atat::serde_at::{to_string, SerializeOptions};
-use typenum::marker_traits::Unsigned;
-
 use crate::{
     command::data_mode::*,
     command::edm::{EdmAtCmdWrapper, EdmDataCommand},
     error::Error,
-    socket::{ChannelId, SocketHandle, SocketType},
+    socket::{ChannelId, SocketHandle, SocketIndicator, SocketType},
     UbloxClient,
 };
+use core::convert::TryInto;
+use core::fmt::Write;
+use embedded_time::duration::{Generic, Milliseconds};
+use embedded_time::Clock;
 
 #[cfg(feature = "socket-udp")]
 use crate::socket::{UdpSocket, UdpState};
 #[cfg(feature = "socket-udp")]
-use embedded_nal::UdpClient;
+use embedded_nal::UdpClientStack;
 
 #[cfg(feature = "socket-tcp")]
 use crate::socket::{TcpSocket, TcpState};
 #[cfg(feature = "socket-tcp")]
-use embedded_nal::TcpClient;
+use embedded_nal::TcpClientStack;
 
-pub type IngressChunkSize = consts::U256;
-pub type EgressChunkSize = consts::U512;
+pub(crate) const EGRESS_CHUNK_SIZE: usize = 512;
 
-impl<C, N, L> UbloxClient<C, N, L>
+impl<C, CLK, const N: usize, const L: usize> UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
-    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: ArrayLength<u8>,
+    CLK: Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     pub(crate) fn handle_socket_error<A: atat::AtatResp, F: Fn() -> Result<A, Error>>(
         &self,
@@ -56,18 +55,11 @@ where
                 // Close socket upon reciving invalid response
                 if let Some(handle) = socket {
                     let mut sockets = self.sockets.try_borrow_mut()?;
-                    match sockets.socket_type(handle) {
-                        Some(SocketType::Tcp) => {
-                            let mut tcp = sockets.get::<TcpSocket<_>>(handle)?;
-                            tcp.close();
-                        }
-                        Some(SocketType::Udp) => {
-                            let mut udp = sockets.get::<UdpSocket<_>>(handle)?;
-                            udp.close();
-                        }
-                        None => {}
-                    }
-                    sockets.remove(handle)?;
+                    self.send_at(ClosePeerConnection {
+                        peer_handle: handle.0,
+                    })
+                    .ok();
+                    sockets.remove(handle.into())?;
                 }
                 Err(e)
             }
@@ -84,11 +76,12 @@ where
             return Ok(0);
         }
         let mut sockets = self.sockets.try_borrow_mut()?;
+        let indicator = SocketIndicator::ChannelId(channel_id.0);
 
-        match sockets.socket_type_by_channel_id(channel_id) {
+        match sockets.socket_type(indicator) {
             Some(SocketType::Tcp) => {
                 // Handle tcp socket
-                let mut tcp = sockets.get_by_channel::<TcpSocket<_>>(channel_id)?;
+                let mut tcp = sockets.get::<TcpSocket<CLK, L>>(indicator)?;
                 if !tcp.can_recv() {
                     return Err(Error::Busy);
                 }
@@ -97,7 +90,7 @@ where
             }
             Some(SocketType::Udp) => {
                 // Handle udp socket
-                let mut udp = sockets.get_by_channel::<UdpSocket<_>>(channel_id)?;
+                let mut udp = sockets.get::<UdpSocket<CLK, L>>(indicator)?;
 
                 if !udp.can_recv() {
                     return Err(Error::Busy);
@@ -105,7 +98,7 @@ where
                 Ok(udp.rx_enqueue_slice(data))
             }
             _ => {
-                defmt::error!("SocketNotFound {:?}", channel_id);
+                defmt::error!("SocketNotFound {:?}", indicator);
                 Err(Error::SocketNotFound)
             }
         }
@@ -113,11 +106,11 @@ where
 }
 
 #[cfg(feature = "socket-udp")]
-impl<C, N, L> UdpClient for UbloxClient<C, N, L>
+impl<C, CLK, const N: usize, const L: usize> UdpClientStack for UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
-    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: ArrayLength<u8>,
+    CLK: Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     type Error = Error;
 
@@ -125,7 +118,22 @@ where
     // as the Socket object itself provides no value without accessing it though the client.
     type UdpSocket = SocketHandle;
 
-    fn socket(&self) -> Result<Self::UdpSocket, Self::Error> {
+    fn socket(&mut self) -> Result<Self::UdpSocket, Self::Error> {
+        if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
+            // Check if there are any unused sockets available
+            if sockets.len() >= sockets.capacity() {
+                if let Ok(ts) = self.timer.try_now() {
+                    // Check if there are any sockets closed by remote, and close it
+                    // if it has exceeded its timeout, in order to recycle it.
+                    if sockets.recycle(&ts) {
+                        return Err(Error::Network);
+                    }
+                } else {
+                    return Err(Error::Network);
+                }
+            }
+        }
+
         defmt::debug!("[UDP] Opening socket");
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected() {
@@ -134,6 +142,7 @@ where
         } else {
             return Err(Error::Network);
         }
+
         if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
             if let Ok(h) = sockets.add(UdpSocket::new(0)) {
                 Ok(h)
@@ -149,7 +158,11 @@ where
 
     /// Connect a UDP socket with a peer using a dynamically selected port.
     /// Selects a port number automatically and initializes for read/writing.
-    fn connect(&self, socket: &mut Self::UdpSocket, remote: SocketAddr) -> Result<(), Self::Error> {
+    fn connect(
+        &mut self,
+        socket: &mut Self::UdpSocket,
+        remote: SocketAddr,
+    ) -> Result<(), Self::Error> {
         defmt::debug!("[UDP] Connecting socket");
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected() {
@@ -159,73 +172,23 @@ where
             return Err(Error::Network);
         }
 
-        {
-            let mut url = String::<consts::U128>::from("udp://");
-            let workspace: String<consts::U43>;
-            let mut ip_str = String::<consts::U43>::from("[");
-            let port: String<consts::U8>;
+        let url = PeerUrlBuilder::new().address(&remote).udp()?;
+        let mut sockets = self.sockets.try_borrow_mut()?;
+        defmt::trace!("[UDP] Connecting URL! {=str}", url);
+        let resp = self.handle_socket_error(
+            || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
+            None,
+            0,
+        )?;
+        let handle = SocketHandle(resp.peer_handle);
+        let mut udp = sockets.get::<UdpSocket<CLK, L>>(socket.clone().into())?;
+        udp.endpoint = remote;
+        udp.meta.handle = handle;
+        *socket = handle;
 
-            match remote.ip() {
-                IpAddr::V4(ip) => {
-                    ip_str = to_string(
-                        &ip,
-                        String::<consts::U1>::new(),
-                        SerializeOptions {
-                            value_sep: false,
-                            cmd_prefix: &"",
-                            termination: &"",
-                        },
-                    )
-                    .map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(&ip_str[1..ip_str.len() - 1])
-                        .map_err(|_e| Self::Error::BadLength)?;
-                }
-                IpAddr::V6(ip) => {
-                    workspace = to_string(
-                        &ip,
-                        String::<consts::U1>::new(),
-                        SerializeOptions::default(),
-                    )
-                    .map_err(|_e| Self::Error::BadLength)?;
-
-                    ip_str
-                        .push_str(&workspace[1..workspace.len() - 1])
-                        .map_err(|_e| Self::Error::BadLength)?;
-                    ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
-                }
-            }
-            url.push(':').map_err(|_e| Self::Error::BadLength)?;
-
-            port = to_string(
-                &remote.port(),
-                String::<consts::U1>::new(),
-                SerializeOptions::default(),
-            )
-            .map_err(|_e| Self::Error::BadLength)?;
-            url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
-            url.push('/').map_err(|_e| Self::Error::BadLength)?;
-
-            let mut sockets = self.sockets.try_borrow_mut()?;
-            defmt::trace!("[UDP] Connecting URL! {=str}", url);
-            match self.handle_socket_error(
-                || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
-                None,
-                0,
-            ) {
-                Ok(resp) => {
-                    let handle = SocketHandle(resp.peer_handle);
-                    let mut udp = sockets.get::<UdpSocket<_>>(*socket)?;
-                    udp.endpoint = remote;
-                    udp.meta.handle = handle;
-                    *socket = handle;
-                }
-                Err(e) => return Err(e),
-            }
-        }
         while {
             let mut sockets = self.sockets.try_borrow_mut()?;
-            let udp = sockets.get::<UdpSocket<_>>(*socket)?;
+            let udp = sockets.get::<UdpSocket<CLK, L>>(socket.clone().into())?;
             udp.state() == UdpState::Closed
         } {
             self.spin()?;
@@ -234,7 +197,7 @@ where
     }
 
     /// Send a datagram to the remote host.
-    fn send(&self, socket: &mut Self::UdpSocket, buffer: &[u8]) -> nb::Result<(), Self::Error> {
+    fn send(&mut self, socket: &mut Self::UdpSocket, buffer: &[u8]) -> nb::Result<(), Self::Error> {
         if let Some(ref con) = *self
             .wifi_connection
             .try_borrow()
@@ -253,14 +216,14 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let udp = sockets
-            .get::<UdpSocket<_>>(*socket)
+            .get::<UdpSocket<CLK, L>>(socket.clone().into())
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         if !udp.is_open() {
             return Err(nb::Error::Other(Error::SocketClosed));
         }
 
-        for chunk in buffer.chunks(EgressChunkSize::to_usize()) {
+        for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
             self.handle_socket_error(
                 || {
                     self.send_internal(
@@ -282,7 +245,7 @@ where
     /// means a datagram of size `n` has been received and it has been placed
     /// in `&buffer[0..n]`, or an error.
     fn receive(
-        &self,
+        &mut self,
         socket: &mut Self::UdpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<(usize, SocketAddr), Self::Error> {
@@ -294,7 +257,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let mut udp = sockets
-            .get::<UdpSocket<_>>(*socket)
+            .get::<UdpSocket<CLK, L>>(socket.clone().into())
             .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
 
         let us = udp
@@ -304,11 +267,11 @@ where
     }
 
     /// Close an existing UDP socket.
-    fn close(&self, socket: Self::UdpSocket) -> Result<(), Self::Error> {
+    fn close(&mut self, socket: Self::UdpSocket) -> Result<(), Self::Error> {
         defmt::debug!("[UDP] Closelosing socket: {:?}", socket.0);
         let mut sockets = self.sockets.try_borrow_mut()?;
         //If no sockets excists, nothing to close.
-        if let Some(ref mut udp) = sockets.get::<UdpSocket<_>>(socket).ok() {
+        if let Some(ref mut udp) = sockets.get::<UdpSocket<CLK, L>>(socket.clone().into()).ok() {
             self.handle_socket_error(
                 || {
                     self.send_at(ClosePeerConnection {
@@ -326,11 +289,11 @@ where
 }
 
 #[cfg(feature = "socket-tcp")]
-impl<C, N, L> TcpClient for UbloxClient<C, N, L>
+impl<C, CLK, const N: usize, const L: usize> TcpClientStack for UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
-    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: ArrayLength<u8>,
+    CLK: Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     type Error = Error;
 
@@ -339,7 +302,7 @@ where
     type TcpSocket = SocketHandle;
 
     /// Open a new TCP socket to the given address and port. The socket starts in the unconnected state.
-    fn socket(&self) -> Result<Self::TcpSocket, Self::Error> {
+    fn socket(&mut self) -> Result<Self::TcpSocket, Self::Error> {
         defmt::debug!("[TCP] Opening socket");
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected() {
@@ -363,7 +326,7 @@ where
 
     /// Connect to the given remote host and port.
     fn connect(
-        &self,
+        &mut self,
         socket: &mut Self::TcpSocket,
         remote: SocketAddr,
     ) -> nb::Result<(), Self::Error> {
@@ -380,109 +343,46 @@ where
             return Err(nb::Error::Other(Error::Network));
         }
 
-        {
-            let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
+        let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
+        //If no socket is found we stop here
+        let mut tcp = sockets
+            .get::<TcpSocket<CLK, L>>(socket.clone().into())
+            .map_err(Self::Error::from)?;
 
-            //If no socket is found we stop here
-            let mut tcp = sockets
-                .get::<TcpSocket<_>>(*socket)
-                .map_err(Self::Error::from)?;
+        let mut url_builder = PeerUrlBuilder::new();
+        self.security_credentials
+            .as_ref()
+            .and_then(|cred| cred.ca_cert_name.as_ref())
+            .map(|ca| url_builder.ca(ca));
+        self.security_credentials
+            .as_ref()
+            .and_then(|cred| cred.c_cert_name.as_ref())
+            .map(|cert| url_builder.cert(cert));
+        self.security_credentials
+            .as_ref()
+            .and_then(|cred| cred.c_key_name.as_ref())
+            .map(|pkey| url_builder.pkey(pkey));
+        let url = url_builder.address(&remote).tcp()?;
 
-            //TODO: Optimize! and when possible rewrite to ufmt!
-            let mut url = String::<consts::U128>::from("tcp://");
-            let workspace: String<consts::U43>;
-            let mut ip_str = String::<consts::U43>::from("[");
-            let port: String<consts::U8>;
+        defmt::trace!("[TCP] Connecting to url! {=str}", url);
 
-            match remote.ip() {
-                IpAddr::V4(ip) => {
-                    ip_str = to_string(
-                        &ip,
-                        String::<consts::U1>::new(),
-                        SerializeOptions {
-                            value_sep: false,
-                            cmd_prefix: &"",
-                            termination: &"",
-                        },
-                    )
-                    .map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(&ip_str[1..ip_str.len() - 1])
-                        .map_err(|_e| Self::Error::BadLength)?;
-                }
-                IpAddr::V6(ip) => {
-                    workspace = to_string(
-                        &ip,
-                        String::<consts::U1>::new(),
-                        SerializeOptions::default(),
-                    )
-                    .map_err(|_e| Self::Error::BadLength)?;
+        let resp = self.handle_socket_error(
+            || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
+            Some(*socket),
+            0,
+        )?;
+        let handle = SocketHandle(resp.peer_handle);
+        tcp.set_state(TcpState::WaitingForConnect);
+        tcp.endpoint = remote;
+        tcp.meta.handle = handle;
+        *socket = handle;
 
-                    ip_str
-                        .push_str(&workspace[1..workspace.len() - 1])
-                        .map_err(|_e| Self::Error::BadLength)?;
-                    ip_str.push(']').map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(&ip_str).map_err(|_e| Self::Error::BadLength)?;
-                }
-            }
-            url.push(':').map_err(|_e| Self::Error::BadLength)?;
-
-            port = to_string(
-                &remote.port(),
-                String::<consts::U1>::new(),
-                SerializeOptions::default(),
-            )
-            .map_err(|_e| Self::Error::BadLength)?;
-            url.push_str(&port).map_err(|_e| Self::Error::BadLength)?;
-            url.push('/').map_err(|_e| Self::Error::BadLength)?;
-
-            // if tcp.c_cert_name != None || tcp.c_key_name != None || tcp.ca_cert_name != None {
-            if let Some(ref credentials) = self.security_credentials {
-                url.push('?').map_err(|_e| Self::Error::BadLength)?;
-
-                // if let Some(ref ca) = tcp.ca_cert_name{
-                if let Some(ref ca) = credentials.ca_cert_name {
-                    url.push_str(&"ca=").map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(ca).map_err(|_e| Self::Error::BadLength)?;
-                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
-                }
-
-                // if let Some(ref client) = tcp.c_cert_name{
-                if let Some(ref client) = credentials.c_cert_name {
-                    url.push_str(&"cert=")
-                        .map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(client).map_err(|_e| Self::Error::BadLength)?;
-                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
-                }
-
-                // if let Some(ref key) = tcp.c_key_name {
-                if let Some(ref key) = credentials.c_key_name {
-                    url.push_str(&"privKey=")
-                        .map_err(|_e| Self::Error::BadLength)?;
-                    url.push_str(key).map_err(|_e| Self::Error::BadLength)?;
-                    url.push('&').map_err(|_e| Self::Error::BadLength)?;
-                }
-                url.pop();
-            }
-
-            defmt::trace!("[TCP] Connecting to url! {=str}", url);
-
-            let resp = self.handle_socket_error(
-                || self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false),
-                Some(*socket),
-                0,
-            )?;
-            let handle = SocketHandle(resp.peer_handle);
-            tcp.set_state(TcpState::SynSent);
-            tcp.endpoint = remote;
-            tcp.meta.handle = handle;
-            *socket = handle;
-        }
         while {
             let mut sockets = self.sockets.try_borrow_mut().map_err(Self::Error::from)?;
             let tcp = sockets
-                .get::<TcpSocket<_>>(*socket)
+                .get::<TcpSocket<CLK, L>>(socket.clone().into())
                 .map_err(Self::Error::from)?;
-            tcp.state() == TcpState::SynSent
+            matches!(tcp.state(), TcpState::WaitingForConnect)
         } {
             self.spin()?;
         }
@@ -490,7 +390,7 @@ where
     }
 
     /// Check if this socket is still connected
-    fn is_connected(&self, socket: &Self::TcpSocket) -> Result<bool, Self::Error> {
+    fn is_connected(&mut self, socket: &Self::TcpSocket) -> Result<bool, Self::Error> {
         if let Some(ref con) = *self.wifi_connection.try_borrow()? {
             if !self.initialized.get() || !con.is_connected() {
                 return Ok(false);
@@ -500,13 +400,17 @@ where
         }
 
         let mut sockets = self.sockets.try_borrow_mut()?;
-        let socket_ref = sockets.get::<TcpSocket<_>>(*socket)?;
-        Ok(socket_ref.state() == TcpState::Established)
+        let socket_ref = sockets.get::<TcpSocket<CLK, L>>(socket.clone().into())?;
+        Ok(matches!(socket_ref.state(), TcpState::Connected))
     }
 
     /// Write to the stream. Returns the number of bytes written is returned
     /// (which may be less than `buffer.len()`), or an error.
-    fn send(&self, socket: &mut Self::TcpSocket, buffer: &[u8]) -> nb::Result<usize, Self::Error> {
+    fn send(
+        &mut self,
+        socket: &mut Self::TcpSocket,
+        buffer: &[u8],
+    ) -> nb::Result<usize, Self::Error> {
         if let Some(ref con) = *self
             .wifi_connection
             .try_borrow()
@@ -525,14 +429,14 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let tcp = sockets
-            .get::<TcpSocket<_>>(*socket)
+            .get::<TcpSocket<CLK, L>>(socket.clone().into())
             .map_err(|e| nb::Error::Other(e.into()))?;
 
-        if !tcp.may_send() {
-            return Err(nb::Error::Other(Error::SocketClosed));
+        if !matches!(tcp.state(), TcpState::Connected) {
+            return Err(nb::Error::Other(Error::SocketNotConnected));
         }
 
-        for chunk in buffer.chunks(EgressChunkSize::to_usize()) {
+        for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
             self.handle_socket_error(
                 || {
                     self.send_internal(
@@ -551,7 +455,7 @@ where
     }
 
     fn receive(
-        &self,
+        &mut self,
         socket: &mut Self::TcpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<usize, Self::Error> {
@@ -563,7 +467,7 @@ where
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         let mut tcp = sockets
-            .get::<TcpSocket<_>>(*socket)
+            .get::<TcpSocket<CLK, L>>((*socket).into())
             .map_err(|e| nb::Error::Other(e.into()))?;
 
         tcp.recv_slice(buffer)
@@ -591,14 +495,17 @@ where
     // }
 
     /// Close an existing TCP socket.
-    fn close(&self, socket: Self::TcpSocket) -> Result<(), Self::Error> {
+    fn close(&mut self, socket: Self::TcpSocket) -> Result<(), Self::Error> {
         defmt::debug!("[TCP] Closing socket: {:?}", socket.0);
         let mut sockets = self.sockets.try_borrow_mut()?;
 
         // If the socket is not found it is already removed
-        if let Some(ref mut tcp) = sockets.get::<TcpSocket<_>>(socket).ok() {
+        if let Some(ref mut tcp) = sockets.get::<TcpSocket<CLK, L>>(socket.into()).ok() {
             //If socket is not closed that means a connection excists which has to be closed
-            if tcp.state() != TcpState::Closed {
+            if !matches!(
+                tcp.state(),
+                TcpState::ShutdownForWrite(_) | TcpState::Created
+            ) {
                 match self.handle_socket_error(
                     || {
                         self.send_at(ClosePeerConnection {
@@ -611,13 +518,164 @@ where
                     Err(Error::AT(atat::Error::InvalidResponse)) | Ok(_) => (),
                     Err(e) => return Err(e.into()),
                 }
-                tcp.close();
             } else {
                 //No connection exists the socket should be removed from the set here
-                tcp.close();
-                sockets.remove(socket)?;
+                sockets.remove(socket.into())?;
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+struct PeerUrlBuilder<'a> {
+    hostname: Option<&'a str>,
+    ip_addr: Option<IpAddr>,
+    port: Option<u16>,
+    ca: Option<&'a str>,
+    cert: Option<&'a str>,
+    pkey: Option<&'a str>,
+    local_port: Option<u16>,
+}
+
+impl<'a> PeerUrlBuilder<'a> {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn write_domain(&self, s: &mut String<128>) -> Result<(), Error> {
+        let port = self.port.ok_or(Error::Network)?;
+        let addr = self
+            .ip_addr
+            .and_then(|ip| write!(s, "{}/", SocketAddr::new(ip, port)).ok());
+        let host = self
+            .hostname
+            .and_then(|host| write!(s, "{}:{}/", host, port).ok());
+
+        addr.xor(host).ok_or(Error::Network)
+    }
+
+    fn udp(&self) -> Result<String<128>, Error> {
+        let mut s = String::new();
+        write!(&mut s, "udp://").ok();
+        self.write_domain(&mut s)?;
+
+        // Start writing query parameters
+        write!(&mut s, "?").ok();
+        self.local_port
+            .map(|v| write!(&mut s, "local_port={}&", v).ok());
+        // Remove trailing '&' or '?' if no query.
+        s.pop();
+
+        Ok(s)
+    }
+
+    fn tcp(&mut self) -> Result<String<128>, Error> {
+        let mut s = String::new();
+        write!(&mut s, "tcp://").ok();
+        self.write_domain(&mut s)?;
+
+        // Start writing query parameters
+        write!(&mut s, "?").ok();
+        self.local_port
+            .map(|v| write!(&mut s, "local_port={}&", v).ok());
+        self.ca.map(|v| write!(&mut s, "ca={}&", v).ok());
+        self.cert.map(|v| write!(&mut s, "cert={}&", v).ok());
+        self.pkey.map(|v| write!(&mut s, "privKey={}&", v).ok());
+        // Remove trailing '&' or '?' if no query.
+        s.pop();
+
+        Ok(s)
+    }
+
+    fn address(&mut self, addr: &SocketAddr) -> &mut Self {
+        self.ip_addr(addr.ip()).port(addr.port())
+    }
+
+    #[allow(dead_code)]
+    fn hostname(&mut self, hostname: &'a str) -> &mut Self {
+        self.hostname.replace(hostname);
+        self
+    }
+
+    /// maximum length 64
+    fn ip_addr(&mut self, ip_addr: IpAddr) -> &mut Self {
+        self.ip_addr.replace(ip_addr);
+        self
+    }
+
+    /// port number
+    fn port(&mut self, port: u16) -> &mut Self {
+        self.port.replace(port);
+        self
+    }
+
+    fn ca(&mut self, ca: &'a str) -> &mut Self {
+        self.ca.replace(ca);
+        self
+    }
+
+    fn cert(&mut self, cert: &'a str) -> &mut Self {
+        self.cert.replace(cert);
+        self
+    }
+
+    fn pkey(&mut self, pkey: &'a str) -> &mut Self {
+        self.pkey.replace(pkey);
+        self
+    }
+
+    #[allow(dead_code)]
+    fn local_port(&mut self, local_port: u16) -> &mut Self {
+        self.local_port.replace(local_port);
+        self
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn udp_ipv4_url() {
+        let address = "192.168.0.1:8080".parse().unwrap();
+        let url = PeerUrlBuilder::new().address(&address).udp().unwrap();
+        assert_eq!(url, "udp://192.168.0.1:8080/");
+    }
+
+    #[test]
+    fn udp_ipv6_url() {
+        let address = "[FE80:0000:0000:0000:0202:B3FF:FE1E:8329]:8080"
+            .parse()
+            .unwrap();
+        let url = PeerUrlBuilder::new().address(&address).udp().unwrap();
+        assert_eq!(url, "udp://[fe80::202:b3ff:fe1e:8329]:8080/");
+    }
+
+    #[test]
+    fn udp_hostname_url() {
+        let url = PeerUrlBuilder::new()
+            .hostname("example.org")
+            .port(2000)
+            .local_port(2001)
+            .udp()
+            .unwrap();
+        assert_eq!(url, "udp://example.org:2000/?local_port=2001");
+    }
+
+    #[test]
+    fn tcp_certs() {
+        let url = PeerUrlBuilder::new()
+            .hostname("example.org")
+            .port(2000)
+            .ca("ca.crt")
+            .cert("client.crt")
+            .pkey("client.key")
+            .tcp()
+            .unwrap();
+        assert_eq!(
+            url,
+            "tcp://example.org:2000/?ca=ca.crt&cert=client.crt&privKey=client.key"
+        );
     }
 }

@@ -15,27 +15,28 @@ use crate::{
 use atat::serde_at::CharVec;
 use atat::AtatClient;
 
-// use core::convert::TryFrom;
-use core::convert::TryFrom;
-use heapless::{consts, ArrayLength, Vec};
+use core::convert::{TryFrom, TryInto};
+use embedded_time::duration::{Generic, Milliseconds};
+use embedded_time::Clock;
+use heapless::Vec;
 
 /// Wireless network connectivity functionality.
 pub trait WifiConnectivity {
     /// Makes an attempt to connect to a selected wireless network with password specified.
     fn connect(&self, options: ConnectionOptions) -> Result<(), WifiConnectionError>;
 
-    fn scan(&self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError>;
+    fn scan(&self) -> Result<Vec<WifiNetwork, 32>, WifiError>;
 
     fn is_connected(&self) -> bool;
 
     fn disconnect(&self) -> Result<(), WifiConnectionError>;
 }
 
-impl<T, N, L> WifiConnectivity for UbloxClient<T, N, L>
+impl<C, CLK, const N: usize, const L: usize> WifiConnectivity for UbloxClient<C, CLK, N, L>
 where
-    T: AtatClient,
-    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: ArrayLength<u8>,
+    C: AtatClient,
+    CLK: Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     /// Attempts to connect to a wireless network with the given connection options.
     fn connect(&self, options: ConnectionOptions) -> Result<(), WifiConnectionError> {
@@ -113,12 +114,12 @@ where
         self.send_internal(
             &EdmAtCmdWrapper(SetWifiStationConfig {
                 config_id: config_id,
-                config_param: WifiStationConfig::SSID(&options.ssid),
+                config_param: WifiStationConfig::SSID(options.ssid.clone()),
             }),
             true,
         )?;
 
-        if let Some(pass) = options.password {
+        if let Some(pass) = options.password.clone() {
             // Use WPA2 as authentication type
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
@@ -132,7 +133,7 @@ where
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
                     config_id: config_id,
-                    config_param: WifiStationConfig::WpaPskOrPassphrase(&pass),
+                    config_param: WifiStationConfig::WpaPskOrPassphrase(pass),
                 }),
                 true,
             )?;
@@ -167,7 +168,7 @@ where
         Ok(())
     }
 
-    fn scan(&self) -> Result<Vec<WifiNetwork, consts::U32>, WifiError> {
+    fn scan(&self) -> Result<Vec<WifiNetwork, 32>, WifiError> {
         match self.send_internal(&EdmAtCmdWrapper(WifiScan { ssid: None }), true) {
             Ok(resp) => resp
                 .network_list

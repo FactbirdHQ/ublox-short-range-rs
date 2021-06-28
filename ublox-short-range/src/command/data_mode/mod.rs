@@ -72,12 +72,12 @@ pub struct PeerList;
 /// Writes server configuration. Only one option from option2 is to be used.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDSC", NoResponse, timeout_ms = 10000)]
-pub struct ServerConfiguration<'a> {
+pub struct ServerConfiguration {
     /// 0-6, the server ID to configure. Disable an active server first before changing.
     #[at_arg(position = 0)]
     pub id: u8,
     #[at_arg(position = 1)]
-    pub server_config: ServerConfig<'a>,
+    pub server_config: ServerConfig,
 }
 
 /// 5.7 Server flags +UDSF

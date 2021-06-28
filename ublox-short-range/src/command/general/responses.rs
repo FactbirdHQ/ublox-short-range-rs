@@ -1,13 +1,13 @@
 //! Responses for General Commands
 use atat::atat_derive::AtatResp;
-use heapless::{consts, String};
+use heapless::String;
 
 /// 3.2 Manufacturer identification +CGMI
 #[derive(Clone, AtatResp)]
 pub struct ManufacturerIdentificationResponse {
     /// Text string that identifies the Manufacture identification.
     #[at_arg(position = 0)]
-    pub manufacturer_id: String<consts::U64>,
+    pub manufacturer_id: String<64>,
 }
 
 /// 3.3 Model identification +CGMI
@@ -15,7 +15,7 @@ pub struct ManufacturerIdentificationResponse {
 pub struct ModelIdentificationResponse {
     /// Text string that identifies the Model identification.
     #[at_arg(position = 0)]
-    pub model: String<consts::U64>,
+    pub model: String<64>,
 }
 
 /// 3.3 Model identification +CGMI
@@ -23,7 +23,7 @@ pub struct ModelIdentificationResponse {
 pub struct SoftwareVersionResponse {
     /// Text string that identifies the Model identification.
     #[at_arg(position = 0)]
-    pub version: String<consts::U64>,
+    pub version: String<64>,
 }
 
 /// 3.5 Serial number +CGSN
@@ -31,7 +31,7 @@ pub struct SoftwareVersionResponse {
 pub struct SerialNumberResponse {
     /// Text string that identifies the serial number.
     #[at_arg(position = 0)]
-    pub serial_number: String<consts::U64>,
+    pub serial_number: String<64>,
 }
 
 /// 3.10 Identification information I0
@@ -39,7 +39,7 @@ pub struct SerialNumberResponse {
 pub struct IdentificationInfomationTypeCodeResponse {
     /// Text string that identifies the serial number.
     #[at_arg(position = 0)]
-    pub serial_number: String<consts::U64>,
+    pub serial_number: String<64>,
 }
 
 /// 3.10 Identification information I9
@@ -47,7 +47,7 @@ pub struct IdentificationInfomationTypeCodeResponse {
 pub struct IdentificationInfomationSoftwareVersionResponse {
     /// Text string that identifies the serial number.
     #[at_arg(position = 0)]
-    pub serial_number: String<consts::U64>,
+    pub serial_number: String<64>,
 }
 
 /// 3.10 Identification information I10
@@ -55,5 +55,5 @@ pub struct IdentificationInfomationSoftwareVersionResponse {
 pub struct IdentificationInfomationMCUIDResponse {
     /// Text string that identifies the serial number.
     #[at_arg(position = 0)]
-    pub serial_number: String<consts::U64>,
+    pub serial_number: String<64>,
 }

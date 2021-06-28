@@ -1,93 +1,114 @@
-// macro_rules! setup_test_env {
-//     () => {
-//         extern crate env_logger;
-//         extern crate std;
+//! This module is required in order to satisfy the requirements of defmt, while running tests.
+//! Note that this will cause all log `defmt::` log statements to be thrown away.
+use atat::AtatClient;
+use core::ptr::NonNull;
+use embedded_time::{rate::Fraction, Clock, Instant};
 
-//         extern crate nb;
+#[defmt::global_logger]
+struct Logger;
+impl defmt::Write for Logger {
+    fn write(&mut self, _bytes: &[u8]) {}
+}
 
-//         // Note this useful idiom: importing names from outer (for mod tests) scope.
-//         use super::*;
+unsafe impl defmt::Logger for Logger {
+    fn acquire() -> Option<NonNull<dyn defmt::Write>> {
+        Some(NonNull::from(&Logger as &dyn defmt::Write))
+    }
 
-//         #[allow(unused_imports)]
-//         use defmt::{error, info, warn};
-//         use heapless::{consts::*, spsc::Queue, String};
+    unsafe fn release(_: NonNull<dyn defmt::Write>) {}
+}
 
-//         use crate::wifi;
-//         use env_logger::Env;
-//         use std::sync::Once;
+defmt::timestamp!("");
 
-//         static INIT: Once = Once::new();
+#[export_name = "_defmt_panic"]
+fn panic() -> ! {
+    panic!()
+}
 
-//         #[derive(Clone, Copy)]
-//         struct MilliSeconds(u32);
+#[derive(Debug)]
+pub struct MockAtClient {
+    pub n_urcs_dequeued: u8,
+}
 
-//         trait U32Ext {
-//             fn s(self) -> MilliSeconds;
-//             fn ms(self) -> MilliSeconds;
-//         }
+impl MockAtClient {
+    pub fn new(n_urcs_dequeued: u8) -> Self {
+        Self { n_urcs_dequeued }
+    }
+}
 
-//         impl U32Ext for u32 {
-//             fn s(self) -> MilliSeconds {
-//                 MilliSeconds(self / 1000)
-//             }
-//             fn ms(self) -> MilliSeconds {
-//                 MilliSeconds(self)
-//             }
-//         }
+impl AtatClient for MockAtClient {
+    fn send<A: atat::AtatCmd<LEN>, const LEN: usize>(
+        &mut self,
+        _cmd: &A,
+    ) -> nb::Result<A::Response, atat::Error<A::Error>> {
+        todo!()
+    }
 
-//         struct Timer6;
-//         impl embedded_hal::timer::CountDown for Timer6 {
-//             type Time = MilliSeconds;
-//             fn start<T>(&mut self, _: T)
-//             where
-//                 T: Into<MilliSeconds>,
-//             {
-//             }
+    fn peek_urc_with<URC: atat::AtatUrc, F: FnOnce(URC::Response) -> bool>(&mut self, f: F) {
+        if let Some(urc) = URC::parse(b"+UREG:0") {
+            if f(urc) {
+                self.n_urcs_dequeued += 1;
+            }
+        }
+    }
 
-//             fn wait(&mut self) -> ::nb::Result<(), void::Void> {
-//                 Err(nb::Error::WouldBlock)
-//             }
-//         }
+    fn check_response<A: atat::AtatCmd<LEN>, const LEN: usize>(
+        &mut self,
+        _cmd: &A,
+    ) -> nb::Result<A::Response, atat::Error<A::Error>> {
+        todo!()
+    }
 
-//         impl embedded_hal::timer::Cancel for Timer6 {
-//             type Error = ();
-//             fn cancel(&mut self) -> Result<(), Self::Error> {
-//                 Ok(())
-//             }
-//         }
-//     };
-// }
+    fn get_mode(&self) -> atat::Mode {
+        todo!()
+    }
 
-// macro_rules! setup_test_case {
-//     () => {{
-//         INIT.call_once(|| {
-//             env_logger::Builder::from_env(Env::default().default_filter_or("info"))
-//                 .is_test(true)
-//                 .init();
-//         });
+    fn reset(&mut self) {}
+}
 
-//         static mut WIFI_REQ_Q: Option<Queue<RequestType, U5, u8>> = None;
-//         static mut WIFI_RES_Q: Option<Queue<Result<ResponseType, at::Error>, U5, u8>> = None;
+#[derive(Debug)]
+pub struct MockTimer {
+    forced_ms_time: Option<u32>,
+    start_time: std::time::SystemTime,
+}
 
-//         unsafe { WIFI_REQ_Q = Some(Queue::u8()) };
-//         unsafe { WIFI_RES_Q = Some(Queue::u8()) };
+impl MockTimer {
+    pub fn new(forced_ms_time: Option<u32>) -> Self {
+        Self {
+            forced_ms_time,
+            start_time: std::time::SystemTime::now(),
+        }
+    }
+}
 
-//         let (wifi_req_p, wifi_req_c) = unsafe { WIFI_REQ_Q.as_mut().unwrap().split() };
-//         let (wifi_res_p, wifi_res_c) = unsafe { WIFI_RES_Q.as_mut().unwrap().split() };
+impl Clock for MockTimer {
+    type T = u32;
 
-//         let wifi_client = at::client::ATClient::new((wifi_req_p, wifi_res_c), 1000.ms(), Timer6);
+    const SCALING_FACTOR: Fraction = Fraction::new(1, 1000);
 
-//         let ublox = UbloxClient::new(wifi_client);
+    fn try_now(&self) -> Result<Instant<Self>, embedded_time::clock::Error> {
+        Ok(Instant::new(self.forced_ms_time.unwrap_or_else(|| {
+            self.start_time.elapsed().unwrap().as_millis() as u32
+        })))
+    }
+}
 
-//         (ublox, (wifi_req_c, wifi_res_p))
-//     }};
-// }
+mod tests {
+    use super::*;
+    use embedded_time::duration::*;
 
-// macro_rules! cleanup_test_case {
-//     ($connection: expr, $req_c: expr) => {
-//         // let wifi_client = $connection.unwrap().disconnect();
-//         // let (_, mut wifi_res_c) = wifi_client.release();
-//         // assert!(wifi_res_c.dequeue().is_none());
-//         assert!($req_c.dequeue().is_none());
-//     };
-// }
+    #[test]
+    fn mock_timer_works() {
+        let now = std::time::SystemTime::now();
+
+        let timer = MockTimer::new(None);
+        timer
+            .new_timer(1_u32.seconds())
+            .start()
+            .unwrap()
+            .wait()
+            .unwrap();
+
+        assert!(now.elapsed().unwrap().as_millis() >= 1_000);
+    }
+}

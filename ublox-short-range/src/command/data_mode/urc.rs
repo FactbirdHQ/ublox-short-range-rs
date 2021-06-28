@@ -2,7 +2,6 @@
 use super::types::*;
 use atat::atat_derive::AtatResp;
 use atat::serde_at::CharVec;
-use heapless::consts;
 
 /// 5.10 Peer connected +UUDPC
 #[derive(Debug, PartialEq, Clone, AtatResp)]
@@ -16,13 +15,13 @@ pub struct PeerConnected {
     // #[at_arg(position = 3)]
     // pub local_address: IpAddr,
     #[at_arg(position = 3)]
-    pub local_address: CharVec<consts::U40>,
+    pub local_address: CharVec<40>,
     #[at_arg(position = 4)]
     pub local_port: u16,
     // #[at_arg(position = 5)]
     // pub remote_address: IpAddr,
     #[at_arg(position = 5)]
-    pub remote_address: CharVec<consts::U40>,
+    pub remote_address: CharVec<40>,
     #[at_arg(position = 6)]
     pub remote_port: u16,
 }

@@ -15,14 +15,15 @@ name = "ublox_short_range"
 doctest = false
 
 [dependencies]
-atat = "0.9.0"
-heapless = { version = "^0.5", features = ["serde"] }
-no-std-net = { version = "^0.4", features = ["serde"] }
+atat = { version = "0.11.0", features = ["defmt"] }
+heapless = { version = "^0.7.0", features = ["serde"] }
+no-std-net = { version = "^0.5", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
 
 defmt = "0.2"
 embedded-hal = "1.0.0-alpha.4"
-embedded-nal = "0.2.0"
+embedded-nal = "0.6.0"
+embedded-time = "0.11.0"
 nb = "^1"
 typenum = "^1"
 

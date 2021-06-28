@@ -10,13 +10,15 @@ use crate::{
         Urc,
     },
     error::Error,
-    socket::{ChannelId, SocketHandle, SocketType, TcpSocket, TcpState, UdpSocket, UdpState},
+    socket::{ChannelId, SocketIndicator, SocketType, TcpSocket, TcpState, UdpSocket, UdpState},
     sockets::SocketSet,
     wifi::connection::{NetworkState, WiFiState, WifiConnection},
 };
 use core::cell::{Cell, RefCell};
+use core::convert::TryInto;
 use embedded_nal::{IpAddr, SocketAddr};
-use heapless::{consts, ArrayLength};
+use embedded_time::duration::{Generic, Milliseconds};
+use embedded_time::Clock;
 
 #[macro_export]
 macro_rules! wait_for_unsolicited {
@@ -56,35 +58,35 @@ pub enum DNSState {
 
 #[derive(PartialEq, Clone)]
 pub struct SecurityCredentials {
-    pub ca_cert_name: Option<heapless::String<consts::U16>>,
-    pub c_cert_name: Option<heapless::String<consts::U16>>, //TODO: Make &str with lifetime
-    pub c_key_name: Option<heapless::String<consts::U16>>,
+    pub ca_cert_name: Option<heapless::String<16>>,
+    pub c_cert_name: Option<heapless::String<16>>, //TODO: Make &str with lifetime
+    pub c_key_name: Option<heapless::String<16>>,
 }
 
-pub struct UbloxClient<C, N, L>
+pub struct UbloxClient<C, CLK, const N: usize, const L: usize>
 where
     C: atat::AtatClient,
-    N: 'static + ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: 'static + ArrayLength<u8>,
+    CLK: 'static + Clock,
 {
     pub(crate) initialized: Cell<bool>,
     serial_mode: Cell<SerialMode>,
     pub(crate) wifi_connection: RefCell<Option<WifiConnection>>,
     pub(crate) client: RefCell<C>,
-    pub(crate) sockets: RefCell<&'static mut SocketSet<N, L>>,
+    pub(crate) sockets: RefCell<&'static mut SocketSet<CLK, N, L>>,
     pub(crate) dns_state: Cell<DNSState>,
     pub(crate) urc_attempts: Cell<u8>,
     pub(crate) max_urc_attempts: u8,
     pub(crate) security_credentials: Option<SecurityCredentials>,
+    pub(crate) timer: CLK,
 }
 
-impl<C, N, L> UbloxClient<C, N, L>
+impl<C, CLK, const N: usize, const L: usize> UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
-    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: ArrayLength<u8>,
+    CLK: 'static + Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
-    pub fn new(client: C, socket_set: &'static mut SocketSet<N, L>) -> Self {
+    pub fn new(client: C, timer: CLK, socket_set: &'static mut SocketSet<CLK, N, L>) -> Self {
         UbloxClient {
             initialized: Cell::new(false),
             serial_mode: Cell::new(SerialMode::Cmd),
@@ -95,6 +97,7 @@ where
             max_urc_attempts: 5,
             urc_attempts: Cell::new(0),
             security_credentials: None,
+            timer,
         }
     }
 
@@ -170,11 +173,14 @@ where
         Ok(())
     }
 
-    pub(crate) fn send_internal<A: atat::AtatCmd>(
+    pub(crate) fn send_internal<A, const LEN: usize>(
         &self,
         req: &A,
         check_urc: bool,
-    ) -> Result<A::Response, Error> {
+    ) -> Result<A::Response, Error>
+    where
+        A: atat::AtatCmd<LEN, Error = atat::GenericError>,
+    {
         if check_urc {
             if let Err(_e) = self.handle_urc() {
                 #[cfg(features = "logging")]
@@ -216,21 +222,23 @@ where
                             Urc::PeerDisconnected(msg) => {
                                 defmt::debug!("[URC] PeerDisconnected");
                                 if let Ok(ref mut sockets) = self.sockets.try_borrow_mut() {
-                                    let handle = SocketHandle(msg.handle);
-                                    match sockets.socket_type(handle) {
+                                    let indicator = SocketIndicator::Handle(msg.handle);
+                                    match sockets.socket_type(indicator) {
                                         Some(SocketType::Tcp) => {
-                                            if let Ok(mut tcp) = sockets.get::<TcpSocket<_>>(handle)
+                                            if let Ok(mut tcp) =
+                                                sockets.get::<TcpSocket<CLK, L>>(indicator)
                                             {
-                                                tcp.close();
-                                                sockets.remove(handle).ok();
+                                                let ts = self.timer.try_now().unwrap();
+                                                tcp.closed_by_remote(ts);
                                             }
                                         }
                                         Some(SocketType::Udp) => {
-                                            if let Ok(mut udp) = sockets.get::<UdpSocket<_>>(handle)
+                                            if let Ok(mut udp) =
+                                                sockets.get::<UdpSocket<CLK, L>>(indicator)
                                             {
                                                 udp.close();
                                             }
-                                            sockets.remove(handle).ok();
+                                            sockets.remove(indicator).ok();
                                         }
                                         None => {}
                                     }
@@ -362,13 +370,13 @@ where
                         if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
                             let endpoint =
                                 SocketAddr::new(IpAddr::V4(event.remote_ip), event.remote_port);
-                            match sockets.socket_type_by_endpoint(&endpoint) {
+                            let indicator = SocketIndicator::Endpoint(&endpoint);
+                            match sockets.socket_type(indicator) {
                                 Some(SocketType::Tcp) => {
-                                    if let Ok(mut tcp) =
-                                        sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint)
+                                    if let Ok(mut tcp) = sockets.get::<TcpSocket<CLK, L>>(indicator)
                                     {
                                         tcp.meta.channel_id.0 = event.channel_id;
-                                        tcp.set_state(TcpState::Established);
+                                        tcp.set_state(TcpState::Connected);
                                         true
                                     } else {
                                         defmt::debug!("[EDM_URC] Socket not found!");
@@ -376,8 +384,7 @@ where
                                     }
                                 }
                                 Some(SocketType::Udp) => {
-                                    if let Ok(mut udp) =
-                                        sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)
+                                    if let Ok(mut udp) = sockets.get::<UdpSocket<CLK, L>>(indicator)
                                     {
                                         udp.meta.channel_id.0 = event.channel_id;
                                         udp.set_state(UdpState::Established);
@@ -405,21 +412,20 @@ where
                         if let Ok(mut sockets) = self.sockets.try_borrow_mut() {
                             let endpoint =
                                 SocketAddr::new(IpAddr::V6(event.remote_ip), event.remote_port);
-                            match sockets.socket_type_by_endpoint(&endpoint) {
+                            let indicator = SocketIndicator::Endpoint(&endpoint);
+                            match sockets.socket_type(indicator) {
                                 Some(SocketType::Tcp) => {
-                                    if let Ok(mut tcp) =
-                                        sockets.get_by_endpoint::<TcpSocket<_>>(&endpoint)
+                                    if let Ok(mut tcp) = sockets.get::<TcpSocket<CLK, L>>(indicator)
                                     {
                                         tcp.meta.channel_id.0 = event.channel_id;
-                                        tcp.set_state(TcpState::Established);
+                                        tcp.set_state(TcpState::Connected);
                                         true
                                     } else {
                                         false
                                     }
                                 }
                                 Some(SocketType::Udp) => {
-                                    if let Ok(mut udp) =
-                                        sockets.get_by_endpoint::<UdpSocket<_>>(&endpoint)
+                                    if let Ok(mut udp) = sockets.get::<UdpSocket<CLK, L>>(indicator)
                                     {
                                         udp.meta.channel_id.0 = event.channel_id;
                                         udp.set_state(UdpState::Established);
@@ -479,14 +485,9 @@ where
 
     /// Send AT command
     /// Automaticaly waraps commands in EDM context
-    pub fn send_at<A>(&self, cmd: A) -> Result<A::Response, Error>
+    pub fn send_at<A, const LEN: usize>(&self, cmd: A) -> Result<A::Response, Error>
     where
-        A: atat::AtatCmd,
-        <A as atat::AtatCmd>::CommandLen:
-            core::ops::Add<crate::command::edm::types::EdmAtCmdOverhead>,
-        <<A as atat::AtatCmd>::CommandLen as core::ops::Add<
-            crate::command::edm::types::EdmAtCmdOverhead,
-        >>::Output: ArrayLength<u8>,
+        A: atat::AtatCmd<LEN, Error = atat::GenericError>,
     {
         if !self.initialized.get() {
             self.init()?;

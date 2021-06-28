@@ -12,6 +12,7 @@ pub enum Error {
     SocketClosed,
     WrongSocketType,
     SocketNotFound,
+    SocketNotConnected,
     NetworkState(crate::wifi::connection::NetworkState),
     NoWifiSetup,
     WifiState(crate::wifi::connection::WiFiState),

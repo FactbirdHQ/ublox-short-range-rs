@@ -3,7 +3,7 @@ pub mod responses;
 pub mod types;
 
 use atat::atat_derive::AtatCmd;
-use heapless::{consts, String};
+use heapless::String;
 use responses::*;
 use types::*;
 
@@ -96,5 +96,5 @@ pub struct GetSecurityDataMD5 {
     #[at_arg(position = 0)]
     pub types: SecurityDataType,
     #[at_arg(position = 1)]
-    pub name: String<consts::U32>,
+    pub name: String<32>,
 }

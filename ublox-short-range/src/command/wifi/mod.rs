@@ -4,7 +4,7 @@ pub mod types;
 pub mod urc;
 
 use atat::atat_derive::AtatCmd;
-use heapless::{consts, Vec};
+use heapless::Vec;
 use responses::*;
 use types::*;
 
@@ -17,12 +17,12 @@ use super::NoResponse;
 /// If more than one configuration has active on start up parameter enabled, the behaviour is undefined.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWSC", NoResponse, timeout_ms = 10000)]
-pub struct SetWifiStationConfig<'a> {
+pub struct SetWifiStationConfig {
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
     pub config_id: u8,
     #[at_arg(position = 1)]
-    pub config_param: WifiStationConfig<'a>,
+    pub config_param: WifiStationConfig,
 }
 
 /// 7.1 Wi-Fi station configuration +UWSC
@@ -89,7 +89,7 @@ pub struct WifiScan<'a> {
 #[at_cmd("+UWCL", WifiScanResponse, timeout_ms = 10000)]
 pub struct SetChannelList {
     #[at_arg(position = 0)]
-    pub channels: Vec<u8, consts::U10>,
+    pub channels: Vec<u8, 10>,
 }
 
 /// 7.5 Wi-Fi station status +UWSSTAT
@@ -144,11 +144,11 @@ pub struct GetWatchdogConfig {
 /// Action +UWAPCA" for instructions on how to deactivate a configuration.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWAPC", NoResponse, timeout_ms = 10000)]
-pub struct SetWifiAPConfig<'a> {
+pub struct SetWifiAPConfig {
     #[at_arg(position = 0)]
     pub ap_config_id: AccessPointId,
     #[at_arg(position = 1)]
-    pub ap_config_param: AccessPointConfig<'a>,
+    pub ap_config_param: AccessPointConfig,
 }
 
 /// 7.8 Wi-Fi Access point configuration +UWAPC

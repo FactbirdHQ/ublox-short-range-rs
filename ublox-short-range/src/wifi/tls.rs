@@ -1,11 +1,15 @@
 use crate::{
     client::SecurityCredentials,
+    command::edm::BigEdmAtCmdWrapper,
     command::security::{types::*, *},
     error::Error,
     socket::SocketHandle,
     UbloxClient,
 };
-use heapless::{ArrayLength, String};
+use core::convert::TryInto;
+use embedded_time::duration::{Generic, Milliseconds};
+use embedded_time::Clock;
+use heapless::String;
 
 pub trait TLS {
     fn import_certificate(&mut self, name: &str, certificate: &[u8]) -> Result<(), Error>;
@@ -25,11 +29,11 @@ pub trait TLS {
     ) -> Result<(), Error>;
 }
 
-impl<C, N, L> TLS for UbloxClient<C, N, L>
+impl<C, CLK, const N: usize, const L: usize> TLS for UbloxClient<C, CLK, N, L>
 where
     C: atat::AtatClient,
-    N: ArrayLength<Option<crate::sockets::SocketSetItem<L>>>,
-    L: ArrayLength<u8>,
+    CLK: Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     /// Importing credentials enabeles their use for all further TCP connections
     fn import_certificate(&mut self, name: &str, certificate: &[u8]) -> Result<(), Error> {
@@ -48,9 +52,12 @@ where
             password: None,
         })?;
 
-        self.send_at(SendSecurityDataImport {
-            data: atat::serde_at::ser::Bytes(certificate),
-        })?;
+        self.send_internal(
+            &BigEdmAtCmdWrapper(SendSecurityDataImport {
+                data: atat::serde_at::ser::Bytes(certificate),
+            }),
+            false,
+        )?;
 
         match self.security_credentials {
             Some(ref mut creds) => {
@@ -85,9 +92,12 @@ where
             password: None,
         })?;
 
-        self.send_at(SendSecurityDataImport {
-            data: atat::serde_at::ser::Bytes(root_ca),
-        })?;
+        self.send_internal(
+            &BigEdmAtCmdWrapper(SendSecurityDataImport {
+                data: atat::serde_at::ser::Bytes(root_ca),
+            }),
+            false,
+        )?;
 
         match self.security_credentials {
             Some(ref mut creds) => {
@@ -127,9 +137,12 @@ where
             password,
         })?;
 
-        self.send_at(SendSecurityDataImport {
-            data: atat::serde_at::ser::Bytes(private_key),
-        })?;
+        self.send_internal(
+            &BigEdmAtCmdWrapper(SendSecurityDataImport {
+                data: atat::serde_at::ser::Bytes(private_key),
+            }),
+            false,
+        )?;
 
         match self.security_credentials {
             Some(ref mut creds) => {
