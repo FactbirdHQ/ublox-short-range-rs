@@ -15,8 +15,9 @@ use crate::{
 use atat::serde_at::CharVec;
 use atat::AtatClient;
 
-// use core::convert::TryFrom;
-use core::convert::TryFrom;
+use core::convert::{TryFrom, TryInto};
+use embedded_time::duration::{Generic, Milliseconds};
+use embedded_time::Clock;
 use heapless::Vec;
 
 /// Wireless network connectivity functionality.
@@ -31,9 +32,11 @@ pub trait WifiConnectivity {
     fn disconnect(&self) -> Result<(), WifiConnectionError>;
 }
 
-impl<T, const N: usize, const L: usize> WifiConnectivity for UbloxClient<T, N, L>
+impl<C, CLK, const N: usize, const L: usize> WifiConnectivity for UbloxClient<C, CLK, N, L>
 where
-    T: AtatClient,
+    C: AtatClient,
+    CLK: Clock,
+    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     /// Attempts to connect to a wireless network with the given connection options.
     fn connect(&self, options: ConnectionOptions) -> Result<(), WifiConnectionError> {

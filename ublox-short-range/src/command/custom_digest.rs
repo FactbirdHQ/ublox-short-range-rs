@@ -71,9 +71,7 @@ impl Digester for EdmDigester {
         let payload_len = calc_payload_len(&buf);
 
         let edm_len = payload_len + EDM_OVERHEAD;
-        if buf.len() < edm_len {
-            return DigestResult::None;
-        } else if buf[edm_len - 1] != ENDBYTE {
+        if buf.len() < edm_len || buf[edm_len - 1] != ENDBYTE {
             return DigestResult::None;
         }
 
