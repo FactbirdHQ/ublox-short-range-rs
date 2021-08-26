@@ -31,7 +31,7 @@ pub struct MockAtClient {
 }
 
 impl MockAtClient {
-    pub fn new(n_urcs_dequeued: u8) -> Self {
+    pub fn _new(n_urcs_dequeued: u8) -> Self {
         Self { n_urcs_dequeued }
     }
 }

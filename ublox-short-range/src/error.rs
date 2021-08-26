@@ -1,6 +1,7 @@
 use crate::socket;
 use atat::Error as ATError;
 use core::cell::{BorrowError, BorrowMutError};
+use embedded_hal::digital::OutputPin;
 
 #[derive(Debug, defmt::Format)]
 pub enum Error {
@@ -25,6 +26,7 @@ pub enum Error {
     DublicateCredentials,
     Uninitialized,
     Unimplemented,
+    Timer,
     _Unknown,
 }
 

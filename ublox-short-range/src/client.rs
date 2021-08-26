@@ -8,6 +8,7 @@ use crate::{
         },
         wifi::types::DisconnectReason,
         Urc,
+        AT,
     },
     error::Error,
     socket::{ChannelId, SocketIndicator, SocketType, TcpSocket, TcpState, UdpSocket, UdpState},
@@ -16,6 +17,7 @@ use crate::{
 };
 use core::cell::{Cell, RefCell};
 use core::convert::TryInto;
+use embedded_hal::digital::OutputPin;
 use embedded_nal::{IpAddr, SocketAddr};
 use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
@@ -63,10 +65,11 @@ pub struct SecurityCredentials {
     pub c_key_name: Option<heapless::String<16>>,
 }
 
-pub struct UbloxClient<C, CLK, const N: usize, const L: usize>
+pub struct UbloxClient<C, CLK, RST, const N: usize, const L: usize>
 where
     C: atat::AtatClient,
     CLK: 'static + Clock,
+    RST: OutputPin,
 {
     pub(crate) initialized: Cell<bool>,
     serial_mode: Cell<SerialMode>,
@@ -78,15 +81,22 @@ where
     pub(crate) max_urc_attempts: u8,
     pub(crate) security_credentials: Option<SecurityCredentials>,
     pub(crate) timer: CLK,
+    pub(crate) reset_pin: RefCell<Option<RST>>,
 }
 
-impl<C, CLK, const N: usize, const L: usize> UbloxClient<C, CLK, N, L>
+impl<C, CLK, RST, const N: usize, const L: usize> UbloxClient<C, CLK, RST, N, L>
 where
     C: atat::AtatClient,
     CLK: 'static + Clock,
+    RST: OutputPin,
     Generic<CLK::T>: TryInto<Milliseconds>,
 {
-    pub fn new(client: C, timer: CLK, socket_set: &'static mut SocketSet<CLK, N, L>) -> Self {
+    pub fn new(
+        client: C,
+        timer: CLK,
+        reset_pin: Option<RST>,
+        socket_set: &'static mut SocketSet<CLK, N, L>,
+    ) -> Self {
         UbloxClient {
             initialized: Cell::new(false),
             serial_mode: Cell::new(SerialMode::Cmd),
@@ -98,11 +108,20 @@ where
             urc_attempts: Cell::new(0),
             security_credentials: None,
             timer,
+            reset_pin: RefCell::new(reset_pin),
         }
     }
 
     pub fn init(&self) -> Result<(), Error> {
         // Initilize a new ublox device to a known state (set RS232 settings)
+
+        // Hard reset module
+        self.reset();
+        
+        match self.autosense() {
+            Ok(_) => (),
+            Err(e) => return Err(e),
+        }
 
         //Switch to EDM on Init. If in EDM, fail and check with autosense
         if self.serial_mode.get() != SerialMode::ExtendedData {
@@ -136,24 +155,40 @@ where
     // }
 
     ///Not in use
-    // #[inline]
-    // fn autosense(&self) -> Result<(), Error> {
-    //     for _ in 0..15 {
-    //         match self.client.try_borrow_mut()?.send(&EdmAtCmdWrapper(AT)) {
-    //             Ok(_) => {
-    //                 return Ok(());
-    //             }
-    //             Err(_e) => {}
-    //         };
-    //     }
-    //     Err(Error::BaudDetection)
-    // }
+    #[inline]
+    fn autosense(&self) -> Result<(), Error> {
+        for _ in 0..15 {
+            match match self.serial_mode.get() {
+                SerialMode::ExtendedData => self.send_internal(&EdmAtCmdWrapper(AT), true),
+                SerialMode::Cmd => self.send_internal(&AT, true),
+            } {
+                Ok(_) => {
+                    return Ok(());
+                }
+                Err(_e) => {}
+            };
+        }
+        Err(Error::BaudDetection)
+    }
 
     ///Not implemented
-    // #[inline]
-    // fn reset(&self) -> Result<(), Error> {
-    //     Err(Error::Unimplemented)
-    // }
+    #[inline]
+    fn reset(&self) -> Result<(), Error> {
+        self.serial_mode.set(SerialMode::Cmd);
+        self.initialized.set(false);
+
+        if let Some(ref mut pin) = *self.reset_pin.try_borrow_mut()? {
+            pin.try_set_low().ok();
+            self.timer
+                .new_timer(Milliseconds(200))
+                .start()
+                .map_err(|_| Error::Timer)?
+                .wait()
+                .map_err(|_| Error::Timer)?;
+            pin.try_set_high().ok();
+        }
+        Ok(())
+    }
 
     pub fn spin(&self) -> Result<(), Error> {
         // defmt::debug!("SPIN");
@@ -492,10 +527,9 @@ where
         if !self.initialized.get() {
             self.init()?;
         }
-        if self.serial_mode.get() == SerialMode::ExtendedData {
-            self.send_internal(&EdmAtCmdWrapper(cmd), true)
-        } else {
-            self.send_internal(&cmd, true)
+        match self.serial_mode.get() {
+            SerialMode::ExtendedData => self.send_internal(&EdmAtCmdWrapper(cmd), true),
+            SerialMode::Cmd => self.send_internal(&cmd, true),
         }
     }
 }

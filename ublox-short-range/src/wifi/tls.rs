@@ -7,6 +7,7 @@ use crate::{
     UbloxClient,
 };
 use core::convert::TryInto;
+use embedded_hal::digital::OutputPin;
 use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
 use heapless::String;
@@ -29,10 +30,11 @@ pub trait TLS {
     ) -> Result<(), Error>;
 }
 
-impl<C, CLK, const N: usize, const L: usize> TLS for UbloxClient<C, CLK, N, L>
+impl<C, CLK, RST, const N: usize, const L: usize> TLS for UbloxClient<C, CLK, RST, N, L>
 where
     C: atat::AtatClient,
     CLK: Clock,
+    RST: OutputPin,
     Generic<CLK::T>: TryInto<Milliseconds>,
 {
     /// Importing credentials enabeles their use for all further TCP connections

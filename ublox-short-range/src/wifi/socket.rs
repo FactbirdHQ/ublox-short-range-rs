@@ -14,6 +14,7 @@ use crate::{
 };
 use core::convert::TryInto;
 use core::fmt::Write;
+use embedded_hal::digital::OutputPin;
 use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
 
@@ -29,10 +30,11 @@ use embedded_nal::TcpClientStack;
 
 pub(crate) const EGRESS_CHUNK_SIZE: usize = 512;
 
-impl<C, CLK, const N: usize, const L: usize> UbloxClient<C, CLK, N, L>
+impl<C, CLK, RST, const N: usize, const L: usize> UbloxClient<C, CLK, RST, N, L>
 where
     C: atat::AtatClient,
     CLK: Clock,
+    RST: OutputPin,
     Generic<CLK::T>: TryInto<Milliseconds>,
 {
     pub(crate) fn handle_socket_error<A: atat::AtatResp, F: Fn() -> Result<A, Error>>(
@@ -106,10 +108,11 @@ where
 }
 
 #[cfg(feature = "socket-udp")]
-impl<C, CLK, const N: usize, const L: usize> UdpClientStack for UbloxClient<C, CLK, N, L>
+impl<C, CLK, RST, const N: usize, const L: usize> UdpClientStack for UbloxClient<C, CLK, RST, N, L>
 where
     C: atat::AtatClient,
     CLK: Clock,
+    RST: OutputPin,
     Generic<CLK::T>: TryInto<Milliseconds>,
 {
     type Error = Error;
@@ -289,10 +292,11 @@ where
 }
 
 #[cfg(feature = "socket-tcp")]
-impl<C, CLK, const N: usize, const L: usize> TcpClientStack for UbloxClient<C, CLK, N, L>
+impl<C, CLK, RST, const N: usize, const L: usize> TcpClientStack for UbloxClient<C, CLK, RST, N, L>
 where
     C: atat::AtatClient,
     CLK: Clock,
+    RST: OutputPin,
     Generic<CLK::T>: TryInto<Milliseconds>,
 {
     type Error = Error;

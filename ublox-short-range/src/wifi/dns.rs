@@ -1,5 +1,6 @@
 use crate::client::DNSState;
 use core::convert::TryInto;
+use embedded_hal::digital::OutputPin;
 use embedded_nal::{AddrType, Dns, IpAddr};
 use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
@@ -12,10 +13,11 @@ use crate::{
     UbloxClient,
 };
 
-impl<C, CLK, const N: usize, const L: usize> Dns for UbloxClient<C, CLK, N, L>
+impl<C, CLK, RST, const N: usize, const L: usize> Dns for UbloxClient<C, CLK, RST, N, L>
 where
     C: atat::AtatClient,
     CLK: Clock,
+    RST: OutputPin,
     Generic<CLK::T>: TryInto<Milliseconds>,
 {
     type Error = Error;
