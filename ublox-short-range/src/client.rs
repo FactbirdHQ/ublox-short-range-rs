@@ -7,8 +7,7 @@ use crate::{
             SetRS232Settings, StoreCurrentConfig,
         },
         wifi::types::DisconnectReason,
-        Urc,
-        AT,
+        Urc, AT,
     },
     error::Error,
     socket::{ChannelId, SocketIndicator, SocketType, TcpSocket, TcpState, UdpSocket, UdpState},
@@ -116,8 +115,8 @@ where
         // Initilize a new ublox device to a known state (set RS232 settings)
 
         // Hard reset module
-        self.reset();
-        
+        self.reset()?;
+
         match self.autosense() {
             Ok(_) => (),
             Err(e) => return Err(e),
