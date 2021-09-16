@@ -114,17 +114,15 @@ where
     pub fn init(&self) -> Result<(), Error> {
         // Initilize a new ublox device to a known state (set RS232 settings)
 
+        defmt::debug!("Initializing wifi");
         // Hard reset module
         self.reset()?;
 
-        match self.autosense() {
-            Ok(_) => (),
-            Err(e) => return Err(e),
-        }
 
         //Switch to EDM on Init. If in EDM, fail and check with autosense
         if self.serial_mode.get() != SerialMode::ExtendedData {
-            self.send_internal(&SwitchToEdmCommand, true)?;
+            // self.send_internal(&SwitchToEdmCommand, true)?;
+            self.retry_send(&SwitchToEdmCommand, 5)?;
             self.serial_mode.set(SerialMode::ExtendedData);
         }
 
@@ -153,6 +151,22 @@ where
     //     Err(Error::Unimplemented)
     // }
 
+    pub fn retry_send<A, const LEN: usize>(&self, cmd: &A, times: usize) -> Result<A::Response, Error>
+    where
+        A: atat::AtatCmd<LEN, Error = atat::GenericError>,
+    {
+        // defmt::debug!("Autosense");
+        for _ in 0..times { //15
+            match self.send_internal(cmd, true) {
+                Ok(resp) => {
+                    return Ok(resp);
+                }
+                Err(_e) => {}
+            };
+        }
+        Err(Error::BaudDetection)
+    }
+
     ///Not in use
     #[inline]
     fn autosense(&self) -> Result<(), Error> {
@@ -173,24 +187,31 @@ where
     ///Not implemented
     #[inline]
     fn reset(&self) -> Result<(), Error> {
+        defmt::debug!("Resetting module");
         self.serial_mode.set(SerialMode::Cmd);
         self.initialized.set(false);
 
         if let Some(ref mut pin) = *self.reset_pin.try_borrow_mut()? {
             pin.try_set_low().ok();
             self.timer
-                .new_timer(Milliseconds(200))
+                .new_timer(Milliseconds(50))
                 .start()
                 .map_err(|_| Error::Timer)?
                 .wait()
                 .map_err(|_| Error::Timer)?;
             pin.try_set_high().ok();
+            self.timer
+                .new_timer(Milliseconds(3000))
+                .start()
+                .map_err(|_| Error::Timer)?
+                .wait()
+                .map_err(|_| Error::Timer)?;
         }
         Ok(())
     }
 
     pub fn spin(&self) -> Result<(), Error> {
-        // defmt::debug!("SPIN");
+        // defmt::trace!("SPIN");
         if !self.initialized.get() {
             return Err(Error::Uninitialized);
         }
