@@ -225,6 +225,7 @@ pub struct SwitchToEdmCommand;
 impl atat::AtatCmd<6> for SwitchToEdmCommand {
     type Response = NoResponse;
     type Error = atat::GenericError;
+    const FORCE_RECEIVE_STATE: bool = true;
 
     fn as_bytes(&self) -> Vec<u8, 6> {
         ChangeMode {

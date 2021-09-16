@@ -7,7 +7,7 @@ use crate::{
             SetRS232Settings, StoreCurrentConfig,
         },
         wifi::types::DisconnectReason,
-        Urc, AT,
+        Urc,
     },
     error::Error,
     socket::{SocketIndicator, SocketType, TcpSocket, TcpState, UdpSocket, UdpState},
@@ -95,14 +95,14 @@ where
     pub fn init(&mut self) -> Result<(), Error> {
         // Initilize a new ublox device to a known state (set RS232 settings)
 
+        defmt::debug!("Initializing wifi");
         // Hard reset module
         self.reset()?;
 
-        self.is_alive(10)?;
-
         //Switch to EDM on Init. If in EDM, fail and check with autosense
         if self.serial_mode != SerialMode::ExtendedData {
-            self.send_internal(&SwitchToEdmCommand, true)?;
+            // self.send_internal(&SwitchToEdmCommand, true)?;
+            self.retry_send(&SwitchToEdmCommand, 5)?;
             self.serial_mode = SerialMode::ExtendedData;
         }
 
@@ -125,22 +125,23 @@ where
         Ok(())
     }
 
-    fn is_alive(&mut self, attempts: u8) -> Result<(), Error> {
-        let mut error = Error::BaudDetection;
+    pub fn retry_send<A, const LEN: usize>(
+        &mut self,
+        cmd: &A,
+        attempts: usize,
+    ) -> Result<A::Response, Error>
+    where
+        A: atat::AtatCmd<LEN, Error = atat::GenericError>,
+    {
         for _ in 0..attempts {
-            let res = match self.serial_mode {
-                SerialMode::Cmd => self.send_internal(&AT, false),
-                SerialMode::ExtendedData => self.send_internal(&EdmAtCmdWrapper(AT), false),
-            };
-
-            match res {
-                Ok(_) => {
-                    return Ok(());
+            match self.send_internal(cmd, true) {
+                Ok(resp) => {
+                    return Ok(resp);
                 }
-                Err(e) => error = e.into(),
+                Err(_e) => {}
             };
         }
-        Err(error)
+        Err(Error::BaudDetection)
     }
 
     fn reset(&mut self) -> Result<(), Error> {
@@ -150,12 +151,18 @@ where
         if let Some(ref mut pin) = self.reset_pin {
             pin.try_set_low().ok();
             self.timer
-                .new_timer(Milliseconds(200))
+                .new_timer(Milliseconds(50))
                 .start()
                 .map_err(|_| Error::Timer)?
                 .wait()
                 .map_err(|_| Error::Timer)?;
             pin.try_set_high().ok();
+            self.timer
+                .new_timer(Milliseconds(3000))
+                .start()
+                .map_err(|_| Error::Timer)?
+                .wait()
+                .map_err(|_| Error::Timer)?;
         }
         Ok(())
     }
