@@ -25,6 +25,7 @@ pub enum Error {
     DublicateCredentials,
     Uninitialized,
     Unimplemented,
+    SocketMemory,
     Timer,
     _Unknown,
 }

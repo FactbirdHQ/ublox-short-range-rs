@@ -45,33 +45,37 @@ where
     type UdpSocket = SocketHandle;
 
     fn socket(&mut self) -> Result<Self::UdpSocket, Self::Error> {
-        // Check if there are any unused sockets available
-        if self.sockets.len() >= self.sockets.capacity() {
-            if let Ok(ts) = self.timer.try_now() {
-                // Check if there are any sockets closed by remote, and close it
-                // if it has exceeded its timeout, in order to recycle it.
-                if self.sockets.recycle(&ts) {
+        if let Some(ref mut sockets) = self.sockets {
+            // Check if there are any unused sockets available
+            if sockets.len() >= sockets.capacity() {
+                if let Ok(ts) = self.timer.try_now() {
+                    // Check if there are any sockets closed by remote, and close it
+                    // if it has exceeded its timeout, in order to recycle it.
+                    if sockets.recycle(&ts) {
+                        return Err(Error::Network);
+                    }
+                } else {
+                    return Err(Error::Network);
+                }
+            }
+
+            defmt::debug!("[UDP] Opening socket");
+            if let Some(ref con) = self.wifi_connection {
+                if !self.initialized || !con.is_connected() {
                     return Err(Error::Network);
                 }
             } else {
                 return Err(Error::Network);
             }
-        }
 
-        defmt::debug!("[UDP] Opening socket");
-        if let Some(ref con) = self.wifi_connection {
-            if !self.initialized || !con.is_connected() {
-                return Err(Error::Network);
+            if let Ok(h) = sockets.add(UdpSocket::new(0)) {
+                Ok(h)
+            } else {
+                defmt::error!("[UDP] Opening socket Error: Socket set full");
+                Err(Error::Network)
             }
         } else {
-            return Err(Error::Network);
-        }
-
-        if let Ok(h) = self.sockets.add(UdpSocket::new(0)) {
-            Ok(h)
-        } else {
-            defmt::error!("[UDP] Opening socket Error: Socket set full");
-            Err(Error::Network)
+            Err(Error::SocketMemory)
         }
     }
 
@@ -82,6 +86,10 @@ where
         socket: &mut Self::UdpSocket,
         remote: SocketAddr,
     ) -> Result<(), Self::Error> {
+        if self.sockets.is_none() {
+            return Err(Error::SocketMemory);
+        }
+
         defmt::debug!("[UDP] Connecting socket");
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized || !con.is_connected() {
@@ -94,20 +102,26 @@ where
         let url = PeerUrlBuilder::new().address(&remote).udp()?;
         defmt::trace!("[UDP] Connecting URL! {=str}", url);
         let resp = self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)?;
+
         let handle = SocketHandle(resp.peer_handle);
+        // TODO: This could probably be done nicer?
         let mut udp = self
             .sockets
+            .as_mut()
+            .unwrap()
             .get::<UdpSocket<CLK, L>>(socket.clone().into())?;
         udp.endpoint = remote;
         udp.meta.handle = handle;
         *socket = handle;
 
-        while {
-            let udp = self
-                .sockets
-                .get::<UdpSocket<CLK, L>>(socket.clone().into())?;
-            udp.state() == UdpState::Closed
-        } {
+        while self
+            .sockets
+            .as_mut()
+            .unwrap()
+            .get::<UdpSocket<CLK, L>>(socket.clone().into())?
+            .state()
+            == UdpState::Closed
+        {
             self.spin()?;
         }
         Ok(())
@@ -115,35 +129,38 @@ where
 
     /// Send a datagram to the remote host.
     fn send(&mut self, socket: &mut Self::UdpSocket, buffer: &[u8]) -> nb::Result<(), Self::Error> {
-        if let Some(ref con) = self.wifi_connection {
-            if !self.initialized || !con.is_connected() {
+        if let Some(ref mut sockets) = self.sockets {
+            if let Some(ref con) = self.wifi_connection {
+                if !self.initialized || !con.is_connected() {
+                    return Err(nb::Error::Other(Error::Network));
+                }
+            } else {
                 return Err(nb::Error::Other(Error::Network));
             }
+
+            let udp = sockets
+                .get::<UdpSocket<CLK, L>>(socket.clone().into())
+                .map_err(|e| nb::Error::Other(e.into()))?;
+
+            if !udp.is_open() {
+                return Err(nb::Error::Other(Error::SocketClosed));
+            }
+
+            let channel = udp.channel_id().0;
+
+            for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
+                self.send_internal(
+                    &EdmDataCommand {
+                        channel,
+                        data: chunk,
+                    },
+                    true,
+                )?;
+            }
+            Ok(())
         } else {
-            return Err(nb::Error::Other(Error::Network));
+            Err(Error::SocketMemory.into())
         }
-
-        let udp = self
-            .sockets
-            .get::<UdpSocket<CLK, L>>(socket.clone().into())
-            .map_err(|e| nb::Error::Other(e.into()))?;
-
-        if !udp.is_open() {
-            return Err(nb::Error::Other(Error::SocketClosed));
-        }
-
-        let channel = udp.channel_id().0;
-
-        for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
-            self.send_internal(
-                &EdmDataCommand {
-                    channel,
-                    data: chunk,
-                },
-                true,
-            )?;
-        }
-        Ok(())
     }
 
     /// Read a datagram the remote host has sent to us. Returns `Ok(n)`, which
@@ -154,33 +171,37 @@ where
         socket: &mut Self::UdpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<(usize, SocketAddr), Self::Error> {
-        let mut udp = self
-            .sockets
-            .get::<UdpSocket<CLK, L>>(socket.clone().into())
-            .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
+        if let Some(ref mut sockets) = self.sockets {
+            let mut udp = sockets
+                .get::<UdpSocket<CLK, L>>(socket.clone().into())
+                .map_err(|e| nb::Error::Other(Error::Socket(e)))?;
 
-        let us = udp
-            .recv_slice(buffer)
-            .map_err(|e| nb::Error::Other(e.into()))?;
-        Ok((us, udp.endpoint()))
+            let us = udp
+                .recv_slice(buffer)
+                .map_err(|e| nb::Error::Other(e.into()))?;
+            Ok((us, udp.endpoint()))
+        } else {
+            Err(Error::SocketMemory.into())
+        }
     }
 
     /// Close an existing UDP socket.
     fn close(&mut self, socket: Self::UdpSocket) -> Result<(), Self::Error> {
-        defmt::debug!("[UDP] Closing socket: {:?}", socket.0);
-        // If no sockets exists, nothing to close.
-        if let Some(ref mut udp) = self
-            .sockets
-            .get::<UdpSocket<CLK, L>>(socket.clone().into())
-            .ok()
-        {
-            let peer_handle = udp.handle().0;
+        if let Some(ref mut sockets) = self.sockets {
+            defmt::debug!("[UDP] Closing socket: {:?}", socket.0);
+            // If no sockets exists, nothing to close.
+            if let Some(ref mut udp) = sockets.get::<UdpSocket<CLK, L>>(socket.clone().into()).ok()
+            {
+                let peer_handle = udp.handle().0;
 
-            udp.close();
-            self.send_at(ClosePeerConnection { peer_handle })?;
+                udp.close();
+                self.send_at(ClosePeerConnection { peer_handle })?;
+            }
+
+            Ok(())
+        } else {
+            Err(Error::SocketMemory)
         }
-
-        Ok(())
     }
 }
 
@@ -200,19 +221,22 @@ where
 
     /// Open a new TCP socket to the given address and port. The socket starts in the unconnected state.
     fn socket(&mut self) -> Result<Self::TcpSocket, Self::Error> {
-        defmt::debug!("[TCP] Opening socket");
-        if let Some(ref con) = self.wifi_connection {
-            if !self.initialized || !con.is_connected() {
+        if let Some(ref mut sockets) = self.sockets {
+            defmt::debug!("[TCP] Opening socket");
+            if let Some(ref con) = self.wifi_connection {
+                if !self.initialized || !con.is_connected() {
+                    return Err(Error::Network);
+                }
+            } else {
                 return Err(Error::Network);
             }
+
+            sockets.add(TcpSocket::new(0)).map_err(|_| {
+                defmt::error!("[TCP] Opening socket Error: Socket set full");
+                Error::Network
+            })
         } else {
-            return Err(Error::Network);
-        }
-        if let Ok(h) = self.sockets.add(TcpSocket::new(0)) {
-            Ok(h)
-        } else {
-            defmt::error!("[TCP] Opening socket Error: Socket set full");
-            Err(Error::Network)
+            Err(Error::SocketMemory)
         }
     }
 
@@ -222,6 +246,10 @@ where
         socket: &mut Self::TcpSocket,
         remote: SocketAddr,
     ) -> nb::Result<(), Self::Error> {
+        if self.sockets.is_none() {
+            return Err(Error::SocketMemory.into());
+        }
+
         defmt::debug!("[TCP] Connect socket: {:?}", socket.0);
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized || !con.is_connected() {
@@ -232,7 +260,10 @@ where
         }
 
         // If no socket is found we stop here
+        // TODO: This could probably be done nicer?
         self.sockets
+            .as_mut()
+            .unwrap()
             .get::<TcpSocket<CLK, L>>(socket.clone().into())
             .map_err(Self::Error::from)?;
 
@@ -258,6 +289,8 @@ where
 
         let mut tcp = self
             .sockets
+            .as_mut()
+            .unwrap()
             .get::<TcpSocket<CLK, L>>(socket.clone().into())
             .map_err(Self::Error::from)?;
 
@@ -268,11 +301,15 @@ where
 
         // TODO: Timeout?
         while {
-            let tcp = self
-                .sockets
-                .get::<TcpSocket<CLK, L>>(socket.clone().into())
-                .map_err(Self::Error::from)?;
-            matches!(tcp.state(), TcpState::WaitingForConnect)
+            matches!(
+                self.sockets
+                    .as_mut()
+                    .unwrap()
+                    .get::<TcpSocket<CLK, L>>(socket.clone().into())
+                    .map_err(Self::Error::from)?
+                    .state(),
+                TcpState::WaitingForConnect
+            )
         } {
             self.spin()?;
         }
@@ -281,18 +318,20 @@ where
 
     /// Check if this socket is still connected
     fn is_connected(&mut self, socket: &Self::TcpSocket) -> Result<bool, Self::Error> {
-        if let Some(ref con) = self.wifi_connection {
-            if !self.initialized || !con.is_connected() {
+        if let Some(ref mut sockets) = self.sockets {
+            if let Some(ref con) = self.wifi_connection {
+                if !self.initialized || !con.is_connected() {
+                    return Ok(false);
+                }
+            } else {
                 return Ok(false);
             }
-        } else {
-            return Ok(false);
-        }
 
-        let socket_ref = self
-            .sockets
-            .get::<TcpSocket<CLK, L>>(socket.clone().into())?;
-        Ok(matches!(socket_ref.state(), TcpState::Connected))
+            let socket_ref = sockets.get::<TcpSocket<CLK, L>>(socket.clone().into())?;
+            Ok(matches!(socket_ref.state(), TcpState::Connected))
+        } else {
+            Err(Error::SocketMemory)
+        }
     }
 
     /// Write to the stream. Returns the number of bytes written is returned
@@ -302,35 +341,38 @@ where
         socket: &mut Self::TcpSocket,
         buffer: &[u8],
     ) -> nb::Result<usize, Self::Error> {
-        if let Some(ref con) = self.wifi_connection {
-            if !self.initialized || !con.is_connected() {
+        if let Some(ref mut sockets) = self.sockets {
+            if let Some(ref con) = self.wifi_connection {
+                if !self.initialized || !con.is_connected() {
+                    return Err(nb::Error::Other(Error::Network));
+                }
+            } else {
                 return Err(nb::Error::Other(Error::Network));
             }
+
+            let tcp = sockets
+                .get::<TcpSocket<CLK, L>>(socket.clone().into())
+                .map_err(|e| nb::Error::Other(e.into()))?;
+
+            if !matches!(tcp.state(), TcpState::Connected) {
+                return Err(nb::Error::Other(Error::SocketNotConnected));
+            }
+
+            let channel = tcp.channel_id().0;
+
+            for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
+                self.send_internal(
+                    &EdmDataCommand {
+                        channel,
+                        data: chunk,
+                    },
+                    true,
+                )?;
+            }
+            Ok(buffer.len())
         } else {
-            return Err(nb::Error::Other(Error::Network));
+            Err(Error::SocketMemory.into())
         }
-
-        let tcp = self
-            .sockets
-            .get::<TcpSocket<CLK, L>>(socket.clone().into())
-            .map_err(|e| nb::Error::Other(e.into()))?;
-
-        if !matches!(tcp.state(), TcpState::Connected) {
-            return Err(nb::Error::Other(Error::SocketNotConnected));
-        }
-
-        let channel = tcp.channel_id().0;
-
-        for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
-            self.send_internal(
-                &EdmDataCommand {
-                    channel,
-                    data: chunk,
-                },
-                true,
-            )?;
-        }
-        Ok(buffer.len())
     }
 
     fn receive(
@@ -339,37 +381,43 @@ where
         buffer: &mut [u8],
     ) -> nb::Result<usize, Self::Error> {
         self.spin()?;
+        if let Some(ref mut sockets) = self.sockets {
+            let mut tcp = sockets
+                .get::<TcpSocket<CLK, L>>((*socket).into())
+                .map_err(|e| nb::Error::Other(e.into()))?;
 
-        let mut tcp = self
-            .sockets
-            .get::<TcpSocket<CLK, L>>((*socket).into())
-            .map_err(|e| nb::Error::Other(e.into()))?;
-
-        tcp.recv_slice(buffer)
-            .map_err(|e| nb::Error::Other(e.into()))
+            tcp.recv_slice(buffer)
+                .map_err(|e| nb::Error::Other(e.into()))
+        } else {
+            Err(Error::SocketMemory.into())
+        }
     }
 
     /// Close an existing TCP socket.
     fn close(&mut self, socket: Self::TcpSocket) -> Result<(), Self::Error> {
-        defmt::debug!("[TCP] Closing socket: {:?}", socket.0);
-        // If the socket is not found it is already removed
-        if let Some(ref tcp) = self.sockets.get::<TcpSocket<CLK, L>>(socket.into()).ok() {
-            //If socket is not closed that means a connection excists which has to be closed
-            if !matches!(
-                tcp.state(),
-                TcpState::ShutdownForWrite(_) | TcpState::Created
-            ) {
-                let peer_handle = tcp.handle().0;
-                match self.send_at(ClosePeerConnection { peer_handle }) {
-                    Err(Error::AT(atat::Error::InvalidResponse)) | Ok(_) => (),
-                    Err(e) => return Err(e.into()),
+        if let Some(ref mut sockets) = self.sockets {
+            defmt::debug!("[TCP] Closing socket: {:?}", socket.0);
+            // If the socket is not found it is already removed
+            if let Some(ref tcp) = sockets.get::<TcpSocket<CLK, L>>(socket.into()).ok() {
+                //If socket is not closed that means a connection excists which has to be closed
+                if !matches!(
+                    tcp.state(),
+                    TcpState::ShutdownForWrite(_) | TcpState::Created
+                ) {
+                    let peer_handle = tcp.handle().0;
+                    match self.send_at(ClosePeerConnection { peer_handle }) {
+                        Err(Error::AT(atat::Error::InvalidResponse)) | Ok(_) => (),
+                        Err(e) => return Err(e.into()),
+                    }
+                } else {
+                    //No connection exists the socket should be removed from the set here
+                    sockets.remove(socket.into())?;
                 }
-            } else {
-                //No connection exists the socket should be removed from the set here
-                self.sockets.remove(socket.into())?;
             }
+            Ok(())
+        } else {
+            Err(Error::SocketMemory)
         }
-        Ok(())
     }
 }
 
