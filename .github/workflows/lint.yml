@@ -73,8 +73,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          # TODO fix when possible -- https://github.com/rust-lang/rust-clippy/issues/7410
-          toolchain: 1.52.0
+          toolchain: stable
           override: true
           components: clippy
 
