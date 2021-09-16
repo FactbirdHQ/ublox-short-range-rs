@@ -12,7 +12,7 @@ use crate::{
         options::ConnectionOptions,
     },
 };
-use atat::serde_at::CharVec;
+use atat::heapless_bytes::Bytes;
 use atat::AtatClient;
 
 use core::convert::{TryFrom, TryInto};
@@ -141,7 +141,7 @@ where
 
         self.wifi_connection.replace(WifiConnection::new(
             WifiNetwork {
-                bssid: CharVec::new(),
+                bssid: Bytes::new(),
                 op_mode: wifi::types::OperationMode::AdHoc,
                 ssid: options.ssid,
                 channel: 0,

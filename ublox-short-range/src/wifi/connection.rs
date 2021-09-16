@@ -18,13 +18,12 @@ pub enum NetworkState {
     Unattached,
 }
 
-//Fold into wifi connectivity
+// Fold into wifi connectivity
 pub struct WifiConnection {
     pub wifi_state: WiFiState,
     pub network_state: NetworkState,
     pub network: WifiNetwork,
     pub config_id: u8,
-    // pub (crate) sockets: SocketSet<consts::U8>,
 }
 
 impl WifiConnection {
@@ -33,7 +32,6 @@ impl WifiConnection {
             wifi_state,
             network_state: NetworkState::Unattached,
             network,
-            // sockets: SocketSet::default(),
             config_id,
         }
     }

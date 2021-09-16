@@ -7,7 +7,7 @@ use crate::{
         options::{ConnectionOptions, HotspotOptions},
     },
 };
-use atat::serde_at::CharVec;
+use atat::heapless_bytes::Bytes;
 use atat::AtatClient;
 use embedded_hal::digital::OutputPin;
 use embedded_time::Clock;
@@ -39,7 +39,7 @@ where
         configuration: HotspotOptions,
     ) -> Result<(), WifiHotspotError> {
         let _network = WifiNetwork {
-            bssid: CharVec::<20>::new(),
+            bssid: Bytes::new(),
             op_mode: OperationMode::AdHoc,
             ssid: options.ssid,
             channel: configuration.channel.unwrap() as u8,

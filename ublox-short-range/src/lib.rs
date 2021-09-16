@@ -10,6 +10,9 @@ pub mod command;
 pub mod error;
 pub mod wifi;
 
+#[cfg(test)]
+mod test_helper;
+
 #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
 mod socket;
 
