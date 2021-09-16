@@ -30,11 +30,11 @@ pub struct WifiConnection {
 impl WifiConnection {
     pub(crate) fn new(network: WifiNetwork, wifi_state: WiFiState, config_id: u8) -> Self {
         WifiConnection {
-            wifi_state: wifi_state,
+            wifi_state,
             network_state: NetworkState::Unattached,
             network,
             // sockets: SocketSet::default(),
-            config_id: config_id,
+            config_id,
         }
     }
 

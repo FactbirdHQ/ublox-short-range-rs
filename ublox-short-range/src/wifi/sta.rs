@@ -24,13 +24,13 @@ use heapless::Vec;
 /// Wireless network connectivity functionality.
 pub trait WifiConnectivity {
     /// Makes an attempt to connect to a selected wireless network with password specified.
-    fn connect(&self, options: ConnectionOptions) -> Result<(), WifiConnectionError>;
+    fn connect(&mut self, options: ConnectionOptions) -> Result<(), WifiConnectionError>;
 
-    fn scan(&self) -> Result<Vec<WifiNetwork, 32>, WifiError>;
+    fn scan(&mut self) -> Result<Vec<WifiNetwork, 32>, WifiError>;
 
     fn is_connected(&self) -> bool;
 
-    fn disconnect(&self) -> Result<(), WifiConnectionError>;
+    fn disconnect(&mut self) -> Result<(), WifiConnectionError>;
 }
 
 impl<C, CLK, RST, const N: usize, const L: usize> WifiConnectivity
@@ -42,23 +42,20 @@ where
     Generic<CLK::T>: TryInto<Milliseconds>,
 {
     /// Attempts to connect to a wireless network with the given connection options.
-    fn connect(&self, options: ConnectionOptions) -> Result<(), WifiConnectionError> {
-        let mut config_id: u8 = 0;
-        if let Some(config_id_option) = options.config_id {
-            config_id = config_id_option;
-        }
+    fn connect(&mut self, options: ConnectionOptions) -> Result<(), WifiConnectionError> {
+        let config_id = options.config_id.unwrap_or(0);
 
         // Network part
         // Deactivate network id 0
         self.send_internal(
             &EdmAtCmdWrapper(ExecWifiStationAction {
-                config_id: config_id,
+                config_id,
                 action: WifiStationAction::Deactivate,
             }),
             true,
         )?;
 
-        if let Some(ref con) = *self.wifi_connection.try_borrow()? {
+        if let Some(ref con) = self.wifi_connection {
             if con.wifi_state != WiFiState::Inactive {
                 return Err(WifiConnectionError::WaitingForWifiDeactivation);
             }
@@ -68,7 +65,7 @@ where
         if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
-                    config_id: config_id,
+                    config_id,
                     config_param: WifiStationConfig::IPv4Mode(IPv4Mode::Static),
                 }),
                 true,
@@ -79,7 +76,7 @@ where
         if let Some(ip) = options.ip {
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
-                    config_id: config_id,
+                    config_id,
                     config_param: WifiStationConfig::IPv4Address(ip),
                 }),
                 true,
@@ -89,7 +86,7 @@ where
         if let Some(subnet) = options.subnet {
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
-                    config_id: config_id,
+                    config_id,
                     config_param: WifiStationConfig::SubnetMask(subnet),
                 }),
                 true,
@@ -99,7 +96,7 @@ where
         if let Some(gateway) = options.gateway {
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
-                    config_id: config_id,
+                    config_id,
                     config_param: WifiStationConfig::DefaultGateway(gateway),
                 }),
                 true,
@@ -108,7 +105,7 @@ where
 
         // Active on startup
         // self.send_internal(&SetWifiStationConfig{
-        //     config_id: config_id,
+        //     config_id,
         //     config_param: WifiStationConfig::ActiveOnStartup(OnOff::On),
         // }, true)?;
 
@@ -116,7 +113,7 @@ where
         // Set the Network SSID to connect to
         self.send_internal(
             &EdmAtCmdWrapper(SetWifiStationConfig {
-                config_id: config_id,
+                config_id,
                 config_param: WifiStationConfig::SSID(options.ssid.clone()),
             }),
             true,
@@ -126,7 +123,7 @@ where
             // Use WPA2 as authentication type
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
-                    config_id: config_id,
+                    config_id,
                     config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
                 }),
                 true,
@@ -135,14 +132,14 @@ where
             // Input passphrase
             self.send_internal(
                 &EdmAtCmdWrapper(SetWifiStationConfig {
-                    config_id: config_id,
+                    config_id,
                     config_param: WifiStationConfig::WpaPskOrPassphrase(pass),
                 }),
                 true,
             )?;
         }
 
-        *self.wifi_connection.try_borrow_mut()? = Some(WifiConnection::new(
+        self.wifi_connection.replace(WifiConnection::new(
             WifiNetwork {
                 bssid: CharVec::new(),
                 op_mode: wifi::types::OperationMode::AdHoc,
@@ -159,19 +156,18 @@ where
         ));
         self.send_internal(
             &EdmAtCmdWrapper(ExecWifiStationAction {
-                config_id: config_id,
+                config_id,
                 action: WifiStationAction::Activate,
             }),
             true,
         )?;
 
         // TODO: Await connected event?
-        // block!(wait_for_unsolicited!(self, UnsolicitedResponse::NetworkUp { .. })).unwrap();
 
         Ok(())
     }
 
-    fn scan(&self) -> Result<Vec<WifiNetwork, 32>, WifiError> {
+    fn scan(&mut self) -> Result<Vec<WifiNetwork, 32>, WifiError> {
         match self.send_internal(&EdmAtCmdWrapper(WifiScan { ssid: None }), true) {
             Ok(resp) => resp
                 .network_list
@@ -183,22 +179,18 @@ where
     }
 
     fn is_connected(&self) -> bool {
-        if !self.initialized.get() {
+        if !self.initialized {
             return false;
         }
 
-        if let Ok(mut some) = self.wifi_connection.try_borrow_mut() {
-            if let Some(ref mut con) = *some {
-                if con.is_connected() {
-                    return true;
-                }
-            }
-        }
-        false
+        self.wifi_connection
+            .as_ref()
+            .map(|c| c.is_connected())
+            .unwrap_or_default()
     }
 
-    fn disconnect(&self) -> Result<(), WifiConnectionError> {
-        if let Some(ref mut con) = *self.wifi_connection.try_borrow_mut()? {
+    fn disconnect(&mut self) -> Result<(), WifiConnectionError> {
+        if let Some(ref con) = self.wifi_connection {
             match con.wifi_state {
                 WiFiState::Connected | WiFiState::NotConnected => {
                     // con.wifi_state = WiFiState::Inactive;
@@ -218,8 +210,3 @@ where
         Ok(())
     }
 }
-
-// #[cfg(test)]
-// mod tests {
-//
-// }

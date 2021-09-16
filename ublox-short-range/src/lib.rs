@@ -1,15 +1,10 @@
 #![cfg_attr(not(test), no_std)]
 
-#[cfg(test)]
-mod test_helpers;
-
 mod client;
 mod hex;
 
 pub use atat;
 pub use client::UbloxClient;
-
-mod traits;
 
 pub mod command;
 pub mod error;

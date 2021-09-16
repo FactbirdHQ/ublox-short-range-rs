@@ -89,5 +89,6 @@ pub enum PingError {
     SocketErrorLevel4 = 114,
     /// 111-115: Internal error (socket level)
     SocketErrorLevel5 = 115,
+    Timeout,
     Other,
 }

@@ -2,9 +2,8 @@ use crate::command::edm::{
     calc_payload_len,
     types::{PayloadType, AT_COMMAND_POSITION, EDM_OVERHEAD, ENDBYTE, STARTBYTE},
 };
-// use atat::atat_log;
 use atat::InternalError;
-use atat::{helpers::SliceExt, DigestResult, Digester, UrcMatcher};
+use atat::{DigestResult, Digester, UrcMatcher};
 use heapless::Vec;
 
 /// State of the `EDMDigester`, used to filter responses
@@ -52,7 +51,7 @@ impl Digester for EdmDigester {
         buf: &mut Vec<u8, L>,
         _urc_matcher: &mut impl UrcMatcher,
     ) -> DigestResult<L> {
-        // TODO Handle module restart, tests and set default startupmessage in client, and optimiz this!
+        // TODO: Handle module restart, tests and set default startupmessage in client, and optimize this!
 
         let start_pos = match buf.windows(1).position(|byte| byte[0] == STARTBYTE) {
             Some(pos) => pos,
@@ -61,7 +60,8 @@ impl Digester for EdmDigester {
 
         // Trim leading invalid data.
         if start_pos != 0 {
-            *buf = Vec::from_slice(&buf[start_pos..buf.len()]).unwrap();
+            buf.rotate_left(start_pos);
+            buf.truncate(buf.len() - start_pos);
         }
 
         // Verify payload length and end byte position
@@ -76,79 +76,82 @@ impl Digester for EdmDigester {
         }
 
         // Debug statement for trace properly
-        if buf.len() != 0 {
-            match core::str::from_utf8(&buf) {
-                Ok(_s) => defmt::trace!("Recived: {=str}, state: {:?}", _s, self.state),
-                // Ok(_s) => atat_log!(trace, "Recived: {:str}, state: {:?}", _s, self.state),
-                Err(_) => defmt::trace!(
-                    "Recived: {:?}, state: {:?}",
-                    core::convert::AsRef::<[u8]>::as_ref(&buf),
-                    self.state,
-                ),
-                // Err(_) => atat_log!(
-                //     trace,
-                //     "Recived: {:?}, state: {:?}",
-                //     core::convert::AsRef::<[u8]>::as_ref(&buf),
-                //     self.state,
-                // ),
-            };
+        if !buf.is_empty() {
+            defmt::trace!("Digest {:?} / {=[u8]:a}", self.state, &buf);
         }
+
         // Filter message by payload
         match PayloadType::from(buf[4]) {
             PayloadType::ATConfirmation => {
-                let (resp, remaining) = buf.split_at(edm_len);
-                let mut return_val = DigestResult::None;
-                if self.state == State::ReceivingResponse {
-                    // Errors can arrive with and without leading whitespaces
-                    if resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION) == Some(b"ERROR")
-                        || resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION + 2)
+                let resp = &buf[..edm_len];
+                let return_val = match self.state {
+                    State::ReceivingResponse
+                        if resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION)
                             == Some(b"ERROR")
+                            || resp.windows(b"ERROR".len()).nth(AT_COMMAND_POSITION + 2)
+                                == Some(b"ERROR") =>
                     {
-                        return_val = DigestResult::Response(Err(InternalError::InvalidResponse));
-                    } else {
-                        return_val = DigestResult::Response(Ok(Vec::from_slice(resp).unwrap()));
+                        DigestResult::Response(Err(InternalError::InvalidResponse))
                     }
-                }
-                *buf = Vec::from_slice(remaining).unwrap();
+                    State::ReceivingResponse => {
+                        DigestResult::Response(Ok(Vec::from_slice(resp).unwrap()))
+                    }
+                    _ => DigestResult::None,
+                };
+
+                buf.rotate_left(edm_len);
+                buf.truncate(buf.len() - edm_len);
+
                 self.state = State::Idle;
-                return return_val;
+                return_val
             }
             PayloadType::StartEvent => {
-                let (resp, remaining) = buf.split_at(edm_len);
-                let mut return_val = DigestResult::None;
-                if self.state == State::ReceivingResponse {
-                    self.state = State::Idle;
-                    return_val = DigestResult::Response(Ok(Vec::from_slice(resp).unwrap()));
-                }
-                *buf = Vec::from_slice(remaining).unwrap();
-                return return_val;
+                let resp = &buf[..edm_len];
+                let return_val = match self.state {
+                    State::ReceivingResponse => {
+                        self.state = State::Idle;
+                        DigestResult::Response(Ok(Vec::from_slice(resp).unwrap()))
+                    }
+                    _ => DigestResult::None,
+                };
+                buf.rotate_left(edm_len);
+                buf.truncate(buf.len() - edm_len);
+
+                return_val
             }
             PayloadType::ATEvent => {
-                // Recived AT URC
-                let (resp, remaining) = buf.split_at(edm_len);
-                let (header, urc) = resp.split_at(AT_COMMAND_POSITION);
+                // Received AT URC
+                let resp = &mut buf[..edm_len];
+                let (header, urc) = resp.split_at_mut(AT_COMMAND_POSITION);
 
-                let urc_trimmed = urc.trim_start(&[b'\n', b'\r']);
+                let is_not_whitespace = |c| ![b'\n', b'\r'].contains(c);
+                let urc_trimmed = if let Some(idx) = urc.iter().position(is_not_whitespace) {
+                    urc.rotate_left(idx);
+                    &urc[..urc.len() - idx]
+                } else {
+                    &urc
+                };
 
                 let mut resp = Vec::from_slice(header).unwrap();
                 resp.extend_from_slice(urc_trimmed).unwrap();
                 resp[2] -= (urc.len() - urc_trimmed.len()) as u8;
 
-                *buf = Vec::from_slice(remaining).unwrap();
-                return DigestResult::Urc(resp);
+                buf.rotate_left(edm_len);
+                buf.truncate(buf.len() - edm_len);
+                DigestResult::Urc(resp)
             }
             PayloadType::ConnectEvent | PayloadType::DataEvent | PayloadType::DisconnectEvent => {
-                // Recived EDM event
-                let (resp, remaining) = buf.split_at(edm_len);
-                let resp = Vec::from_slice(resp).unwrap();
-                *buf = Vec::from_slice(remaining).unwrap();
-                return DigestResult::Urc(resp);
+                // Received EDM event
+                let resp = Vec::from_slice(&buf[..edm_len]).unwrap();
+                buf.rotate_left(edm_len);
+                buf.truncate(buf.len() - edm_len);
+                DigestResult::Urc(resp)
             }
             _ => {
                 // Wrong/Unsupported packet, thrown away.
-                let (_, remaining) = buf.split_at(edm_len);
-                *buf = Vec::from_slice(remaining).unwrap();
-                return DigestResult::None;
+                buf.rotate_left(edm_len);
+                buf.truncate(buf.len() - edm_len);
+                DigestResult::None
             }
         }
     }
@@ -159,23 +162,27 @@ mod test {
     //TODO: Rewrite tests for new builder structure
 
     use super::*;
-    use atat::{ComQueue, ResQueue, UrcQueue};
+    use atat::bbqueue::BBBuffer;
+    use atat::{ComQueue, ResponseHeader};
     use atat::{Command, DefaultUrcMatcher, IngressManager};
     use heapless::spsc::Queue;
 
     const TEST_RX_BUF_LEN: usize = 256;
-    const TEST_URC_CAPACITY: usize = 10;
+    const TEST_RES_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
+    const TEST_URC_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
 
     macro_rules! setup_ingressmanager {
         () => {{
-            static mut RES_Q: ResQueue<TEST_RX_BUF_LEN> = Queue::new();
-            let (res_p, res_c) = unsafe { RES_Q.split() };
-            static mut URC_Q: UrcQueue<TEST_RX_BUF_LEN, TEST_URC_CAPACITY> = Queue::new();
-            let (urc_p, urc_c) = unsafe { URC_Q.split() };
+            static mut RES_Q: BBBuffer<TEST_RES_CAPACITY> = BBBuffer::new();
+            let (res_p, res_c) = unsafe { RES_Q.try_split_framed().unwrap() };
+
+            static mut URC_Q: BBBuffer<TEST_URC_CAPACITY> = BBBuffer::new();
+            let (urc_p, urc_c) = unsafe { URC_Q.try_split_framed().unwrap() };
+
             static mut COM_Q: ComQueue = Queue::new();
             let (com_p, com_c) = unsafe { COM_Q.split() };
             (
-                IngressManager::with_customs(
+                IngressManager::<_, _, TEST_RX_BUF_LEN, TEST_RES_CAPACITY, TEST_URC_CAPACITY>::with_customs(
                     res_p,
                     urc_p,
                     com_c,
@@ -189,7 +196,7 @@ mod test {
         }};
     }
 
-    // Removed functionality used to change OK responses to empty responses.
+    /// Removed functionality used to change OK responses to empty responses.
     #[test]
     fn ok_response() {
         let (mut at_pars, mut res_c, mut urc_c, mut com_p) = setup_ingressmanager!();
@@ -198,17 +205,20 @@ mod test {
         at_pars.digest();
 
         //Payload: "OK\r\n"
-        let data = &[0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
-        let empty_ok_response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(&[
-            0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
-        ])
-        .unwrap();
+        let data = &[0xAA, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
+        let empty_ok_response = &[0xAA, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
 
         at_pars.write(data);
 
         at_pars.digest();
-        assert_eq!(res_c.dequeue(), Some(Ok(empty_ok_response)));
-        assert_eq!(urc_c.dequeue(), None);
+
+        let mut grant = res_c.read().unwrap();
+        grant.auto_release(true);
+        assert_eq!(
+            ResponseHeader::from_bytes(grant.as_ref()),
+            Ok(&empty_ok_response[..])
+        );
+        assert_eq!(urc_c.read(), None);
     }
 
     #[test]
@@ -217,7 +227,7 @@ mod test {
 
         //Payload: "ERROR\r\n"
         let data = &[
-            0xAAu8, 0x00, 0x09, 0x00, 0x45, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x0D, 0x0a, 0x55,
+            0xAA, 0x00, 0x09, 0x00, 0x45, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x0D, 0x0a, 0x55,
         ];
 
         com_p.enqueue(Command::ForceReceiveState).unwrap();
@@ -225,8 +235,13 @@ mod test {
         at_pars.write(data);
 
         at_pars.digest();
-        assert_eq!(res_c.dequeue(), Some(Err(InternalError::InvalidResponse)));
-        assert_eq!(urc_c.dequeue(), None);
+        let mut grant = res_c.read().unwrap();
+        grant.auto_release(true);
+        assert_eq!(
+            ResponseHeader::from_bytes(grant.as_ref()),
+            Err(InternalError::InvalidResponse)
+        );
+        assert_eq!(urc_c.read(), None);
     }
 
     #[test]
@@ -236,24 +251,26 @@ mod test {
         at_pars.digest();
 
         //Payload: AT\r\n
-        let response = &[0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x41, 0x54, 0x0D, 0x0a, 0x55];
+        let response = &[0xAA, 0x00, 0x06, 0x00, 0x45, 0x41, 0x54, 0x0D, 0x0a, 0x55];
         // Data = response + trailing OK message
         let data = &[
-            0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x41, 0x54, 0x0D, 0x0a, 0x55, 0xAA, 0x00, 0x06, 0x00,
+            0xAA, 0x00, 0x06, 0x00, 0x45, 0x41, 0x54, 0x0D, 0x0a, 0x55, 0xAA, 0x00, 0x06, 0x00,
             0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
         ];
 
         at_pars.write(data);
         at_pars.digest();
+
+        let mut grant = res_c.read().unwrap();
+        grant.auto_release(true);
         assert_eq!(
-            res_c.dequeue(),
-            Some(Ok(Vec::<u8, TEST_RX_BUF_LEN>::from_slice(response).unwrap()))
+            ResponseHeader::from_bytes(grant.as_ref()),
+            Ok(&response[..])
         );
-        assert_eq!(urc_c.dequeue(), None);
+        assert_eq!(urc_c.read(), None);
     }
 
-    // Regular response with traling regular response..
-
+    /// Regular response with traling regular response..
     #[test]
     fn at_urc() {
         let (mut at_pars, mut res_c, mut urc_c, _) = setup_ingressmanager!();
@@ -261,20 +278,20 @@ mod test {
         let type_byte = PayloadType::ATEvent as u8;
         //Payload: "OK\r\n"
         let data = &[
-            0xAAu8, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
+            0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
             0x3A, 0x33, 0x0D, 0x0A, 0x55,
         ];
         let result = &[
-            0xAAu8, 0x00, 0x0C, 0x00, type_byte, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33,
+            0xAA, 0x00, 0x0C, 0x00, type_byte, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33,
             0x0D, 0x0A, 0x55,
         ];
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(
-            urc_c.dequeue(),
-            Some(Vec::<u8, TEST_RX_BUF_LEN>::from_slice(result).unwrap())
-        );
-        assert_eq!(res_c.dequeue(), None);
+
+        let mut grant = urc_c.read().unwrap();
+        grant.auto_release(true);
+        assert_eq!(grant.as_ref(), result);
+        assert_eq!(res_c.read(), None);
     }
 
     #[test]
@@ -284,52 +301,20 @@ mod test {
         let type_byte = PayloadType::DataEvent as u8;
         //Payload: "OK\r\n"
         let data = &[
-            0xAAu8,
-            0x00,
-            0x0E,
-            0x00,
-            type_byte as u8,
-            0x0D,
-            0x0A,
-            0x2B,
-            0x55,
-            0x55,
-            0x44,
-            0x50,
-            0x44,
-            0x3A,
-            0x33,
-            0x0D,
-            0x0A,
-            0x55,
+            0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
+            0x3A, 0x33, 0x0D, 0x0A, 0x55,
         ];
         let result = &[
-            0xAAu8,
-            0x00,
-            0x0E,
-            0x00,
-            type_byte as u8,
-            0x0D,
-            0x0A,
-            0x2B,
-            0x55,
-            0x55,
-            0x44,
-            0x50,
-            0x44,
-            0x3A,
-            0x33,
-            0x0D,
-            0x0A,
-            0x55,
+            0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
+            0x3A, 0x33, 0x0D, 0x0A, 0x55,
         ];
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(
-            urc_c.dequeue(),
-            Some(Vec::<u8, TEST_RX_BUF_LEN>::from_slice(result).unwrap())
-        );
-        assert_eq!(res_c.dequeue(), None);
+
+        let mut grant = urc_c.read().unwrap();
+        grant.auto_release(true);
+        assert_eq!(grant.as_ref(), result);
+        assert_eq!(res_c.read(), None);
     }
 
     #[test]
@@ -339,102 +324,38 @@ mod test {
         let type_byte = PayloadType::ConnectEvent as u8;
         //Payload: "OK\r\n"
         let data = &[
-            0xAAu8,
-            0x00,
-            0x0E,
-            0x00,
-            type_byte as u8,
-            0x0D,
-            0x0A,
-            0x2B,
-            0x55,
-            0x55,
-            0x44,
-            0x50,
-            0x44,
-            0x3A,
-            0x33,
-            0x0D,
-            0x0A,
-            0x55,
+            0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
+            0x3A, 0x33, 0x0D, 0x0A, 0x55,
         ];
         let result = &[
-            0xAAu8,
-            0x00,
-            0x0E,
-            0x00,
-            type_byte as u8,
-            0x0D,
-            0x0A,
-            0x2B,
-            0x55,
-            0x55,
-            0x44,
-            0x50,
-            0x44,
-            0x3A,
-            0x33,
-            0x0D,
-            0x0A,
-            0x55,
+            0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
+            0x3A, 0x33, 0x0D, 0x0A, 0x55,
         ];
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(
-            urc_c.dequeue(),
-            Some(Vec::<u8, TEST_RX_BUF_LEN>::from_slice(result).unwrap())
-        );
-        assert_eq!(res_c.dequeue(), None);
+        let mut grant = urc_c.read().unwrap();
+        grant.auto_release(true);
+        assert_eq!(grant.as_ref(), result);
+        assert_eq!(res_c.read(), None);
+        drop(grant);
 
         let type_byte = PayloadType::DisconnectEvent as u8;
         //Payload: "OK\r\n"
         let data = &[
-            0xAAu8,
-            0x00,
-            0x0E,
-            0x00,
-            type_byte as u8,
-            0x0D,
-            0x0A,
-            0x2B,
-            0x55,
-            0x55,
-            0x44,
-            0x50,
-            0x44,
-            0x3A,
-            0x33,
-            0x0D,
-            0x0A,
-            0x55,
+            0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
+            0x3A, 0x33, 0x0D, 0x0A, 0x55,
         ];
         let result = &[
-            0xAAu8,
-            0x00,
-            0x0E,
-            0x00,
-            type_byte as u8,
-            0x0D,
-            0x0A,
-            0x2B,
-            0x55,
-            0x55,
-            0x44,
-            0x50,
-            0x44,
-            0x3A,
-            0x33,
-            0x0D,
-            0x0A,
-            0x55,
+            0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
+            0x3A, 0x33, 0x0D, 0x0A, 0x55,
         ];
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(
-            urc_c.dequeue(),
-            Some(Vec::<u8, TEST_RX_BUF_LEN>::from_slice(result).unwrap())
-        );
-        assert_eq!(res_c.dequeue(), None);
+
+        let mut grant = urc_c.read().unwrap();
+        grant.auto_release(true);
+        assert_eq!(grant.as_ref(), result);
+        assert_eq!(res_c.read(), None);
     }
 
     #[test]
@@ -444,37 +365,43 @@ mod test {
         let type_byte = PayloadType::Unknown as u8;
         //Payload: "OK\r\n"
         let data = &[
-            0xAAu8, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
+            0xAA, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
         ];
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(urc_c.dequeue(), None);
-        assert_eq!(res_c.dequeue(), None);
 
-        // In reciver state!
+        assert_eq!(urc_c.read(), None);
+        assert_eq!(res_c.read(), None);
+
+        // In receiver state!
         com_p.enqueue(Command::ForceReceiveState).unwrap();
         at_pars.digest();
 
         at_pars.write(data);
         at_pars.digest();
-        assert_eq!(urc_c.dequeue(), None);
-        assert_eq!(res_c.dequeue(), None);
+        assert_eq!(urc_c.read(), None);
+        assert_eq!(res_c.read(), None);
 
-        // Recovered enough to recive normal data?
+        // Recovered enough to receive normal data?
         com_p.enqueue(Command::ForceReceiveState).unwrap();
         at_pars.digest();
 
         //Payload: "OK\r\n"
-        let data = &[0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
+        let data = &[0xAA, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
         let empty_ok_response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(&[
-            0xAAu8, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
+            0xAA, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
         ])
         .unwrap();
 
         at_pars.write(data);
-
         at_pars.digest();
-        assert_eq!(res_c.dequeue(), Some(Ok(empty_ok_response)));
-        assert_eq!(urc_c.dequeue(), None);
+
+        let mut grant = res_c.read().unwrap();
+        grant.auto_release(true);
+        assert_eq!(
+            ResponseHeader::from_bytes(grant.as_ref()),
+            Ok(&empty_ok_response[..])
+        );
+        assert_eq!(urc_c.read(), None);
     }
 }
