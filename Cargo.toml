@@ -1,5 +1,2 @@
 [workspace]
 members = [ "ublox-short-range" ]
-
-# [patch.crates-io]
-# atat = { path = "../atat/atat" }

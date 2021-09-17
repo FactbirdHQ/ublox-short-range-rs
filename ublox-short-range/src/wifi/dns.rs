@@ -1,7 +1,7 @@
 use crate::client::DNSState;
 use core::convert::TryInto;
 use embedded_hal::digital::OutputPin;
-use embedded_nal::{AddrType, Dns, IpAddr};
+use embedded_nal::{nb, AddrType, Dns, IpAddr};
 use embedded_time::duration::{Extensions, Generic, Milliseconds};
 use embedded_time::Clock;
 use heapless::String;

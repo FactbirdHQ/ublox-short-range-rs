@@ -121,26 +121,26 @@ pub enum RemoteConfiguration {
 pub enum WatchdogSetting {
     /// SPP (and all SPP based protocols like DUN) write timeout: <value>is the time in
     /// milliseconds before DCE disconnects if a write is not acknowledged.
-    /// • 0: Disabled
-    /// • > 0: Timeout in milliseconds (factory default value: 10000 ms)
+    /// - 0: Disabled
+    /// - > 0: Timeout in milliseconds (factory default value: 10000 ms)
     #[at_arg(value = 0)]
     SPP(u16),
     /// Inactivity timeout: <value> is the time in milliseconds before DCE disconnects all
     /// links when no data activity in the system is detected.
-    /// • 0 (factory default): Disabled
-    /// • > 0: Timeout in milliseconds
+    /// - 0 (factory default): Disabled
+    /// - > 0: Timeout in milliseconds
     #[at_arg(value = 1)]
     InactivityTimeout(u16),
     /// Bluetooth disconnect reset: <value> defines if the DCE shall reset on any dropped
     /// Bluetooth connection (not on an actively closed connection)
-    /// • Off (factory default): Disabled
-    /// • On: Enabled
+    /// - Off (factory default): Disabled
+    /// - On: Enabled
     #[at_arg(value = 2)]
     BluetoothDisconnectReset(OnOff),
     /// Wi-Fi Station disconnect reset: <value> defines if the DCE shall reset on dropped
     /// Wi-Fi Station connection (not on actively closed connection)
-    /// • Off (factory default): Disabled
-    /// • On: Enabled
+    /// - Off (factory default): Disabled
+    /// - On: Enabled
     #[at_arg(value = 3)]
     WiFiDisconnectReset(OnOff),
     /// Wi-Fi connect timeout: <param_val1> is the time, in seconds, that an ongoing
@@ -165,38 +165,38 @@ pub enum WatchdogSetting {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum PeerConfigParameter {
     /// Keep remote peer in the command mode
-    /// • Off: Disconnect peers when entering the command mode
-    /// • On (default): Keep connections when entering the command mode
+    /// - Off: Disconnect peers when entering the command mode
+    /// - On (default): Keep connections when entering the command mode
     #[at_arg(value = 0)]
     KeepInCommandMode(OnOff),
     /// The module will be reset to factory default settings if it detects the following
     /// sequence on the DTR line: 1 second silence, 5 transfers from DEASSERTED to
     /// ASSERTED within 1 second, and 1 second silence.
     /// AT&D settings does not affect this.
-    /// • Off: Disabled
-    /// • On (default): Enabled
+    /// - Off: Disabled
+    /// - On (default): Enabled
     #[at_arg(value = 1)]
     DTRReset(OnOff),
     /// Number of allowed TCP links.
     /// ODIN-W2:
-    /// • 1-8: Default is 2.
+    /// - 1-8: Default is 2.
     #[at_arg(value = 2)]
     AllowedTCPLinks(u8),
     /// DSR activation bit mask.
     /// Defines the condition when the DSR line is asserted. The default value for the bit
     /// mask corresponds to the previous behaviour of the &S2 AT command.
-    /// • Bit 0: Activate DSR if any data peer is connected (old behavior)
-    /// • Bit 1: Activate DSR if a Bluetooth LE bonded device is connected
-    /// • Bit 2: Activate DSR on any Bluetooth LE GAP connection
+    /// - Bit 0: Activate DSR if any data peer is connected (old behavior)
+    /// - Bit 1: Activate DSR if a Bluetooth LE bonded device is connected
+    /// - Bit 2: Activate DSR on any Bluetooth LE GAP connection
     #[at_arg(value = 3)]
     DSRActivationBitMask(u8),
     /// Always connected reconnect time out
-    /// • 100-60000 milliseconds before trying to reconnect a default remote peer with
+    /// - 100-60000 milliseconds before trying to reconnect a default remote peer with
     /// always connected bit set (Default is 10000)
     #[at_arg(value = 4)]
     ReconnectTimeout(u16),
     /// TCP out of sequence queue length
-    /// • 0-15: Queue length for TCP packets arriving out of sequence (Default is 3). If
+    /// - 0-15: Queue length for TCP packets arriving out of sequence (Default is 3). If
     /// multiple TCP links are used, this should be low.
     #[at_arg(value = 5)]
     TCPOutOfSequenceQueue(u8),

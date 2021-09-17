@@ -12,8 +12,8 @@ use heapless::String;
 /// The ping command sends an ICMP echo request to the remote host and waits for its ICMP echo reply. If the
 /// echo reply packet is not received, it means that the remote host is not reachable.
 /// The ping command is also used to measure:
-/// • The Round Trip Time (RTT), the time needed by a packet to go to the remote host and come back and
-/// • The Time To Live (TTL), the value to understand how many gateway a packet has gone through.
+/// - The Round Trip Time (RTT), the time needed by a packet to go to the remote host and come back and
+/// - The Time To Live (TTL), the value to understand how many gateway a packet has gone through.
 /// The AT+UPING allows the user to execute a ping command from the module to a remote host. The results
 /// of the ping command execution is notified through the +UUPING: URC, which reports the +UPING command
 /// result (when there is no error).

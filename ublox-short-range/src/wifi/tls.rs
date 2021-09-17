@@ -3,7 +3,6 @@ use crate::{
     command::edm::BigEdmAtCmdWrapper,
     command::security::{types::*, *},
     error::Error,
-    socket::SocketHandle,
     UbloxClient,
 };
 use core::convert::TryInto;
@@ -11,6 +10,7 @@ use embedded_hal::digital::OutputPin;
 use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
 use heapless::String;
+use ublox_sockets::SocketHandle;
 
 pub trait TLS {
     fn import_certificate(&mut self, name: &str, certificate: &[u8]) -> Result<(), Error>;
@@ -41,10 +41,12 @@ where
     fn import_certificate(&mut self, name: &str, certificate: &[u8]) -> Result<(), Error> {
         assert!(name.len() < 200);
 
-        if let Some(ref sec) = self.security_credentials {
-            if let Some(_) = sec.c_cert_name {
-                return Err(Error::DublicateCredentials);
-            }
+        if let Some(SecurityCredentials {
+            c_cert_name: Some(_),
+            ..
+        }) = self.security_credentials
+        {
+            return Err(Error::DuplicateCredentials);
         }
 
         self.send_at(PrepareSecurityDataImport {
@@ -81,10 +83,12 @@ where
     fn import_root_ca(&mut self, name: &str, root_ca: &[u8]) -> Result<(), Error> {
         assert!(name.len() < 200);
 
-        if let Some(ref sec) = self.security_credentials {
-            if let Some(_) = sec.ca_cert_name {
-                return Err(Error::DublicateCredentials);
-            }
+        if let Some(SecurityCredentials {
+            ca_cert_name: Some(_),
+            ..
+        }) = self.security_credentials
+        {
+            return Err(Error::DuplicateCredentials);
         }
 
         self.send_at(PrepareSecurityDataImport {
@@ -126,10 +130,12 @@ where
     ) -> Result<(), Error> {
         assert!(name.len() < 200);
 
-        if let Some(ref sec) = self.security_credentials {
-            if let Some(_) = sec.c_key_name {
-                return Err(Error::DublicateCredentials);
-            }
+        if let Some(SecurityCredentials {
+            c_key_name: Some(_),
+            ..
+        }) = self.security_credentials
+        {
+            return Err(Error::DuplicateCredentials);
         }
 
         self.send_at(PrepareSecurityDataImport {
@@ -169,8 +175,8 @@ where
         _client_cert_name: Option<&str>,
         _priv_key_name: Option<&str>,
     ) -> Result<(), Error> {
-        //Change socket handle to do TLS now,
-        //Needs name of Certificates.
+        // Change socket handle to do TLS now,
+        // Needs name of Certificates.
         // let mut sockets = self.sockets.try_borrow_mut()?;
         // match sockets.socket_type(socket) {
         //     Some(SocketType::Tcp) => {

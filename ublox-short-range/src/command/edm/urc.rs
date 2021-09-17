@@ -66,7 +66,7 @@ impl AtatUrc for EdmEvent {
                             return None;
                         }
                         let event = IPv4ConnectEvent {
-                            channel_id: resp[5],
+                            channel_id: ChannelId(resp[5]),
                             protocol: resp[7].into(),
                             remote_ip: Ipv4Addr::from([resp[8], resp[9], resp[10], resp[11]]),
                             remote_port: ((resp[12] as u16) << 8) | resp[13] as u16,
@@ -84,7 +84,7 @@ impl AtatUrc for EdmEvent {
                             return None;
                         }
                         let event = IPv6ConnectEvent {
-                            channel_id: resp[5],
+                            channel_id: ChannelId(resp[5]),
                             protocol: resp[7].into(),
                             remote_ip: Ipv6Addr::from([
                                 resp[8], resp[9], resp[10], resp[11], resp[12], resp[13], resp[14],
@@ -113,7 +113,7 @@ impl AtatUrc for EdmEvent {
                 if payload_len != 3 {
                     return None;
                 }
-                EdmEvent::DisconnectEvent(resp[5]).into()
+                EdmEvent::DisconnectEvent(ChannelId(resp[5])).into()
             }
 
             PayloadType::DataEvent => {
@@ -124,7 +124,7 @@ impl AtatUrc for EdmEvent {
                 Vec::from_slice(&resp[6..payload_len + 3])
                     .ok()
                     .map(|vec| DataEvent {
-                        channel_id: resp[5],
+                        channel_id: ChannelId(resp[5]),
                         data: vec,
                     })
                     .map(EdmEvent::DataEvent)
@@ -143,6 +143,7 @@ mod test {
     use super::*;
     use crate::command::{data_mode::urc::PeerDisconnected, edm::types::DATA_PACKAGE_SIZE, Urc};
     use atat::{heapless::Vec, AtatUrc};
+    use ublox_sockets::SocketHandle;
 
     #[test]
     fn parse_at_urc() {
@@ -167,7 +168,9 @@ mod test {
             0x55,
             // 0xAAu8, 0x00, 0x1B, 0x00, 0x41, 0x2B, 0x55, 0x55, 0x57, 0x4C, 0x45, 0x3A, 0x30, 0x2C, 0x33, 0x32, 0x41, 0x42, 0x36, 0x41, 0x37, 0x41, 0x34, 0x30, 0x34, 0x34, 0x2C, 0x31, 0x0D, 0x0A, 0x55,
         ];
-        let urc = EdmEvent::ATEvent(Urc::PeerDisconnected(PeerDisconnected { handle: 3 }));
+        let urc = EdmEvent::ATEvent(Urc::PeerDisconnected(PeerDisconnected {
+            handle: SocketHandle(3),
+        }));
         let parsed_urc = EdmEvent::parse(resp);
         assert_eq!(parsed_urc, Some(urc), "Parsing URC failed");
     }
@@ -180,7 +183,7 @@ mod test {
             0xC0, 0xA8, 0x00, 0x01, 0x0F, 0xA0, 0x55,
         ];
         let event = EdmEvent::IPv4ConnectEvent(IPv4ConnectEvent {
-            channel_id: 5,
+            channel_id: ChannelId(5),
             protocol: Protocol::TCP,
             remote_ip: Ipv4Addr::new(192, 168, 0, 2),
             remote_port: 5000,
@@ -205,7 +208,7 @@ mod test {
             0x0F, 0xA0, 0x55,
         ];
         let event = EdmEvent::IPv6ConnectEvent(IPv6ConnectEvent {
-            channel_id: 5,
+            channel_id: ChannelId(5),
             protocol: Protocol::TCP,
             remote_ip: Ipv6Addr::new(0xfe80, 0, 0, 0, 0, 0, 0, 2),
             remote_port: 5000,
@@ -224,7 +227,7 @@ mod test {
     fn parse_disconnect_event() {
         // AT-event: +UUDPD:3
         let resp = &[0xAA, 0x00, 0x03, 0x00, 0x21, 0x03, 0x55];
-        let event = EdmEvent::DisconnectEvent(3);
+        let event = EdmEvent::DisconnectEvent(ChannelId(3));
         let parsed_event = EdmEvent::parse(resp);
         assert_eq!(parsed_event, Some(event), "Parsing Disconnect Event failed");
     }
@@ -234,7 +237,7 @@ mod test {
         // AT-event: +UUDPD:3
         let resp = &[0xAA, 0x00, 0x05, 0x00, 0x31, 0x03, 0x12, 0x34, 0x55];
         let event = EdmEvent::DataEvent(DataEvent {
-            channel_id: 3,
+            channel_id: ChannelId(3),
             data: Vec::<u8, DATA_PACKAGE_SIZE>::from_slice(&[0x12, 0x34]).unwrap(),
         });
         let parsed_event = EdmEvent::parse(resp);

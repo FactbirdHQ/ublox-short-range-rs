@@ -2,12 +2,13 @@
 use super::types::*;
 use atat::atat_derive::AtatResp;
 use atat::heapless_bytes::Bytes;
+use ublox_sockets::SocketHandle;
 
 /// 5.10 Peer connected +UUDPC
 #[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct PeerConnected {
     #[at_arg(position = 0)]
-    pub handle: usize,
+    pub handle: SocketHandle,
     #[at_arg(position = 1)]
     pub connection_type: ConnectionType,
     #[at_arg(position = 2)]
@@ -30,5 +31,5 @@ pub struct PeerConnected {
 #[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct PeerDisconnected {
     #[at_arg(position = 0)]
-    pub handle: usize,
+    pub handle: SocketHandle,
 }

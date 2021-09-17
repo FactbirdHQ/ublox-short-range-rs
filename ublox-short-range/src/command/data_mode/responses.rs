@@ -6,7 +6,7 @@ use heapless::String;
 #[derive(Clone, AtatResp)]
 pub struct ConnectPeerResponse {
     #[at_arg(position = 0)]
-    pub peer_handle: usize,
+    pub peer_handle: u8,
 }
 
 /// 5.5 Peer list +UDLP

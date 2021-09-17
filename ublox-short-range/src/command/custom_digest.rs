@@ -55,7 +55,7 @@ impl Digester for EdmDigester {
 
         let start_pos = match buf.windows(1).position(|byte| byte[0] == STARTBYTE) {
             Some(pos) => pos,
-            None => return DigestResult::None, //handle leading error data. //TODO handle error input before messagestart.
+            None => return DigestResult::None, // handle leading error data. // TODO: handle error input before message start.
         };
 
         // Trim leading invalid data.
@@ -68,7 +68,7 @@ impl Digester for EdmDigester {
         if buf.len() < EDM_OVERHEAD {
             return DigestResult::None;
         }
-        let payload_len = calc_payload_len(&buf);
+        let payload_len = calc_payload_len(buf);
 
         let edm_len = payload_len + EDM_OVERHEAD;
         if buf.len() < edm_len || buf[edm_len - 1] != ENDBYTE {
@@ -159,7 +159,7 @@ impl Digester for EdmDigester {
 
 #[cfg(test)]
 mod test {
-    //TODO: Rewrite tests for new builder structure
+    // TODO: Rewrite tests for new builder structure
 
     use super::*;
     use atat::bbqueue::BBBuffer;
@@ -204,7 +204,7 @@ mod test {
         com_p.enqueue(Command::ForceReceiveState).unwrap();
         at_pars.digest();
 
-        //Payload: "OK\r\n"
+        // Payload: "OK\r\n"
         let data = &[0xAA, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
         let empty_ok_response = &[0xAA, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
 
@@ -225,7 +225,7 @@ mod test {
     fn error_response() {
         let (mut at_pars, mut res_c, mut urc_c, mut com_p) = setup_ingressmanager!();
 
-        //Payload: "ERROR\r\n"
+        // Payload: "ERROR\r\n"
         let data = &[
             0xAA, 0x00, 0x09, 0x00, 0x45, 0x45, 0x52, 0x52, 0x4f, 0x52, 0x0D, 0x0a, 0x55,
         ];
@@ -250,7 +250,7 @@ mod test {
         com_p.enqueue(Command::ForceReceiveState).unwrap();
         at_pars.digest();
 
-        //Payload: AT\r\n
+        // Payload: AT\r\n
         let response = &[0xAA, 0x00, 0x06, 0x00, 0x45, 0x41, 0x54, 0x0D, 0x0a, 0x55];
         // Data = response + trailing OK message
         let data = &[
@@ -276,7 +276,7 @@ mod test {
         let (mut at_pars, mut res_c, mut urc_c, _) = setup_ingressmanager!();
 
         let type_byte = PayloadType::ATEvent as u8;
-        //Payload: "OK\r\n"
+        // Payload: "OK\r\n"
         let data = &[
             0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
             0x3A, 0x33, 0x0D, 0x0A, 0x55,
@@ -299,7 +299,7 @@ mod test {
         let (mut at_pars, mut res_c, mut urc_c, _) = setup_ingressmanager!();
 
         let type_byte = PayloadType::DataEvent as u8;
-        //Payload: "OK\r\n"
+        // Payload: "OK\r\n"
         let data = &[
             0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
             0x3A, 0x33, 0x0D, 0x0A, 0x55,
@@ -322,7 +322,7 @@ mod test {
         let (mut at_pars, mut res_c, mut urc_c, _) = setup_ingressmanager!();
 
         let type_byte = PayloadType::ConnectEvent as u8;
-        //Payload: "OK\r\n"
+        // Payload: "OK\r\n"
         let data = &[
             0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
             0x3A, 0x33, 0x0D, 0x0A, 0x55,
@@ -340,7 +340,7 @@ mod test {
         drop(grant);
 
         let type_byte = PayloadType::DisconnectEvent as u8;
-        //Payload: "OK\r\n"
+        // Payload: "OK\r\n"
         let data = &[
             0xAA, 0x00, 0x0E, 0x00, type_byte, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44,
             0x3A, 0x33, 0x0D, 0x0A, 0x55,
@@ -363,7 +363,7 @@ mod test {
         let (mut at_pars, mut res_c, mut urc_c, mut com_p) = setup_ingressmanager!();
 
         let type_byte = PayloadType::Unknown as u8;
-        //Payload: "OK\r\n"
+        // Payload: "OK\r\n"
         let data = &[
             0xAA, 0x00, 0x06, 0x00, type_byte, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,
         ];
@@ -386,7 +386,7 @@ mod test {
         com_p.enqueue(Command::ForceReceiveState).unwrap();
         at_pars.digest();
 
-        //Payload: "OK\r\n"
+        // Payload: "OK\r\n"
         let data = &[0xAA, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55];
         let empty_ok_response = Vec::<u8, TEST_RX_BUF_LEN>::from_slice(&[
             0xAA, 0x00, 0x06, 0x00, 0x45, 0x4f, 0x4b, 0x0D, 0x0a, 0x55,

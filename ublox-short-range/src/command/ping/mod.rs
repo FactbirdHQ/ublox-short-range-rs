@@ -14,8 +14,8 @@ use atat::atat_derive::AtatCmd;
 /// The ping command sends an ICMP echo request to the remote host and waits for its ICMP echo reply. If the
 /// echo reply packet is not received, it means that the remote host is not reachable.
 /// The ping command is also used to measure:
-/// • The Round Trip Time (RTT), the time needed by a packet to go to the remote host and come back and
-/// • The Time To Live (TTL), the value to understand how many gateway a packet has gone through.
+/// - The Round Trip Time (RTT), the time needed by a packet to go to the remote host and come back and
+/// - The Time To Live (TTL), the value to understand how many gateway a packet has gone through.
 /// The AT+UPING allows the user to execute a ping command from the module to a remote host. The results
 /// of the ping command execution is notified through the +UUPING: URC, which reports the +UPING command
 /// result (when there is no error).
@@ -28,12 +28,12 @@ use atat::atat_derive::AtatCmd;
 #[at_cmd("+UPING", NoResponse, timeout_ms = 10000)]
 pub struct Ping<'a> {
     /// IP address (dotted decimal representation) or domain name of the remote host
-    /// • Maximum length: 64 characters
+    /// - Maximum length: 64 characters
     #[at_arg(position = 0, len = 64)]
     pub hostname: &'a str,
     /// Indicates the number of iterations for the ping command.
-    /// • Range: 1-2147483647(i32 max)
-    /// • Default value: 4
+    /// - Range: 1-2147483647(i32 max)
+    /// - Default value: 4
     #[at_arg(position = 1)]
     pub retry_num: i32,
 }

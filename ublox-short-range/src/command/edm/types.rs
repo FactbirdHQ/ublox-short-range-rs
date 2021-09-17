@@ -1,10 +1,28 @@
+use atat::atat_derive::AtatLen;
 use embedded_nal::{Ipv4Addr, Ipv6Addr};
 use heapless::Vec;
+use serde::{Deserialize, Serialize};
 
 /// Start byte, Length: u16, Id+Type: u16, Endbyte
 // type EdmAtCmdOverhead = (u8, u16, u16, u8);
 
-pub type ChannelId = u8;
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    AtatLen,
+    Ord,
+    Default,
+    Serialize,
+    Deserialize,
+    defmt::Format,
+    hash32_derive::Hash32,
+)]
+pub struct ChannelId(pub u8);
+
 pub const DATA_PACKAGE_SIZE: usize = 540;
 pub const STARTBYTE: u8 = 0xAA;
 pub const ENDBYTE: u8 = 0x55;
@@ -55,16 +73,16 @@ pub(crate) enum PayloadType {
 impl From<u8> for PayloadType {
     fn from(num: u8) -> Self {
         match num {
-            0x11u8 => PayloadType::ConnectEvent,
-            0x21u8 => PayloadType::DisconnectEvent,
-            0x31u8 => PayloadType::DataEvent,
-            0x36u8 => PayloadType::DataCommand,
-            0x44u8 => PayloadType::ATRequest,
-            0x45u8 => PayloadType::ATConfirmation,
-            0x41u8 => PayloadType::ATEvent,
-            0x56u8 => PayloadType::ResendConnectEventsCommand,
-            0x61u8 => PayloadType::IPhoneEvent,
-            0x71u8 => PayloadType::StartEvent,
+            0x11 => PayloadType::ConnectEvent,
+            0x21 => PayloadType::DisconnectEvent,
+            0x31 => PayloadType::DataEvent,
+            0x36 => PayloadType::DataCommand,
+            0x44 => PayloadType::ATRequest,
+            0x45 => PayloadType::ATConfirmation,
+            0x41 => PayloadType::ATEvent,
+            0x56 => PayloadType::ResendConnectEventsCommand,
+            0x61 => PayloadType::IPhoneEvent,
+            0x71 => PayloadType::StartEvent,
             _ => PayloadType::Unknown,
         }
     }

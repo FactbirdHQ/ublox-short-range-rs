@@ -36,7 +36,7 @@ impl TryFrom<ScanedWifiNetwork> for WifiNetwork {
             channel: r.channel,
             rssi: r.rssi,
             authentication_suites: from_hex(&mut [r.authentication_suites])
-                .map_err(|_| Self::Error::HexError)?[0], //TODO: Better solution
+                .map_err(|_| Self::Error::HexError)?[0], // TODO: Better solution
             unicast_ciphers: from_hex(&mut [r.unicast_ciphers])
                 .map_err(|_| Self::Error::HexError)?[0],
             group_ciphers: r.group_ciphers,

@@ -93,8 +93,8 @@ pub enum StatusID {
     /// The <status_val>is the uptime in seconds. That is, the seconds since last reboot
     Uptime = 0,
     /// The <status_val>is the current status of the settings
-    /// • 0: Not saved. That is, there are some changes since the last stored command.
-    /// • 1: Saved
+    /// - 0: Not saved. That is, there are some changes since the last stored command.
+    /// - 1: Saved
     SavedStatus = 1,
 }
 
