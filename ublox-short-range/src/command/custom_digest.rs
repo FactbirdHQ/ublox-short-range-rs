@@ -77,7 +77,7 @@ impl Digester for EdmDigester {
 
         // Debug statement for trace properly
         if !buf.is_empty() {
-            defmt::trace!("Digest {:?} / {=[u8]:a}", self.state, &buf);
+            defmt::trace!("Digest {:?} / {=[u8]:x}", self.state, &buf);
         }
 
         // Filter message by payload

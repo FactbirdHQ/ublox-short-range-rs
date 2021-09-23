@@ -1,18 +1,16 @@
-use crate::error::Error;
+use crate::{client::SecurityCredentials, error::Error};
 use core::fmt::Write;
 /// Handles receiving data from sockets
 /// implements TCP and UDP for WiFi client
 use embedded_nal::{IpAddr, SocketAddr};
 use heapless::String;
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub(crate) struct PeerUrlBuilder<'a> {
     hostname: Option<&'a str>,
     ip_addr: Option<IpAddr>,
     port: Option<u16>,
-    ca: Option<&'a str>,
-    cert: Option<&'a str>,
-    pkey: Option<&'a str>,
+    creds: Option<SecurityCredentials>,
     local_port: Option<u16>,
 }
 
@@ -58,9 +56,20 @@ impl<'a> PeerUrlBuilder<'a> {
         write!(&mut s, "?").ok();
         self.local_port
             .map(|v| write!(&mut s, "local_port={}&", v).ok());
-        self.ca.map(|v| write!(&mut s, "ca={}&", v).ok());
-        self.cert.map(|v| write!(&mut s, "cert={}&", v).ok());
-        self.pkey.map(|v| write!(&mut s, "privKey={}&", v).ok());
+        self.creds.as_ref().map(|creds| {
+            creds
+                .ca_cert_name
+                .as_ref()
+                .map(|v| write!(&mut s, "ca={}&", v).ok());
+            creds
+                .c_cert_name
+                .as_ref()
+                .map(|v| write!(&mut s, "cert={}&", v).ok());
+            creds
+                .c_key_name
+                .as_ref()
+                .map(|v| write!(&mut s, "privKey={}&", v).ok());
+        });
         // Remove trailing '&' or '?' if no query.
         s.pop();
 
@@ -88,18 +97,8 @@ impl<'a> PeerUrlBuilder<'a> {
         self
     }
 
-    pub fn ca(&mut self, ca: &'a str) -> &mut Self {
-        self.ca.replace(ca);
-        self
-    }
-
-    pub fn cert(&mut self, cert: &'a str) -> &mut Self {
-        self.cert.replace(cert);
-        self
-    }
-
-    pub fn pkey(&mut self, pkey: &'a str) -> &mut Self {
-        self.pkey.replace(pkey);
+    pub fn creds(&mut self, creds: SecurityCredentials) -> &mut Self {
+        self.creds.replace(creds);
         self
     }
 
@@ -145,9 +144,11 @@ mod test {
         let url = PeerUrlBuilder::new()
             .hostname("example.org")
             .port(2000)
-            .ca("ca.crt")
-            .cert("client.crt")
-            .pkey("client.key")
+            .creds(SecurityCredentials {
+                c_cert_name: Some(heapless::String::from("client.crt")),
+                ca_cert_name: Some(heapless::String::from("ca.crt")),
+                c_key_name: Some(heapless::String::from("client.key")),
+            })
             .tcp()
             .unwrap();
         assert_eq!(

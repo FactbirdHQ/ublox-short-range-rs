@@ -18,6 +18,8 @@ pub mod udp_stack;
 #[cfg(feature = "socket-tcp")]
 pub mod tcp_stack;
 
+pub(crate) const EGRESS_CHUNK_SIZE: usize = 512;
+
 pub struct EdmMap(heapless::FnvIndexMap<ChannelId, SocketHandle, 6>);
 
 impl Default for EdmMap {

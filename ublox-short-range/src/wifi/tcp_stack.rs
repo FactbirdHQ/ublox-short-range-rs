@@ -4,7 +4,6 @@ use crate::{
         data_mode::responses::ConnectPeerResponse,
         edm::{EdmAtCmdWrapper, EdmDataCommand},
     },
-    error::Error,
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
@@ -18,9 +17,9 @@ use embedded_time::{
     Clock,
 };
 
-use ublox_sockets::{SocketHandle, TcpSocket, TcpState};
+use ublox_sockets::{Error, SocketHandle, TcpSocket, TcpState};
 
-pub(crate) const EGRESS_CHUNK_SIZE: usize = 512;
+use super::EGRESS_CHUNK_SIZE;
 
 impl<C, CLK, RST, const N: usize, const L: usize> TcpClientStack for UbloxClient<C, CLK, RST, N, L>
 where
@@ -44,28 +43,28 @@ where
                     // Check if there are any sockets closed by remote, and close it
                     // if it has exceeded its timeout, in order to recycle it.
                     if sockets.recycle(&ts) {
-                        return Err(Error::Network);
+                        return Err(Error::SocketSetFull);
                     }
                 } else {
-                    return Err(Error::Network);
+                    return Err(Error::SocketSetFull);
                 }
             }
 
             defmt::debug!("[TCP] Opening socket");
             if let Some(ref con) = self.wifi_connection {
                 if !self.initialized || !con.is_connected() {
-                    return Err(Error::Network);
+                    return Err(Error::Illegal);
                 }
             } else {
-                return Err(Error::Network);
+                return Err(Error::Illegal);
             }
 
             sockets.add(TcpSocket::new(0)).map_err(|_| {
                 defmt::error!("[TCP] Opening socket Error: Socket set full");
-                Error::Network
+                Error::SocketSetFull
             })
         } else {
-            Err(Error::SocketMemory)
+            Err(Error::Illegal)
         }
     }
 
@@ -76,16 +75,16 @@ where
         remote: SocketAddr,
     ) -> nb::Result<(), Self::Error> {
         if self.sockets.is_none() {
-            return Err(Error::SocketMemory.into());
+            return Err(Error::Illegal.into());
         }
 
         defmt::debug!("[TCP] Connect socket: {:?}", socket);
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized || !con.is_connected() {
-                return Err(nb::Error::Other(Error::Network));
+                return Err(nb::Error::Other(Error::Illegal));
             }
         } else {
-            return Err(nb::Error::Other(Error::Network));
+            return Err(nb::Error::Other(Error::Illegal));
         }
 
         // If no socket is found we stop here
@@ -96,25 +95,17 @@ where
             .get::<TcpSocket<CLK, L>>(*socket)
             .map_err(Self::Error::from)?;
 
-        let mut url_builder = PeerUrlBuilder::new();
-        self.security_credentials
-            .as_ref()
-            .and_then(|cred| cred.ca_cert_name.as_ref())
-            .map(|ca| url_builder.ca(ca));
-        self.security_credentials
-            .as_ref()
-            .and_then(|cred| cred.c_cert_name.as_ref())
-            .map(|cert| url_builder.cert(cert));
-        self.security_credentials
-            .as_ref()
-            .and_then(|cred| cred.c_key_name.as_ref())
-            .map(|pkey| url_builder.pkey(pkey));
-        let url = url_builder.address(&remote).tcp()?;
+        let url = PeerUrlBuilder::new()
+            .address(&remote)
+            .creds(self.security_credentials.clone())
+            .tcp()
+            .map_err(|_| Error::Unaddressable)?;
 
         defmt::trace!("[TCP] Connecting to url! {=str}", url);
 
-        let ConnectPeerResponse { peer_handle } =
-            self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)?;
+        let ConnectPeerResponse { peer_handle } = self
+            .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
+            .map_err(|_| Error::Unaddressable)?;
 
         let mut tcp = self
             .sockets
@@ -123,8 +114,9 @@ where
             .get::<TcpSocket<CLK, L>>(*socket)
             .map_err(Self::Error::from)?;
 
-        tcp.set_state(TcpState::WaitingForConnect(remote));
         *socket = SocketHandle(peer_handle);
+        tcp.set_state(TcpState::WaitingForConnect(remote));
+        tcp.update_handle(*socket);
 
         // TODO: Timeout?
         while {
@@ -138,7 +130,7 @@ where
                 TcpState::WaitingForConnect(_)
             )
         } {
-            self.spin()?;
+            self.spin().map_err(|_| Error::Illegal)?;
         }
         Ok(())
     }
@@ -157,7 +149,7 @@ where
             let tcp = sockets.get::<TcpSocket<CLK, L>>(*socket)?;
             Ok(tcp.is_connected())
         } else {
-            Err(Error::SocketMemory)
+            Err(Error::Illegal)
         }
     }
 
@@ -171,10 +163,10 @@ where
         if let Some(ref mut sockets) = self.sockets {
             if let Some(ref con) = self.wifi_connection {
                 if !self.initialized || !con.is_connected() {
-                    return Err(nb::Error::Other(Error::Network));
+                    return Err(Error::Illegal.into());
                 }
             } else {
-                return Err(nb::Error::Other(Error::Network));
+                return Err(Error::Illegal.into());
             }
 
             let tcp = sockets
@@ -182,13 +174,13 @@ where
                 .map_err(|e| nb::Error::Other(e.into()))?;
 
             if !tcp.is_connected() {
-                return Err(nb::Error::Other(Error::SocketNotConnected));
+                return Err(Error::SocketClosed.into());
             }
 
             let channel = *self
                 .edm_mapping
                 .channel_id(socket)
-                .ok_or(nb::Error::Other(Error::SocketNotConnected))?;
+                .ok_or(nb::Error::Other(Error::SocketClosed))?;
 
             for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
                 self.send_internal(
@@ -197,11 +189,12 @@ where
                         data: chunk,
                     },
                     true,
-                )?;
+                )
+                .map_err(|_| nb::Error::Other(Error::Unaddressable))?;
             }
             Ok(buffer.len())
         } else {
-            Err(Error::SocketMemory.into())
+            Err(Error::Illegal.into())
         }
     }
 
@@ -210,16 +203,15 @@ where
         socket: &mut Self::TcpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<usize, Self::Error> {
-        self.spin()?;
+        self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
         if let Some(ref mut sockets) = self.sockets {
             let mut tcp = sockets
                 .get::<TcpSocket<CLK, L>>(*socket)
-                .map_err(|e| nb::Error::Other(e.into()))?;
+                .map_err(Self::Error::from)?;
 
-            tcp.recv_slice(buffer)
-                .map_err(|e| nb::Error::Other(e.into()))
+            Ok(tcp.recv_slice(buffer).map_err(Self::Error::from)?)
         } else {
-            Err(Error::SocketMemory.into())
+            Err(Error::Illegal.into())
         }
     }
 
@@ -236,8 +228,8 @@ where
                 ) {
                     let peer_handle = tcp.handle();
                     match self.send_at(ClosePeerConnection { peer_handle }) {
-                        Err(Error::AT(atat::Error::InvalidResponse)) | Ok(_) => (),
-                        Err(e) => return Err(e),
+                        Err(crate::error::Error::AT(atat::Error::InvalidResponse)) | Ok(_) => (),
+                        Err(_) => return Err(Error::Unaddressable),
                     }
                 } else {
                     // No connection exists the socket should be removed from the set here
@@ -246,7 +238,7 @@ where
             }
             Ok(())
         } else {
-            Err(Error::SocketMemory)
+            Err(Error::Illegal)
         }
     }
 }

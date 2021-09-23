@@ -1,7 +1,6 @@
 use crate::{
     command::data_mode::*,
     command::edm::{EdmAtCmdWrapper, EdmDataCommand},
-    error::Error,
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
@@ -14,9 +13,9 @@ use embedded_time::{
 };
 
 use embedded_nal::UdpClientStack;
-use ublox_sockets::{SocketHandle, UdpSocket, UdpState};
+use ublox_sockets::{Error, SocketHandle, UdpSocket, UdpState};
 
-pub(crate) const EGRESS_CHUNK_SIZE: usize = 512;
+use super::EGRESS_CHUNK_SIZE;
 
 impl<C, CLK, RST, const N: usize, const L: usize> UdpClientStack for UbloxClient<C, CLK, RST, N, L>
 where
@@ -39,28 +38,28 @@ where
                     // Check if there are any sockets closed by remote, and close it
                     // if it has exceeded its timeout, in order to recycle it.
                     if sockets.recycle(&ts) {
-                        return Err(Error::Network);
+                        return Err(Error::SocketSetFull);
                     }
                 } else {
-                    return Err(Error::Network);
+                    return Err(Error::SocketSetFull);
                 }
             }
 
             defmt::debug!("[UDP] Opening socket");
             if let Some(ref con) = self.wifi_connection {
                 if !self.initialized || !con.is_connected() {
-                    return Err(Error::Network);
+                    return Err(Error::Illegal);
                 }
             } else {
-                return Err(Error::Network);
+                return Err(Error::Illegal);
             }
 
             sockets.add(UdpSocket::new(0)).map_err(|_| {
                 defmt::error!("[UDP] Opening socket Error: Socket set full");
-                Error::Network
+                Error::SocketSetFull
             })
         } else {
-            Err(Error::SocketMemory)
+            Err(Error::Illegal)
         }
     }
 
@@ -72,29 +71,35 @@ where
         remote: SocketAddr,
     ) -> Result<(), Self::Error> {
         if self.sockets.is_none() {
-            return Err(Error::SocketMemory);
+            return Err(Error::Illegal);
         }
 
         defmt::debug!("[UDP] Connecting socket");
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized || !con.is_connected() {
-                return Err(Error::Network);
+                return Err(Error::Illegal);
             }
         } else {
-            return Err(Error::Network);
+            return Err(Error::Illegal);
         }
 
-        let url = PeerUrlBuilder::new().address(&remote).udp()?;
+        let url = PeerUrlBuilder::new()
+            .address(&remote)
+            .udp()
+            .map_err(|_| Error::Unaddressable)?;
         defmt::trace!("[UDP] Connecting URL! {=str}", url);
-        let resp = self.send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)?;
+        let resp = self
+            .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
+            .map_err(|_| Error::Unaddressable)?;
 
         let mut udp = self
             .sockets
             .as_mut()
             .unwrap()
             .get::<UdpSocket<CLK, L>>(*socket)?;
-        udp.bind(remote)?;
         *socket = SocketHandle(resp.peer_handle);
+        udp.bind(remote)?;
+        udp.update_handle(*socket);
 
         while self
             .sockets
@@ -104,7 +109,7 @@ where
             .state()
             == UdpState::Closed
         {
-            self.spin()?;
+            self.spin().map_err(|_| Error::Illegal)?;
         }
         Ok(())
     }
@@ -114,10 +119,10 @@ where
         if let Some(ref mut sockets) = self.sockets {
             if let Some(ref con) = self.wifi_connection {
                 if !self.initialized || !con.is_connected() {
-                    return Err(nb::Error::Other(Error::Network));
+                    return Err(Error::Illegal.into());
                 }
             } else {
-                return Err(nb::Error::Other(Error::Network));
+                return Err(Error::Illegal.into());
             }
 
             let udp = sockets
@@ -125,13 +130,13 @@ where
                 .map_err(Self::Error::from)?;
 
             if !udp.is_open() {
-                return Err(nb::Error::Other(Error::SocketClosed));
+                return Err(Error::SocketClosed.into());
             }
 
             let channel = *self
                 .edm_mapping
                 .channel_id(socket)
-                .ok_or(nb::Error::Other(Error::SocketNotConnected))?;
+                .ok_or(nb::Error::Other(Error::SocketClosed))?;
 
             for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
                 self.send_internal(
@@ -140,11 +145,12 @@ where
                         data: chunk,
                     },
                     true,
-                )?;
+                )
+                .map_err(|_| nb::Error::Other(Error::Unaddressable))?;
             }
             Ok(())
         } else {
-            Err(Error::SocketMemory.into())
+            Err(Error::Illegal.into())
         }
     }
 
@@ -163,10 +169,10 @@ where
 
             let bytes = udp.recv_slice(buffer).map_err(Self::Error::from)?;
 
-            let endpoint = udp.endpoint().ok_or(Error::SocketNotConnected)?;
+            let endpoint = udp.endpoint().ok_or(Error::SocketClosed)?;
             Ok((bytes, endpoint))
         } else {
-            Err(Error::SocketMemory.into())
+            Err(Error::Illegal.into())
         }
     }
 
@@ -179,12 +185,13 @@ where
                 let peer_handle = udp.handle();
 
                 udp.close();
-                self.send_at(ClosePeerConnection { peer_handle })?;
+                self.send_at(ClosePeerConnection { peer_handle })
+                    .map_err(|_| Error::Unaddressable)?;
             }
 
             Ok(())
         } else {
-            Err(Error::SocketMemory)
+            Err(Error::Illegal)
         }
     }
 }
