@@ -1,7 +1,7 @@
 //! Argument and parameter types used by WiFi Commands and Responses
 
 use atat::atat_derive::AtatEnum;
-use atat::serde_at::CharVec;
+use atat::heapless_bytes::Bytes;
 use embedded_nal::{Ipv4Addr, Ipv6Addr};
 use heapless::{String, Vec};
 use serde::Deserialize;
@@ -448,7 +448,7 @@ pub enum StatusId {
 
 #[derive(Clone, PartialEq, Deserialize)]
 pub struct ScanedWifiNetwork {
-    pub bssid: CharVec<20>,
+    pub bssid: Bytes<20>,
     pub op_mode: OperationMode,
     pub ssid: String<64>,
     pub channel: u8,
@@ -478,7 +478,7 @@ pub enum WifiStatus {
     #[at_arg(value = 0)]
     SSID(String<64>),
     #[at_arg(value = 1)]
-    BSSID(CharVec<20>),
+    BSSID(Bytes<20>),
     #[at_arg(value = 2)]
     Channel(u8),
     ///The <status_val> is the current status of the station, possible values of status_val
@@ -1428,7 +1428,7 @@ pub enum AccessPointStatus {
     SSID(String<64>),
     /// The <status_val> is the currently used BSSID.
     #[at_arg(value = 1)]
-    BSSID(CharVec<20>),
+    BSSID(Bytes<20>),
     /// The <status_val> is the currently used channel.
     #[at_arg(value = 2)]
     Channel(u32),

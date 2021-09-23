@@ -51,14 +51,14 @@ where
 
     fn parse(
         &self,
-        resp: Result<&[u8], &atat::InternalError>,
+        resp: Result<&[u8], atat::InternalError>,
     ) -> core::result::Result<Self::Response, atat::Error> {
         let resp = resp.and_then(|resp| {
             if resp.len() < PAYLOAD_OVERHEAD
                 || !resp.starts_with(&[STARTBYTE])
                 || !resp.ends_with(&[ENDBYTE])
             {
-                return Err(&atat::InternalError::InvalidResponse);
+                return Err(atat::InternalError::InvalidResponse);
             };
 
             let payload_len = calc_payload_len(resp);
@@ -66,7 +66,7 @@ where
             if resp.len() != payload_len + EDM_OVERHEAD
                 || resp[4] != PayloadType::ATConfirmation as u8
             {
-                return Err(&atat::InternalError::InvalidResponse);
+                return Err(atat::InternalError::InvalidResponse);
             }
 
             // Recieved OK response code in EDM response?
@@ -119,14 +119,14 @@ where
 
     fn parse(
         &self,
-        resp: Result<&[u8], &atat::InternalError>,
+        resp: Result<&[u8], atat::InternalError>,
     ) -> core::result::Result<Self::Response, atat::Error> {
         let resp = resp.and_then(|resp| {
             if resp.len() < PAYLOAD_OVERHEAD
                 || !resp.starts_with(&[STARTBYTE])
                 || !resp.ends_with(&[ENDBYTE])
             {
-                return Err(&atat::InternalError::InvalidResponse);
+                return Err(atat::InternalError::InvalidResponse);
             };
 
             let payload_len = calc_payload_len(resp);
@@ -134,7 +134,7 @@ where
             if resp.len() != payload_len + EDM_OVERHEAD
                 || resp[4] != PayloadType::ATConfirmation as u8
             {
-                return Err(&atat::InternalError::InvalidResponse);
+                return Err(atat::InternalError::InvalidResponse);
             }
 
             // Recieved OK response code in EDM response?
@@ -184,7 +184,7 @@ impl<'a> atat::AtatCmd<518> for EdmDataCommand<'a> {
 
     fn parse(
         &self,
-        _resp: Result<&[u8], &atat::InternalError>,
+        _resp: Result<&[u8], atat::InternalError>,
     ) -> core::result::Result<Self::Response, atat::Error> {
         Ok(NoResponse)
     }
@@ -213,7 +213,7 @@ impl atat::AtatCmd<6> for EdmResendConnectEventsCommand {
 
     fn parse(
         &self,
-        _resp: Result<&[u8], &atat::InternalError>,
+        _resp: Result<&[u8], atat::InternalError>,
     ) -> core::result::Result<Self::Response, atat::Error> {
         Ok(NoResponse)
     }
@@ -238,11 +238,11 @@ impl atat::AtatCmd<6> for SwitchToEdmCommand {
 
     fn parse(
         &self,
-        resp: Result<&[u8], &atat::InternalError>,
+        resp: Result<&[u8], atat::InternalError>,
     ) -> core::result::Result<Self::Response, atat::Error> {
         let resp = resp?;
         // Parse EDM startup command
-        let correct = &[0xAAu8, 0x00, 0x02, 0x00, 0x71, 0x55]; // &[0xAAu8,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]; //AA 00 06 00 44 41 54 0D 0A 0D 0A 4F 4B 0D 0A 55 ?
+        let correct = &[0xAA, 0x00, 0x02, 0x00, 0x71, 0x55]; // &[0xAA,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]; //AA 00 06 00 44 41 54 0D 0A 0D 0A 4F 4B 0D 0A 55 ?
         if resp.len() != correct.len()
             || resp
                 .windows(correct.len())
@@ -272,12 +272,12 @@ mod test {
 
         // AT-command: "AT"
         let correct_cmd = Vec::<u8, 10>::from_slice(&[
-            0xAAu8, 0x00, 0x06, 0x00, 0x44, 0x41, 0x54, 0x0D, 0x0a, 0x55,
+            0xAA, 0x00, 0x06, 0x00, 0x44, 0x41, 0x54, 0x0D, 0x0a, 0x55,
         ])
         .unwrap();
         // AT-response: NoResponse
         let response = &[
-            0xAAu8,
+            0xAA,
             0x00,
             0x02,
             0x00,
@@ -296,13 +296,13 @@ mod test {
         };
         // AT-command: "at+umstat=1"
         let correct = Vec::<u8, 19>::from_slice(&[
-            0xAAu8, 0x00, 0x0F, 0x00, 0x44, 0x41, 0x54, 0x2b, 0x55, 0x4d, 0x53, 0x54, 0x41, 0x54,
+            0xAA, 0x00, 0x0F, 0x00, 0x44, 0x41, 0x54, 0x2b, 0x55, 0x4d, 0x53, 0x54, 0x41, 0x54,
             0x3d, 0x31, 0x0D, 0x0A, 0x55,
         ])
         .unwrap();
         // AT-response: "at+umstat:1,100"
         let response = &[
-            0xAAu8,
+            0xAA,
             0x00,
             0x11,
             0x00,
@@ -333,7 +333,7 @@ mod test {
         let parse = EdmAtCmdWrapper(AT);
         // AT-response: NoResponse
         let response = &[
-            0xAAu8,
+            0xAA,
             0x00,
             0x06,
             0x00,
@@ -351,7 +351,7 @@ mod test {
         });
         // AT-response: "at+umstat:1,100"
         let response = &[
-            0xAAu8,
+            0xAA,
             0x00,
             0x01,
             0x00,
@@ -380,7 +380,7 @@ mod test {
         );
 
         let response = &[
-            0xAAu8,
+            0xAA,
             0x00,
             0x11,
             0x00,
@@ -438,7 +438,7 @@ mod test {
         );
 
         let response = &[
-            0xAAu8,
+            0xAA,
             0x00,
             0x02,
             0x00,
@@ -454,7 +454,7 @@ mod test {
 
     #[test]
     fn change_to_edm_cmd() {
-        let resp = &[0xAAu8, 0x00, 0x02, 0x00, 0x71, 0x55];
+        let resp = &[0xAA, 0x00, 0x02, 0x00, 0x71, 0x55];
         let correct = Vec::<_, 6>::from_slice(b"ATO2\r\n").unwrap();
         assert_eq!(SwitchToEdmCommand.as_bytes(), correct);
         assert_eq!(SwitchToEdmCommand.parse(Ok(resp)).unwrap(), NoResponse);

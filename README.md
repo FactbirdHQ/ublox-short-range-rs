@@ -39,7 +39,7 @@ Relevant repos:
 
 ## Tests
 
-> The crate is covered by tests. These tests can be run by `cargo test --tests --all-features`, and are run by the CI on every push.
+> The crate is covered by tests. These tests can be run by `cargo test --tests`, and are run by the CI on every push.
 
 <!--
 ## Examples

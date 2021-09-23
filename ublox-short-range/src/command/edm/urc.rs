@@ -14,7 +14,7 @@ pub enum EdmEvent {
     DisconnectEvent(ChannelId),
     DataEvent(DataEvent),
     ATEvent(Urc),
-    // TODO: Handle modlue restart. Especially to Digest
+    // TODO: Handle module restart. Especially to Digest
     StartUp,
 }
 
@@ -24,10 +24,9 @@ impl AtatUrc for EdmEvent {
 
     /// Parse the response into a `Self::Response` instance.
     fn parse(resp: &[u8]) -> Option<Self::Response> {
-        //
         // defmt::info!("[Parse URC] {:?}", resp);
-        //Startup message?
-        //TODO: simplify maby no packet check.
+        // Startup message?
+        // TODO: simplify mayby no packet check.
         if resp
             .windows(STARTUPMESSAGE.len())
             .position(|window| window == STARTUPMESSAGE)
@@ -40,20 +39,17 @@ impl AtatUrc for EdmEvent {
             || !resp.starts_with(&[STARTBYTE])
             || !resp.ends_with(&[ENDBYTE])
         {
-            //
             // defmt::info!("[Parse URC Error] {:?}", resp);
             return None;
         };
         let payload_len = calc_payload_len(resp);
         if resp.len() != payload_len + EDM_OVERHEAD {
-            //
             // defmt::info!("[Parse URC Error] {:?}", resp);
             return None;
         }
 
         match resp[4].into() {
             PayloadType::ATEvent => {
-                //
                 // defmt::info!("[Parse URC AT-CMD]: {:?}", &resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len]);
                 let cmd = Urc::parse(&resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len])?;
                 EdmEvent::ATEvent(cmd).into()
@@ -135,7 +131,6 @@ impl AtatUrc for EdmEvent {
             }
 
             _ => {
-                //
                 // defmt::info!("[Parse URC Error] {:?}", resp);
                 None
             }
