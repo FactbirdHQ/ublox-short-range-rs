@@ -16,18 +16,18 @@ pub enum NetworkStatus {
     #[at_arg(value = 0)]
     HardwareAddress(String<64>),
     /// 1: The <status_val> is the current status of the network interface (Layer-3).
-    /// • 0: Network down
-    /// • 1: Network up
+    /// - 0: Network down
+    /// - 1: Network up
     #[at_arg(value = 1)]
     Status(OnOff),
     /// 2: The <interface_type> is the interface type.
-    /// • 0: Unknown
-    /// • 1: Wi-Fi Station
-    /// • 2: Wi-Fi Access Point
-    /// • 3: Ethernet
-    /// • 4: PPP
-    /// • 5: Bridge
-    /// • 6: Bluetooth PAN - This interface type is supported by ODIN-W2 from software
+    /// - 0: Unknown
+    /// - 1: Wi-Fi Station
+    /// - 2: Wi-Fi Access Point
+    /// - 3: Ethernet
+    /// - 4: PPP
+    /// - 5: Bridge
+    /// - 6: Bluetooth PAN - This interface type is supported by ODIN-W2 from software
     /// version 5.0.0 onwards only.
     #[at_arg(value = 2)]
     InterfaceType(InterfaceType),
@@ -72,17 +72,17 @@ pub enum NetworkStatusParameter {
     /// 0: The <status_val> is the interface hardware address (displayed only if applicable).
     HardwareAddress = 0,
     /// 1: The <status_val> is the current status of the network interface (Layer-3).
-    /// • 0: Network down
-    /// • 1: Network up
+    /// - 0: Network down
+    /// - 1: Network up
     Status = 1,
     /// 2: The <interface_type> is the interface type.
-    /// • 0: Unknown
-    /// • 1: Wi-Fi Station
-    /// • 2: Wi-Fi Access Point
-    /// • 3: Ethernet
-    /// • 4: PPP
-    /// • 5: Bridge
-    /// • 6: Bluetooth PAN - This interface type is supported by ODIN-W2 from software
+    /// - 0: Unknown
+    /// - 1: Wi-Fi Station
+    /// - 2: Wi-Fi Access Point
+    /// - 3: Ethernet
+    /// - 4: PPP
+    /// - 5: Bridge
+    /// - 6: Bluetooth PAN - This interface type is supported by ODIN-W2 from software
     /// version 5.0.0 onwards only.
     InterfaceType = 2,
     /// 101: The <status_val> is the currently used IPv4_Addr (omitted if no IP address has
@@ -151,17 +151,17 @@ pub enum BridgeConfigId {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum BridgeConfig {
     /// <param_val1> decides if the bridge is active on start up.
-    /// • 0 (default): Inactive
-    /// • 1: Active
+    /// - 0 (default): Inactive
+    /// - 1: Active
     #[at_arg(value = 0)]
     ActiveOnStartup(OnOff),
     /// Link layer list. The list defines the interfaces that shall be bridged.
     /// The factory default value is an empty list.
     /// The following interfaces can be bridged:
-    /// • 1: Wi-Fi Station
-    /// • 2: Wi-Fi Access Point
-    /// • 3: Ethernet
-    /// • 6: Bluetooth PAN - This interface is supported by ODIN-W2 from software version
+    /// - 1: Wi-Fi Station
+    /// - 2: Wi-Fi Access Point
+    /// - 3: Ethernet
+    /// - 6: Bluetooth PAN - This interface is supported by ODIN-W2 from software version
     /// 6.0.0 onwards only.
     /// For example, AT+UBRGC = 0,1,1,3. This adds the Wi-Fi station and Ethernet
     /// interfaces to the bridge.
@@ -170,18 +170,18 @@ pub enum BridgeConfig {
     /// IP interface list. This list defines the interfaces that accept IP
     /// traffic. The factory default value is an empty list.
     /// The following interfaces can accept the IP traffic:
-    /// • 1: Wi-Fi Station
-    /// • 2: Wi-Fi Access Point
-    /// • 3: Ethernet
-    /// • 6: Bluetooth PAN - This interface is supported by ODIN-W2 from software version
+    /// - 1: Wi-Fi Station
+    /// - 2: Wi-Fi Access Point
+    /// - 3: Ethernet
+    /// - 6: Bluetooth PAN - This interface is supported by ODIN-W2 from software version
     /// 6.0.0 onwards only.
     /// For example, AT+UBRGC = 0,2,1,3. This allows the Wi-Fi station and Ethernet
     /// interfaces to accept IP traffic.
     #[at_arg(value = 2)]
     IPInterfaceList(Option<u8>, Option<u8>, Option<u8>, Option<u8>),
     /// IPv4 Mode - <param_val1> to set the way to retrieve an IP address
-    /// • 0 (default): None
-    /// • 1: Static
+    /// - 0 (default): None
+    /// - 1: Static
     #[at_arg(value = 100)]
     IPv4Mode(IPv4Mode),
     /// <param_val> is the IPv4 address. The factory default value is 0.0.0.0
@@ -202,16 +202,16 @@ pub enum BridgeConfig {
     #[at_arg(value = 105)]
     SecondaryDNS(#[at_arg(len = 16)] IpAddr),
     /// <param_val> is the DHCP server configuration.
-    /// • 0 (default): Disable DHCP server
-    /// • 1: Enable DHCP server. The DHCP Server will provide addresses according to the
+    /// - 0 (default): Disable DHCP server
+    /// - 1: Enable DHCP server. The DHCP Server will provide addresses according to the
     /// following formula - "(Static address and subnet mask) + 100". If DHCP Server is
     /// enabled, the IPv4 Mode should be set to static.
     #[at_arg(value = 106)]
     DHCPServer(OnOff),
     /// Address conflict detection. The factory default value is 0 (disabled). This tag is
     /// supported by ODIN-W2 from software version 6.0.0 onwards only.
-    /// • 0: Disabled
-    /// • 1: Enabled
+    /// - 0: Disabled
+    /// - 1: Enabled
     #[at_arg(value = 107)]
     AddressConflictDetection(OnOff),
 }
@@ -232,11 +232,11 @@ pub enum BridgeAction {
     /// Reads the configuration from non-volatile memory to run-time memory.
     Load = 2,
     /// Validates and activates the configuration.
-    /// • When a bridge is activated, the data on all network interfaces connected to
+    /// - When a bridge is activated, the data on all network interfaces connected to
     /// the bridge is handled by the bridge. The IP configuration set in the individual
     /// network interface configurations is not used while the IP configuration of the
     /// bridge is used.
-    /// • The MAC address of the bridge will be set to the Ethernet MAC address but
+    /// - The MAC address of the bridge will be set to the Ethernet MAC address but
     /// with the U/L bit set to 1 for a locally administered address.
     Activate = 3,
     /// Deactivates the configuration. After deactivating a bridge

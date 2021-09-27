@@ -14,16 +14,7 @@ pub mod wifi;
 mod test_helper;
 
 #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
-mod socket;
-
-#[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
 pub use wifi::tls::TLS;
-
-#[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
-pub mod sockets {
-    pub use crate::socket::*;
-    pub use crate::wifi::socket::*;
-}
 
 /// Prelude - Include traits
 pub mod prelude {

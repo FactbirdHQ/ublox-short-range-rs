@@ -77,13 +77,13 @@ pub struct WifiScan<'a> {
 /// The actual channel list may differ from the wanted channel list. Depending on the physical location, the
 /// radio environment, and the product version, the actual channel list in use may be limited to comply with
 /// the regulatory approvals. Some sample scenarios are listed below:
-/// • Channels 12 and 13 will be disabled until it has been determined that the module operates outside the
+/// - Channels 12 and 13 will be disabled until it has been determined that the module operates outside the
 ///   FCC region.
-/// • Channels 120, 124, and 128 will be disabled until it has been determined that the module operates outside
+/// - Channels 120, 124, and 128 will be disabled until it has been determined that the module operates outside
 ///   the FCC region.
-/// • Channels 149, 153, 157, 161, and 165 will be disabled until it has been determined that these are allowed
+/// - Channels 149, 153, 157, 161, and 165 will be disabled until it has been determined that these are allowed
 ///   for the current region.
-/// • Any DFS channel will be disabled for active use until an appropriate authoritative source has been found
+/// - Any DFS channel will be disabled for active use until an appropriate authoritative source has been found
 ///   for clearing each specific channel.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWCL", WifiScanResponse, timeout_ms = 10000)]

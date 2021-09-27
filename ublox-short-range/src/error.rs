@@ -1,4 +1,3 @@
-use crate::socket;
 use atat::Error as ATError;
 use core::cell::{BorrowError, BorrowMutError};
 
@@ -16,13 +15,13 @@ pub enum Error {
     NetworkState(crate::wifi::connection::NetworkState),
     NoWifiSetup,
     WifiState(crate::wifi::connection::WiFiState),
-    Socket(socket::Error),
+    Socket(ublox_sockets::Error),
     AT(atat::Error),
     Busy,
     InvalidHex,
     Dns(crate::command::ping::types::PingError),
     Generic(GenericError),
-    DublicateCredentials,
+    DuplicateCredentials,
     Uninitialized,
     Unimplemented,
     SocketMemory,
@@ -36,8 +35,8 @@ impl From<atat::Error> for Error {
     }
 }
 
-impl From<socket::Error> for Error {
-    fn from(e: crate::socket::Error) -> Self {
+impl From<ublox_sockets::Error> for Error {
+    fn from(e: ublox_sockets::Error) -> Self {
         Error::Socket(e)
     }
 }

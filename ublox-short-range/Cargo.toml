@@ -19,12 +19,14 @@ atat = { version = "0.13.1", features = ["derive", "defmt", "bytes"] }
 heapless = { version = "^0.7", features = ["serde"] }
 no-std-net = { version = "^0.5", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
+ublox-sockets = { git = "https://github.com/BlackbirdHQ/ublox-sockets", rev = "097c2822" }
+hash32 = "^0.2.1"
+hash32-derive = "^0.1.0"
 
 defmt = "0.2"
 embedded-hal = "1.0.0-alpha.4"
 embedded-nal = "0.6.0"
 embedded-time = "0.11.0"
-nb = "^1"
 typenum = "^1"
 
 [features]
@@ -37,8 +39,8 @@ anna_b1xx = []
 nina_b2xx = []
 nina_b3xx = []
 
-socket-tcp = []
-socket-udp = []
+socket-tcp = ["ublox-sockets/socket-tcp"]
+socket-udp = ["ublox-sockets/socket-udp"]
 
 defmt-default = []
 defmt-trace = []

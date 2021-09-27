@@ -12,10 +12,10 @@ use super::NoResponse;
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG
 ///
 /// Manages the X.509 certificates and private keys with the following functionalities:
-/// • Validation and import of certificates and private keys
-/// • List and information retrieval of the imported certificates and private keys
-/// • Removal of the certificates and private keys
-/// • MD5 calculation of the imported certificate or private key
+/// - Validation and import of certificates and private keys
+/// - List and information retrieval of the imported certificates and private keys
+/// - Removal of the certificates and private keys
+/// - MD5 calculation of the imported certificate or private key
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+USECMNG=0,", ImportResponse, value_sep = false, timeout_ms = 10000)]
 pub struct PrepareSecurityDataImport<'a> {
@@ -54,10 +54,10 @@ pub struct SendSecurityDataImport<'a> {
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG
 ///
 /// Manages the X.509 certificates and private keys with the following functionalities:
-/// • Validation and import of certificates and private keys
-/// • List and information retrieval of the imported certificates and private keys
-/// • Removal of the certificates and private keys
-/// • MD5 calculation of the imported certificate or private key
+/// - Validation and import of certificates and private keys
+/// - List and information retrieval of the imported certificates and private keys
+/// - Removal of the certificates and private keys
+/// - MD5 calculation of the imported certificate or private key
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+USECMNG=2,", NoResponse, value_sep = false, timeout_ms = 10000)]
 pub struct RemoveSecurityData<'a> {
@@ -71,10 +71,10 @@ pub struct RemoveSecurityData<'a> {
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG
 ///
 /// Manages the X.509 certificates and private keys with the following functionalities:
-/// • Validation and import of certificates and private keys
-/// • List and information retrieval of the imported certificates and private keys
-/// • Removal of the certificates and private keys
-/// • MD5 calculation of the imported certificate or private key
+/// - Validation and import of certificates and private keys
+/// - List and information retrieval of the imported certificates and private keys
+/// - Removal of the certificates and private keys
+/// - MD5 calculation of the imported certificate or private key
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+USECMNG=3,", NoResponse, value_sep = false, timeout_ms = 10000)]
 // #[at_cmd("+USECMNG=3,", ListSecurityDataResponse, value_sep = false, timeout_ms = 10000)]
@@ -86,10 +86,10 @@ pub struct ListSecurityData {
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG
 ///
 /// Manages the X.509 certificates and private keys with the following functionalities:
-/// • Validation and import of certificates and private keys
-/// • List and information retrieval of the imported certificates and private keys
-/// • Removal of the certificates and private keys
-/// • MD5 calculation of the imported certificate or private key
+/// - Validation and import of certificates and private keys
+/// - List and information retrieval of the imported certificates and private keys
+/// - Removal of the certificates and private keys
+/// - MD5 calculation of the imported certificate or private key
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+USECMNG=4,", SecurityDataMD5, value_sep = false, timeout_ms = 10000)]
 pub struct GetSecurityDataMD5 {

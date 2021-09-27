@@ -2,16 +2,18 @@
 pub mod types;
 pub mod urc;
 
+use core::convert::TryInto;
+
 use crate::command::{data_mode, data_mode::ChangeMode};
 use crate::command::{NoResponse, Urc};
+use crate::wifi::EGRESS_CHUNK_SIZE;
 /// Containing EDM structs with custom serialaization and deserilaisation.
 use atat::AtatCmd;
 use heapless::Vec;
 use types::*;
 
-#[inline]
 pub(crate) fn calc_payload_len(resp: &[u8]) -> usize {
-    ((((resp[1] as u16) << 8) + resp[2] as u16) & EDM_FULL_SIZE_FILTER) as usize
+    (u16::from_be_bytes(resp[1..3].try_into().unwrap()) & EDM_FULL_SIZE_FILTER) as usize
 }
 /// EDM wrapper for AT-Commands
 // Note:
@@ -157,15 +159,17 @@ where
 
 #[derive(Debug, Clone)]
 pub struct EdmDataCommand<'a> {
-    pub channel: u8,
+    pub channel: ChannelId,
     pub data: &'a [u8],
 }
-// wifi::socket::EGRESS_CHUNK_SIZE + PAYLOAD_OVERHEAD = 512 + 6 = 518
-impl<'a> atat::AtatCmd<518> for EdmDataCommand<'a> {
+// wifi::socket::EGRESS_CHUNK_SIZE + PAYLOAD_OVERHEAD = 512 + 6 + 1 = 519
+impl<'a> atat::AtatCmd<{ EGRESS_CHUNK_SIZE + 7 }> for EdmDataCommand<'a> {
     type Response = NoResponse;
     type Error = atat::GenericError;
 
-    fn as_bytes(&self) -> Vec<u8, 518> {
+    const EXPECTS_RESPONSE_CODE: bool = false;
+
+    fn as_bytes(&self) -> Vec<u8, { EGRESS_CHUNK_SIZE + 7 }> {
         let payload_len = (self.data.len() + 3) as u16;
         [
             STARTBYTE,
@@ -173,7 +177,7 @@ impl<'a> atat::AtatCmd<518> for EdmDataCommand<'a> {
             (payload_len & 0xffu16) as u8,
             0x00,
             PayloadType::DataCommand as u8,
-            self.channel,
+            self.channel.0,
         ]
         .iter()
         .cloned()
@@ -242,14 +246,14 @@ impl atat::AtatCmd<6> for SwitchToEdmCommand {
     ) -> core::result::Result<Self::Response, atat::Error> {
         let resp = resp?;
         // Parse EDM startup command
-        let correct = &[0xAA, 0x00, 0x02, 0x00, 0x71, 0x55]; // &[0xAA,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]; //AA 00 06 00 44 41 54 0D 0A 0D 0A 4F 4B 0D 0A 55 ?
+        let correct = &[0xAA, 0x00, 0x02, 0x00, 0x71, 0x55]; // &[0xAA,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]; // AA 00 06 00 44 41 54 0D 0A 0D 0A 4F 4B 0D 0A 55 ?
         if resp.len() != correct.len()
             || resp
                 .windows(correct.len())
                 .position(|window| window == correct)
                 != Some(0)
         {
-            //TODO: check this
+            // TODO: check this
             return Err(atat::Error::InvalidResponse);
         }
         Ok(NoResponse)
