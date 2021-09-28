@@ -203,7 +203,7 @@ where
 
         self.client.send(req).map_err(|e| match e {
             nb::Error::Other(ate) => {
-                defmt::error!("{:?}: {=[u8]:x}", ate, req.as_bytes());
+                defmt::error!("{:?}: {=[u8]:a}", ate, req.as_bytes());
                 ate.into()
             }
             nb::Error::WouldBlock => Error::_Unknown,
@@ -293,8 +293,11 @@ where
                                 defmt::trace!("[URC] WifiAPDown");
                                 true
                             }
-                            Urc::WifiAPStationConnected(_) => {
-                                defmt::trace!("[URC] WifiAPStationConnected");
+                            Urc::WifiAPStationConnected(client) => {
+                                defmt::trace!(
+                                    "[URC] WifiAPStationConnected {=[u8]:a}",
+                                    client.mac_addr.into_inner()
+                                );
                                 true
                             }
                             Urc::WifiAPStationDisconnected(_) => {

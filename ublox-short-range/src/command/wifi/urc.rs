@@ -2,7 +2,7 @@
 use super::types::*;
 use atat::atat_derive::AtatResp;
 use atat::heapless_bytes::Bytes;
-use heapless::String;
+
 /// 7.15 Wi-Fi Link connected +UUWLE
 #[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct WifiLinkConnected {
@@ -43,7 +43,7 @@ pub struct WifiAPStationConnected {
     #[at_arg(position = 0)]
     pub station_id: u32,
     #[at_arg(position = 1)]
-    pub mac_addr: String<20>,
+    pub mac_addr: Bytes<20>,
 }
 
 /// 7.20 Wi-Fi Access point station disconnected +UUWAPSTAD

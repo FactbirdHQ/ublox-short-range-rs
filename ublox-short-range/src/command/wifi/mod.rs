@@ -170,7 +170,7 @@ pub struct GetWifiAPConfig {
 ///
 /// Executes an action for the Wi-Fi network.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWAPCA", WifiConfigResponse, timeout_ms = 10000)]
+#[at_cmd("+UWAPCA", NoResponse, timeout_ms = 10000)]
 pub struct WifiAPAction {
     #[at_arg(position = 0)]
     pub ap_config_id: AccessPointId,

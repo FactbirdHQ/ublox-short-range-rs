@@ -861,7 +861,7 @@ pub enum WatchdogSetting {
     DisconnectReset = 0,
 }
 
-#[derive(Clone, PartialEq, AtatEnum)]
+#[derive(Clone, Copy, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum AccessPointId {
     Id0 = 0,
@@ -876,7 +876,7 @@ pub enum AccessPointConfig {
     ActiveOnStartup(OnOff),
     /// SSID - <param_val1> is the Service Set identification of the access
     /// point. The factory-programmed value is ("UBXWifi").
-    #[at_arg(value = 1)]
+    #[at_arg(value = 2)]
     SSID(String<64>),
     /// <param_val1> is the channel. Factory programmed value is 6.
     #[at_arg(value = 4)]
@@ -885,7 +885,9 @@ pub enum AccessPointConfig {
     /// - 1: Open
     /// - 2 (default): WPA2 (AES-CCMP)
     /// - 3: WPA/WPA2 Mixed mode (RC4-TKIP + AES-CCMP)
-    /// - 4: WPA (RC4-TKIP) <param_val2>:
+    /// - 4: WPA (RC4-TKIP)
+    ///
+    /// <param_val2>:
     /// - 1: Open
     /// - 2 (default): Pre shared key PSK
     #[at_arg(value = 5)]
@@ -1011,7 +1013,7 @@ pub enum AccessPointConfig {
     IPv6LinkLocalAddress(#[at_arg(len = 40)] Ipv6Addr),
     /// <param_val> is the DTIM interval. The factory default value is 1. Valid
     /// values are 1 to 100.
-    #[at_arg(value = 301)]
+    #[at_arg(value = 300)]
     DTIM(u8),
 }
 
@@ -1024,7 +1026,7 @@ pub enum AccessPointConfigParameter {
     ActiveOnStartup = 0,
     /// SSID - <param_val1> is the Service Set identification of the access
     /// point. The factory-programmed value is ("UBXWifi").
-    SSID = 1,
+    SSID = 2,
     /// <param_val1> is the channel. Factory programmed value is 6.
     Channel = 4,
     /// Security mode <param_val1>:
@@ -1151,7 +1153,7 @@ pub enum AccessPointConfigResponse {
     ActiveOnStartup(OnOff),
     /// SSID - <param_val1> is the Service Set identification of the access
     /// point. The factory-programmed value is ("UBXWifi").
-    #[at_arg(value = 1)]
+    #[at_arg(value = 2)]
     SSID(String<64>),
     /// <param_val1> is the channel. Factory programmed value is 6.
     #[at_arg(value = 4)]
