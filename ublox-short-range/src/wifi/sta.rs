@@ -21,20 +21,7 @@ use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
 use heapless::Vec;
 
-/// Wireless network connectivity functionality.
-pub trait WifiConnectivity {
-    /// Makes an attempt to connect to a selected wireless network with password specified.
-    fn connect(&mut self, options: ConnectionOptions) -> Result<(), WifiConnectionError>;
-
-    fn scan(&mut self) -> Result<Vec<WifiNetwork, 32>, WifiError>;
-
-    fn is_connected(&self) -> bool;
-
-    fn disconnect(&mut self) -> Result<(), WifiConnectionError>;
-}
-
-impl<C, CLK, RST, const N: usize, const L: usize> WifiConnectivity
-    for UbloxClient<C, CLK, RST, N, L>
+impl<C, CLK, RST, const N: usize, const L: usize> UbloxClient<C, CLK, RST, N, L>
 where
     C: AtatClient,
     CLK: Clock,
@@ -42,7 +29,7 @@ where
     Generic<CLK::T>: TryInto<Milliseconds>,
 {
     /// Attempts to connect to a wireless network with the given connection options.
-    fn connect(&mut self, options: ConnectionOptions) -> Result<(), WifiConnectionError> {
+    pub fn connect(&mut self, options: ConnectionOptions) -> Result<(), WifiConnectionError> {
         let config_id = options.config_id.unwrap_or(0);
 
         // Network part
@@ -142,14 +129,14 @@ where
         self.wifi_connection.replace(WifiConnection::new(
             WifiNetwork {
                 bssid: Bytes::new(),
-                op_mode: wifi::types::OperationMode::AdHoc,
+                op_mode: wifi::types::OperationMode::Infrastructure,
                 ssid: options.ssid,
                 channel: 0,
                 rssi: 1,
                 authentication_suites: 0,
                 unicast_ciphers: 0,
                 group_ciphers: 0,
-                mode: WifiMode::AccessPoint,
+                mode: WifiMode::Station,
             },
             WiFiState::NotConnected,
             config_id,
@@ -167,7 +154,7 @@ where
         Ok(())
     }
 
-    fn scan(&mut self) -> Result<Vec<WifiNetwork, 32>, WifiError> {
+    pub fn scan(&mut self) -> Result<Vec<WifiNetwork, 32>, WifiError> {
         match self.send_internal(&EdmAtCmdWrapper(WifiScan { ssid: None }), true) {
             Ok(resp) => resp
                 .network_list
@@ -178,7 +165,7 @@ where
         }
     }
 
-    fn is_connected(&self) -> bool {
+    pub fn is_connected(&self) -> bool {
         if !self.initialized {
             return false;
         }
@@ -189,7 +176,7 @@ where
             .unwrap_or_default()
     }
 
-    fn disconnect(&mut self) -> Result<(), WifiConnectionError> {
+    pub fn disconnect(&mut self) -> Result<(), WifiConnectionError> {
         if let Some(ref con) = self.wifi_connection {
             match con.wifi_state {
                 WiFiState::Connected | WiFiState::NotConnected => {

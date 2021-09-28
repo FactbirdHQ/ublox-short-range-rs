@@ -15,13 +15,3 @@ mod test_helper;
 
 #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
 pub use wifi::tls::TLS;
-
-/// Prelude - Include traits
-pub mod prelude {
-    #[cfg(any(feature = "wifi_ap"))]
-    pub use crate::wifi::ap::WifiHotspot;
-    #[cfg(any(feature = "wifi_sta"))]
-    pub use crate::wifi::sta::WifiConnectivity;
-    #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
-    pub use embedded_nal::{TcpClientStack, UdpClientStack};
-}

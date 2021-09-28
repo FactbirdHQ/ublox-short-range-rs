@@ -11,7 +11,7 @@ use core::convert::TryInto;
 use embedded_hal::digital::OutputPin;
 /// Handles receiving data from sockets
 /// implements TCP and UDP for WiFi client
-use embedded_nal::{nb, SocketAddr, TcpClientStack};
+use embedded_nal::{nb, SocketAddr, TcpClientStack, TcpFullStack};
 use embedded_time::{
     duration::{Generic, Milliseconds},
     Clock,
@@ -242,3 +242,26 @@ where
         }
     }
 }
+
+// impl<C, CLK, RST, const N: usize, const L: usize> TcpFullStack for UbloxClient<C, CLK, RST, N, L>
+// where
+//     C: atat::AtatClient,
+//     CLK: Clock,
+//     RST: OutputPin,
+//     Generic<CLK::T>: TryInto<Milliseconds>,
+// {
+//     fn bind(&mut self, socket: &mut Self::TcpSocket, local_port: u16) -> Result<(), Self::Error> {
+//         todo!()
+//     }
+
+//     fn listen(&mut self, socket: &mut Self::TcpSocket) -> Result<(), Self::Error> {
+//         todo!()
+//     }
+
+//     fn accept(
+// 		&mut self,
+// 		socket: &mut Self::TcpSocket,
+// 	) -> nb::Result<(Self::TcpSocket, SocketAddr), Self::Error> {
+//         todo!()
+//     }
+// }

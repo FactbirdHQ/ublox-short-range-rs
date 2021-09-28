@@ -1,6 +1,3 @@
-use atat::Error as ATError;
-use core::cell::{BorrowError, BorrowMutError};
-
 #[derive(Debug, defmt::Format)]
 pub enum Error {
     SetState,
@@ -20,7 +17,6 @@ pub enum Error {
     Busy,
     InvalidHex,
     Dns(crate::command::ping::types::PingError),
-    Generic(GenericError),
     DuplicateCredentials,
     Uninitialized,
     Unimplemented,
@@ -40,17 +36,7 @@ impl From<ublox_sockets::Error> for Error {
         Error::Socket(e)
     }
 }
-impl From<BorrowMutError> for Error {
-    fn from(e: BorrowMutError) -> Self {
-        Error::Generic(e.into())
-    }
-}
 
-impl From<BorrowError> for Error {
-    fn from(e: BorrowError) -> Self {
-        Error::Generic(e.into())
-    }
-}
 /// Error that occurs when attempting to connect to a wireless network.
 #[derive(Debug, defmt::Format)]
 pub enum WifiConnectionError {
@@ -65,7 +51,6 @@ pub enum WifiConnectionError {
     WaitingForWifiDeactivation,
     BufferOverflow,
     // SsidNotFound,
-    Generic(GenericError),
     Internal(Error),
 }
 
@@ -74,17 +59,7 @@ impl From<Error> for WifiConnectionError {
         WifiConnectionError::Internal(e)
     }
 }
-impl From<BorrowMutError> for WifiConnectionError {
-    fn from(e: BorrowMutError) -> Self {
-        WifiConnectionError::Generic(e.into())
-    }
-}
 
-impl From<BorrowError> for WifiConnectionError {
-    fn from(e: BorrowError) -> Self {
-        WifiConnectionError::Generic(e.into())
-    }
-}
 #[derive(Debug, defmt::Format)]
 pub enum WifiError {
     // The specified wifi  is currently disabled. Try switching it on.
@@ -95,7 +70,7 @@ pub enum WifiError {
     // IO Error occurred.
     // IoError(IoError),
     // AT Error occurred.
-    ATError(ATError),
+    ATError(atat::Error),
     HexError,
     // FIXME: Temp fix!
     Other,
@@ -107,14 +82,31 @@ pub enum WifiHotspotError {
     CreationFailed,
     /// Failed to stop wireless hotspot service. Try turning off
     /// the wireless interface via ```wifi.turn_off()```.
-    // FailedToStop(IoError),
+    FailedToStop,
     /// A wireless interface error occurred.
-    Other { kind: WifiError },
+    Other {
+        kind: WifiError,
+    },
+    Internal(Error),
+}
+
+impl From<Error> for WifiHotspotError {
+    fn from(e: Error) -> Self {
+        WifiHotspotError::Internal(e)
+    }
 }
 
 impl From<WifiError> for WifiHotspotError {
     fn from(error: WifiError) -> Self {
         WifiHotspotError::Other { kind: error }
+    }
+}
+
+impl From<atat::Error> for WifiHotspotError {
+    fn from(error: atat::Error) -> Self {
+        WifiHotspotError::Other {
+            kind: WifiError::ATError(error),
+        }
     }
 }
 
@@ -124,34 +116,16 @@ impl From<WifiError> for WifiConnectionError {
     }
 }
 
-impl From<ATError> for WifiConnectionError {
-    fn from(error: ATError) -> Self {
+impl From<atat::Error> for WifiConnectionError {
+    fn from(error: atat::Error) -> Self {
         WifiConnectionError::Other {
             kind: WifiError::ATError(error),
         }
     }
 }
 
-impl From<ATError> for WifiError {
-    fn from(error: ATError) -> Self {
+impl From<atat::Error> for WifiError {
+    fn from(error: atat::Error) -> Self {
         WifiError::ATError(error)
-    }
-}
-
-#[derive(Debug, defmt::Format)]
-pub enum GenericError {
-    BorrowError,
-    BorrowMutError,
-}
-
-impl From<BorrowMutError> for GenericError {
-    fn from(_: BorrowMutError) -> Self {
-        GenericError::BorrowMutError
-    }
-}
-
-impl From<BorrowError> for GenericError {
-    fn from(_: BorrowError) -> Self {
-        GenericError::BorrowError
     }
 }
