@@ -44,13 +44,8 @@ pub enum ConnectScheme {
 }
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum ServerConfig {
-    Type(ServerType),
-    Url(String<128>),
-}
-#[derive(Clone, PartialEq, AtatEnum)]
-pub enum ServerType {
     #[at_arg(value = 0)]
-    Dissabled,
+    Disabled,
     #[at_arg(value = 1)]
     TCP(u16, ImmediateFlush),
     #[at_arg(value = 2)]
@@ -65,6 +60,7 @@ pub enum ServerType {
     SPS,
     #[at_arg(value = 8)]
     ATP(Interface, Option<u16>),
+    Url(String<128>),
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]

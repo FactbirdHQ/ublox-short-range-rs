@@ -1,5 +1,6 @@
 use crate::{
     command::{
+        data_mode::types::IPProtocol,
         edm::{types::Protocol, urc::EdmEvent, EdmAtCmdWrapper, SwitchToEdmCommand},
         ping::types::PingError,
         system::{
@@ -16,11 +17,15 @@ use crate::{
     },
 };
 use core::convert::TryInto;
+use core::str::FromStr;
 use embedded_hal::digital::OutputPin;
-use embedded_nal::{nb, IpAddr, SocketAddr};
+use embedded_nal::{nb, IpAddr, Ipv4Addr, SocketAddr};
 use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
-use ublox_sockets::{AnySocket, SocketSet, SocketType, TcpSocket, TcpState, UdpSocket, UdpState};
+use ublox_sockets::{
+    tcp_listener::TcpListener, AnySocket, SocketSet, SocketType, TcpSocket, TcpState, UdpSocket,
+    UdpState,
+};
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum SerialMode {
@@ -61,6 +66,7 @@ where
     pub(crate) timer: CLK,
     pub(crate) reset_pin: Option<RST>,
     pub(crate) edm_mapping: EdmMap,
+    pub(crate) tcp_listener: TcpListener<3, N>,
 }
 
 impl<C, CLK, RST, const N: usize, const L: usize> UbloxClient<C, CLK, RST, N, L>
@@ -84,6 +90,7 @@ where
             timer,
             reset_pin,
             edm_mapping: EdmMap::new(),
+            tcp_listener: TcpListener::new(),
         }
     }
 
@@ -213,6 +220,7 @@ where
     fn handle_urc(&mut self) -> Result<(), Error> {
         if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
             let dns_state = &mut self.dns_state;
+            let tcp_listener = &mut self.tcp_listener;
             let edm_mapping = &mut self.edm_mapping;
             let wifi_connection = self.wifi_connection.as_mut();
             let ts = self.timer.try_now().map_err(|_| Error::Timer)?;
@@ -224,18 +232,55 @@ where
                 let res = match edm_urc {
                     EdmEvent::ATEvent(urc) => {
                         match urc {
-                            Urc::PeerConnected(_) => {
-                                defmt::trace!("[URC] PeerConnected");
+                            Urc::PeerConnected(event) => {
+                                defmt::trace!(
+                                    "[URC] PeerConnected {:?}",
+                                    defmt::Debug2Format(&event)
+                                );
 
-                                // TODO:
-                                //
-                                // We should probably move
-                                // `tcp.set_state(TcpState::Connected(endpoint));`
-                                // + `udp.set_state(UdpState::Established);` as
-                                //   well as `tcp.update_handle(*socket);` +
-                                //   `udp.update_handle(*socket);` here, to make
-                                //   sure that part also works without EDM mode
-                                true
+                                let remote_ip = Ipv4Addr::from_str(
+                                    core::str::from_utf8(event.remote_address.as_slice()).unwrap(),
+                                )
+                                .unwrap();
+
+                                let remote = SocketAddr::new(remote_ip.into(), event.remote_port);
+
+                                if let Some(queue) = tcp_listener.incoming(event.local_port) {
+                                    queue.enqueue((event.handle, remote)).unwrap();
+                                    return true;
+                                } else {
+                                    match event.protocol {
+                                        IPProtocol::TCP => {
+                                            if let Ok(mut tcp) =
+                                                sockets.get::<TcpSocket<CLK, L>>(event.handle)
+                                            {
+                                                defmt::debug!(
+                                                    "Binding remote {=[u8]:a} to TCP socket {:?}",
+                                                    event.remote_address.as_slice(),
+                                                    event.handle
+                                                );
+                                                tcp.set_state(TcpState::Connected(remote));
+                                                return true;
+                                            }
+                                        }
+                                        IPProtocol::UDP => {
+                                            if let Ok(mut udp) =
+                                                sockets.get::<UdpSocket<CLK, L>>(event.handle)
+                                            {
+                                                defmt::debug!(
+                                                    "Binding remote {=[u8]:a} to UDP socket {:?}",
+                                                    event.remote_address.as_slice(),
+                                                    event.handle
+                                                );
+                                                udp.bind(remote).unwrap();
+                                                udp.set_state(UdpState::Established);
+                                                return true;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                false
                             }
                             Urc::PeerDisconnected(msg) => {
                                 defmt::trace!("[URC] PeerDisconnected");
@@ -253,6 +298,7 @@ where
                                         {
                                             udp.close();
                                         }
+                                        // FIXME: Is this correct?
                                         sockets.remove(msg.handle).ok();
                                     }
                                     _ => {}
@@ -287,10 +333,16 @@ where
                             }
                             Urc::WifiAPUp(_) => {
                                 defmt::trace!("[URC] WifiAPUp");
+                                if let Some(con) = wifi_connection {
+                                    con.wifi_state = WiFiState::Connected;
+                                }
                                 true
                             }
                             Urc::WifiAPDown(_) => {
                                 defmt::trace!("[URC] WifiAPDown");
+                                if let Some(con) = wifi_connection {
+                                    con.wifi_state = WiFiState::NotConnected;
+                                }
                                 true
                             }
                             Urc::WifiAPStationConnected(client) => {
@@ -324,7 +376,6 @@ where
                                             con.network_state = NetworkState::AlmostAttached
                                         }
                                     }
-                                    // con.network_state = NetworkState::Attached;
                                 }
                                 true
                             }
@@ -362,29 +413,48 @@ where
                     EdmEvent::IPv4ConnectEvent(event) => {
                         defmt::trace!(
                             "[EDM_URC] IPv4ConnectEvent! Channel_id: {:?}",
-                            event.channel_id
+                            defmt::Debug2Format(&event)
                         );
 
                         let endpoint = SocketAddr::new(event.remote_ip.into(), event.remote_port);
+
+                        // Peek the queue of unaccepted requests, to attempt
+                        // binding an EDM channel to a socket handle
+                        if let Some(queue) = tcp_listener.incoming(event.local_port) {
+                            match queue.peek() {
+                                Some((h, remote)) if remote == &endpoint => {
+                                    return edm_mapping.insert(event.channel_id, *h).is_ok();
+                                }
+                                _ => {}
+                            }
+                        }
 
                         sockets
                             .iter_mut()
                             .find_map(|(h, s)| {
                                 match event.protocol {
                                     Protocol::TCP => {
-                                        let mut tcp = TcpSocket::downcast(s).ok()?;
+                                        let tcp = TcpSocket::downcast(s).ok()?;
                                         if tcp.endpoint() == Some(endpoint) {
+                                            defmt::debug!(
+                                                "Binding EDM channel {} to TCP socket {}",
+                                                event.channel_id,
+                                                h
+                                            );
                                             edm_mapping.insert(event.channel_id, h).unwrap();
-                                            tcp.set_state(TcpState::Connected(endpoint));
-                                            return Some(true);
+                                            return Some(());
                                         }
                                     }
                                     Protocol::UDP => {
-                                        let mut udp = UdpSocket::downcast(s).ok()?;
+                                        let udp = UdpSocket::downcast(s).ok()?;
                                         if udp.endpoint() == Some(endpoint) {
+                                            defmt::debug!(
+                                                "Binding EDM channel {} to UDP socket {}",
+                                                event.channel_id,
+                                                h
+                                            );
                                             edm_mapping.insert(event.channel_id, h).unwrap();
-                                            udp.set_state(UdpState::Established);
-                                            return Some(true);
+                                            return Some(());
                                         }
                                     }
                                     _ => {}
@@ -396,29 +466,48 @@ where
                     EdmEvent::IPv6ConnectEvent(event) => {
                         defmt::trace!(
                             "[EDM_URC] IPv6ConnectEvent! Channel_id: {:?}",
-                            event.channel_id
+                            defmt::Debug2Format(&event)
                         );
 
                         let endpoint = SocketAddr::new(event.remote_ip.into(), event.remote_port);
+
+                        // Peek the queue of unaccepted requests, to attempt
+                        // binding an EDM channel to a socket handle
+                        if let Some(queue) = tcp_listener.incoming(event.local_port) {
+                            match queue.peek() {
+                                Some((h, remote)) if remote == &endpoint => {
+                                    return edm_mapping.insert(event.channel_id, *h).is_ok();
+                                }
+                                _ => {}
+                            }
+                        }
 
                         sockets
                             .iter_mut()
                             .find_map(|(h, s)| {
                                 match event.protocol {
                                     Protocol::TCP => {
-                                        let mut tcp = TcpSocket::downcast(s).ok()?;
+                                        let tcp = TcpSocket::downcast(s).ok()?;
                                         if tcp.endpoint() == Some(endpoint) {
+                                            defmt::debug!(
+                                                "Binding EDM channel {} to TCP socket {}",
+                                                event.channel_id,
+                                                h
+                                            );
                                             edm_mapping.insert(event.channel_id, h).unwrap();
-                                            tcp.set_state(TcpState::Connected(endpoint));
-                                            return Some(true);
+                                            return Some(());
                                         }
                                     }
                                     Protocol::UDP => {
-                                        let mut udp = UdpSocket::downcast(s).ok()?;
+                                        let udp = UdpSocket::downcast(s).ok()?;
                                         if udp.endpoint() == Some(endpoint) {
+                                            defmt::debug!(
+                                                "Binding EDM channel {} to UDP socket {}",
+                                                event.channel_id,
+                                                h
+                                            );
                                             edm_mapping.insert(event.channel_id, h).unwrap();
-                                            udp.set_state(UdpState::Established);
-                                            return Some(true);
+                                            return Some(());
                                         }
                                     }
                                     _ => {}
@@ -448,12 +537,9 @@ where
                                         let mut tcp = sockets
                                             .get::<TcpSocket<CLK, L>>(*socket_handle)
                                             .unwrap();
-                                        if tcp.can_recv() {
-                                            tcp.rx_enqueue_slice(&event.data);
-                                            true
-                                        } else {
-                                            false
-                                        }
+                                        tcp.can_recv()
+                                            .then(|| tcp.rx_enqueue_slice(&event.data))
+                                            .is_some()
                                     }
                                     Some(SocketType::Udp) => {
                                         // Handle udp socket
@@ -461,12 +547,9 @@ where
                                             .get::<UdpSocket<CLK, L>>(*socket_handle)
                                             .unwrap();
 
-                                        if udp.can_recv() {
-                                            udp.rx_enqueue_slice(&event.data);
-                                            true
-                                        } else {
-                                            false
-                                        }
+                                        udp.can_recv()
+                                            .then(|| udp.rx_enqueue_slice(&event.data))
+                                            .is_some()
                                     }
                                     _ => {
                                         defmt::error!("SocketNotFound {:?}", socket_handle);

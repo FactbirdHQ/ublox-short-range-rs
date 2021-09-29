@@ -1,7 +1,7 @@
 use crate::{
     command::data_mode::*,
     command::{
-        data_mode::responses::ConnectPeerResponse,
+        data_mode::types::{ImmediateFlush, ServerConfig},
         edm::{EdmAtCmdWrapper, EdmDataCommand},
     },
     wifi::peer_builder::PeerUrlBuilder,
@@ -34,7 +34,11 @@ where
     // as the Socket object itself provides no value without accessing it though the client.
     type TcpSocket = SocketHandle;
 
-    /// Open a new TCP socket to the given address and port. The socket starts in the unconnected state.
+    /// Open a socket for usage as a TCP client.
+    ///
+    /// The socket must be connected before it can be used.
+    ///
+    /// Returns `Ok(socket)` if the socket was successfully created.
     fn socket(&mut self) -> Result<Self::TcpSocket, Self::Error> {
         if let Some(ref mut sockets) = self.sockets {
             // Check if there are any unused sockets available
@@ -75,10 +79,9 @@ where
         remote: SocketAddr,
     ) -> nb::Result<(), Self::Error> {
         if self.sockets.is_none() {
-            return Err(Error::Illegal.into());
+            return Err(nb::Error::Other(Error::Illegal));
         }
 
-        defmt::debug!("[TCP] Connect socket: {:?}", socket);
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized || !con.is_connected() {
                 return Err(nb::Error::Other(Error::Illegal));
@@ -88,51 +91,46 @@ where
         }
 
         // If no socket is found we stop here
-        // TODO: This could probably be done nicer?
-        self.sockets
-            .as_mut()
-            .unwrap()
-            .get::<TcpSocket<CLK, L>>(*socket)
-            .map_err(Self::Error::from)?;
-
-        let url = PeerUrlBuilder::new()
-            .address(&remote)
-            .creds(self.security_credentials.clone())
-            .tcp()
-            .map_err(|_| Error::Unaddressable)?;
-
-        defmt::trace!("[TCP] Connecting to url! {=str}", url);
-
-        let ConnectPeerResponse { peer_handle } = self
-            .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
-            .map_err(|_| Error::Unaddressable)?;
-
-        let mut tcp = self
+        match self
             .sockets
             .as_mut()
             .unwrap()
             .get::<TcpSocket<CLK, L>>(*socket)
-            .map_err(Self::Error::from)?;
+            .map_err(Self::Error::from)?
+            .state()
+        {
+            TcpState::Created => {
+                let url = PeerUrlBuilder::new()
+                    .address(&remote)
+                    .creds(self.security_credentials.clone())
+                    .tcp()
+                    .map_err(|_| Error::Unaddressable)?;
 
-        *socket = SocketHandle(peer_handle);
-        tcp.set_state(TcpState::WaitingForConnect(remote));
-        tcp.update_handle(*socket);
+                defmt::trace!("[TCP] Connecting to url! {=str}", url);
 
-        // TODO: Timeout?
-        while {
-            matches!(
-                self.sockets
+                let new_handle = self
+                    .send_at(ConnectPeer { url: &url })
+                    .map_err(|_| Error::Unaddressable)?
+                    .peer_handle;
+
+                let mut tcp = self
+                    .sockets
                     .as_mut()
                     .unwrap()
                     .get::<TcpSocket<CLK, L>>(*socket)
-                    .map_err(Self::Error::from)?
-                    .state(),
-                TcpState::WaitingForConnect(_)
-            )
-        } {
-            self.spin().map_err(|_| Error::Illegal)?;
+                    .map_err(Self::Error::from)?;
+                *socket = new_handle;
+                tcp.set_state(TcpState::WaitingForConnect(remote));
+                tcp.update_handle(*socket);
+                Err(nb::Error::WouldBlock)
+            }
+            TcpState::WaitingForConnect(_) => {
+                self.spin().map_err(|_| Error::Illegal)?;
+                Err(nb::Error::WouldBlock)
+            }
+            TcpState::Connected(_) => Ok(()),
+            _ => Err(Error::Illegal.into()),
         }
-        Ok(())
     }
 
     /// Check if this socket is still connected
@@ -140,9 +138,12 @@ where
         if let Some(ref mut sockets) = self.sockets {
             if let Some(ref con) = self.wifi_connection {
                 if !self.initialized || !con.is_connected() {
+                    defmt::debug!("!self.initialized || !con.is_connected()");
                     return Ok(false);
                 }
             } else {
+                defmt::debug!("not wifi_connection ?!");
+
                 return Ok(false);
             }
 
@@ -236,6 +237,7 @@ where
                     sockets.remove(socket)?;
                 }
             }
+            // TODO: Close listening socket?
             Ok(())
         } else {
             Err(Error::Illegal)
@@ -243,25 +245,77 @@ where
     }
 }
 
-// impl<C, CLK, RST, const N: usize, const L: usize> TcpFullStack for UbloxClient<C, CLK, RST, N, L>
-// where
-//     C: atat::AtatClient,
-//     CLK: Clock,
-//     RST: OutputPin,
-//     Generic<CLK::T>: TryInto<Milliseconds>,
-// {
-//     fn bind(&mut self, socket: &mut Self::TcpSocket, local_port: u16) -> Result<(), Self::Error> {
-//         todo!()
-//     }
+impl<C, CLK, RST, const N: usize, const L: usize> TcpFullStack for UbloxClient<C, CLK, RST, N, L>
+where
+    C: atat::AtatClient,
+    CLK: Clock,
+    RST: OutputPin,
+    Generic<CLK::T>: TryInto<Milliseconds>,
+{
+    fn bind(&mut self, socket: &mut Self::TcpSocket, local_port: u16) -> Result<(), Self::Error> {
+        if self.sockets.is_none() {
+            return Err(Error::Illegal);
+        }
 
-//     fn listen(&mut self, socket: &mut Self::TcpSocket) -> Result<(), Self::Error> {
-//         todo!()
-//     }
+        defmt::debug!("[TCP] bind socket: {:?}", socket);
+        if let Some(ref con) = self.wifi_connection {
+            if !self.initialized || !con.is_connected() {
+                return Err(Error::Illegal);
+            }
+        } else {
+            return Err(Error::Illegal);
+        }
 
-//     fn accept(
-// 		&mut self,
-// 		socket: &mut Self::TcpSocket,
-// 	) -> nb::Result<(Self::TcpSocket, SocketAddr), Self::Error> {
-//         todo!()
-//     }
-// }
+        self.send_internal(
+            &EdmAtCmdWrapper(ServerConfiguration {
+                id: 1,
+                server_config: ServerConfig::TCP(local_port, ImmediateFlush::Disable),
+            }),
+            false,
+        )
+        .map_err(|_| Error::Unaddressable)?;
+
+        self.tcp_listener
+            .bind(*socket, local_port)
+            .map_err(|_| Error::Illegal)?;
+
+        Ok(())
+    }
+
+    fn listen(&mut self, _socket: &mut Self::TcpSocket) -> Result<(), Self::Error> {
+        // Nop operation as this happens together with `bind()`
+        Ok(())
+    }
+
+    fn accept(
+        &mut self,
+        socket: &mut Self::TcpSocket,
+    ) -> nb::Result<(Self::TcpSocket, SocketAddr), Self::Error> {
+        if !self
+            .tcp_listener
+            .available(*socket)
+            .map_err(|_| Error::NotBound)?
+        {
+            return Err(nb::Error::WouldBlock);
+        }
+
+        let data_socket = self.socket()?;
+        let (handle, remote) = self
+            .tcp_listener
+            .accept(*socket)
+            .map_err(|_| Error::NotBound)?;
+
+        // Crate a new SocketBuffer allocation for the incoming connection
+        let mut tcp = self
+            .sockets
+            .as_mut()
+            .ok_or(Error::Illegal)?
+            .get::<TcpSocket<CLK, L>>(data_socket)
+            .map_err(Self::Error::from)?;
+
+        tcp.update_handle(handle);
+        tcp.set_state(TcpState::Connected(remote.clone()));
+
+        Ok((handle, remote))
+    }
+}

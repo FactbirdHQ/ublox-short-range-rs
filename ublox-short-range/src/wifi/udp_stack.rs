@@ -74,7 +74,6 @@ where
             return Err(Error::Illegal);
         }
 
-        defmt::debug!("[UDP] Connecting socket");
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized || !con.is_connected() {
                 return Err(Error::Illegal);
@@ -88,19 +87,21 @@ where
             .udp()
             .map_err(|_| Error::Unaddressable)?;
         defmt::trace!("[UDP] Connecting URL! {=str}", url);
-        let resp = self
+        let new_handle = self
             .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
-            .map_err(|_| Error::Unaddressable)?;
+            .map_err(|_| Error::Unaddressable)?
+            .peer_handle;
 
         let mut udp = self
             .sockets
             .as_mut()
             .unwrap()
             .get::<UdpSocket<CLK, L>>(*socket)?;
-        *socket = SocketHandle(resp.peer_handle);
-        udp.bind(remote)?;
+
+        *socket = new_handle;
         udp.update_handle(*socket);
 
+        // FIXME: Should this be blocking here?
         while self
             .sockets
             .as_mut()
@@ -133,10 +134,12 @@ where
                 return Err(Error::SocketClosed.into());
             }
 
+            self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
+
             let channel = *self
                 .edm_mapping
                 .channel_id(socket)
-                .ok_or(nb::Error::Other(Error::SocketClosed))?;
+                .ok_or(nb::Error::WouldBlock)?;
 
             for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
                 self.send_internal(

@@ -1,12 +1,13 @@
 //! Responses for Data Mode
 use atat::atat_derive::AtatResp;
 use heapless::String;
+use ublox_sockets::SocketHandle;
 
 /// 5.2 Connect peer +UDCP
 #[derive(Clone, AtatResp)]
 pub struct ConnectPeerResponse {
     #[at_arg(position = 0)]
-    pub peer_handle: u8,
+    pub peer_handle: SocketHandle,
 }
 
 /// 5.5 Peer list +UDLP
