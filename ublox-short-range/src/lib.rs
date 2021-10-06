@@ -6,6 +6,7 @@ mod hex;
 pub use atat;
 pub use client::UbloxClient;
 
+pub mod config;
 pub mod command;
 pub mod error;
 pub mod wifi;
