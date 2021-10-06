@@ -1,6 +1,5 @@
-use embedded_hal::digital::{OutputPin};
+use embedded_hal::digital::OutputPin;
 use heapless::String;
-
 
 pub struct NoPin;
 

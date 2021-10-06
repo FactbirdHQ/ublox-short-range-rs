@@ -1,21 +1,21 @@
 use crate::{
     command::{
         edm::{types::Protocol, urc::EdmEvent, EdmAtCmdWrapper, SwitchToEdmCommand},
+        network::SetNetworkHostName,
         ping::types::PingError,
         system::{
             types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
             SetRS232Settings, StoreCurrentConfig,
         },
-        network::SetNetworkHostName,
         wifi::types::DisconnectReason,
         Urc,
     },
+    config::Config,
     error::Error,
     wifi::{
         connection::{NetworkState, WiFiState, WifiConnection},
         EdmMap,
     },
-    config::Config,
 };
 use core::convert::TryInto;
 use embedded_hal::digital::OutputPin;
