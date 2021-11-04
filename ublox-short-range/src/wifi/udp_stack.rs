@@ -1,6 +1,9 @@
 use crate::{
     command::data_mode::*,
-    command::edm::{EdmAtCmdWrapper, EdmDataCommand},
+    command::{
+        data_mode::types::{UDPBehaviour, ServerConfig, IPVersion},
+        edm::{EdmAtCmdWrapper, EdmDataCommand},
+    },
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
@@ -12,7 +15,7 @@ use embedded_time::{
     Clock,
 };
 
-use embedded_nal::UdpClientStack;
+use embedded_nal::{UdpClientStack, UdpFullStack};
 use ublox_sockets::{Error, SocketHandle, UdpSocket, UdpState};
 
 use super::EGRESS_CHUNK_SIZE;
@@ -37,6 +40,7 @@ where
                 if let Ok(ts) = self.timer.try_now() {
                     // Check if there are any sockets closed by remote, and close it
                     // if it has exceeded its timeout, in order to recycle it.
+                    // TODO Is this connect?
                     if sockets.recycle(&ts) {
                         return Err(Error::SocketSetFull);
                     }
@@ -165,7 +169,37 @@ where
         socket: &mut Self::UdpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<(usize, SocketAddr), Self::Error> {
-        if let Some(ref mut sockets) = self.sockets {
+
+        // Handle reciving for udp server ports
+        if self.udp_listener.is_bound(*socket){
+            if !self
+                .udp_listener
+                .available(*socket)
+                .unwrap_or(false)
+            {
+                return Err(nb::Error::WouldBlock);
+            }
+    
+            let (handle, remote) = self
+                .udp_listener
+                .accept(*socket)
+                .map_err(|_| Error::NotBound)?;
+                        
+         
+            if let Some(ref mut sockets) = self.sockets {
+                let mut udp = sockets
+                    .get::<UdpSocket<CLK, L>>(handle)
+                    .map_err(Self::Error::from)?;
+    
+                let bytes = udp.recv_slice(buffer).map_err(Self::Error::from)?;
+                self.udp_listener.outgoing_connection(handle, remote).map_err(|_| Error::Illegal)?;
+                Ok((bytes, remote))
+            } else {
+                Err(Error::Illegal.into())
+            }
+        
+            // Handle reciving for udp normal ports
+        } else if let Some(ref mut sockets) = self.sockets {
             let mut udp = sockets
                 .get::<UdpSocket<CLK, L>>(*socket)
                 .map_err(Self::Error::from)?;
@@ -196,5 +230,115 @@ where
         } else {
             Err(Error::Illegal)
         }
+    }
+}
+
+/// UDP Full Stack
+/// 
+/// Limitations:
+/// One can only send to Socket addresses that have send data first.
+/// One can only use send_to once after reciving data once.
+/// 
+impl<C, CLK, RST, const N: usize, const L: usize> UdpFullStack for UbloxClient<C, CLK, RST, N, L>
+where
+    C: atat::AtatClient,
+    CLK: Clock,
+    RST: OutputPin,
+    Generic<CLK::T>: TryInto<Milliseconds>,
+{
+    fn bind(&mut self, socket: &mut Self::UdpSocket, local_port: u16) -> Result<(), Self::Error> {
+        if self.sockets.is_none() {
+            return Err(Error::Illegal);
+        }
+
+        defmt::debug!("[UDP] bind socket: {:?}", socket);
+        if let Some(ref con) = self.wifi_connection {
+            if !self.initialized || !con.is_connected() {
+                return Err(Error::Illegal);
+            }
+        } else {
+            return Err(Error::Illegal);
+        }
+
+        self.send_internal(
+            &EdmAtCmdWrapper(ServerConfiguration {
+                id: 1,
+                server_config: ServerConfig::UDP(local_port, UDPBehaviour::AutoConnect, IPVersion::IPv4),
+            }),
+            false,
+        )
+        .map_err(|_| Error::Unaddressable)?;
+
+        self.udp_listener
+            .bind(*socket, local_port)
+            .map_err(|_| Error::Illegal)?;
+
+        Ok(())
+    }
+
+    fn send_to(
+		&mut self,
+		socket: &mut Self::UdpSocket,
+		remote: SocketAddr,
+		buffer: &[u8],
+	) -> nb::Result<(), Self::Error>{
+
+        if let Ok(Some(socket)) = self.udp_listener.get_outgoing(remote){
+            if let Some(ref mut sockets) = self.sockets {
+                if let Some(ref con) = self.wifi_connection {
+                    if !self.initialized || !con.is_connected() {
+                        return Err(Error::Illegal.into());
+                    }
+                } else {
+                    return Err(Error::Illegal.into());
+                }
+    
+                let udp = sockets
+                    .get::<UdpSocket<CLK, L>>(socket)
+                    .map_err(Self::Error::from)?;
+    
+                if !udp.is_open() {
+                    return Err(Error::SocketClosed.into());
+                }
+    
+                self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
+    
+                let channel = *self
+                    .edm_mapping
+                    .channel_id(&socket)
+                    .ok_or(nb::Error::WouldBlock)?;
+    
+                for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
+                    self.send_internal(
+                        &EdmDataCommand {
+                            channel,
+                            data: chunk,
+                        },
+                        true,
+                    )
+                    .map_err(|_| nb::Error::Other(Error::Unaddressable))?;
+                }
+                self.close(socket).unwrap();
+                Ok(())
+            } else {
+                Err(Error::Illegal.into())
+            }
+        } else {
+            Err(Error::Illegal.into())
+        }
+
+
+        ////// Do with URC
+        // Crate a new SocketBuffer allocation for the incoming connection
+        // let mut tcp = self
+        //     .sockets
+        //     .as_mut()
+        //     .ok_or(Error::Illegal)?
+        //     .get::<TcpSocket<CLK, L>>(data_socket)
+        //     .map_err(Self::Error::from)?;
+
+        // tcp.update_handle(handle);
+        // tcp.set_state(TcpState::Connected(remote.clone()));
+        
     }
 }

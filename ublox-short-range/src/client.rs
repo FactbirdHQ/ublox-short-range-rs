@@ -26,7 +26,7 @@ use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
 use ublox_sockets::{
     tcp_listener::TcpListener, AnySocket, SocketSet, SocketType, TcpSocket, TcpState, UdpSocket,
-    UdpState,
+    udp_listener::UdpListener, UdpState,
 };
 
 #[derive(PartialEq, Copy, Clone)]
@@ -69,6 +69,7 @@ where
     pub(crate) timer: CLK,
     pub(crate) edm_mapping: EdmMap,
     pub(crate) tcp_listener: TcpListener<3, N>,
+    pub(crate) udp_listener: UdpListener<3, N>,
 }
 
 impl<C, CLK, RST, const N: usize, const L: usize> UbloxClient<C, CLK, RST, N, L>
@@ -93,6 +94,7 @@ where
             timer,
             edm_mapping: EdmMap::new(),
             tcp_listener: TcpListener::new(),
+            udp_listener: UdpListener::new(),
         }
     }
 
@@ -232,6 +234,7 @@ where
         if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
             let dns_state = &mut self.dns_state;
             let tcp_listener = &mut self.tcp_listener;
+            let udp_listener = &mut self.udp_listener;
             let edm_mapping = &mut self.edm_mapping;
             let wifi_connection = self.wifi_connection.as_mut();
             let ts = self.timer.try_now().map_err(|_| Error::Timer)?;
@@ -257,6 +260,9 @@ where
                                 let remote = SocketAddr::new(remote_ip.into(), event.remote_port);
 
                                 if let Some(queue) = tcp_listener.incoming(event.local_port) {
+                                    queue.enqueue((event.handle, remote)).unwrap();
+                                    return true;
+                                } else if let Some(queue) = udp_listener.incoming(event.local_port) {
                                     queue.enqueue((event.handle, remote)).unwrap();
                                     return true;
                                 } else {
@@ -438,6 +444,13 @@ where
                                 }
                                 _ => {}
                             }
+                        } else if let Some(queue) = udp_listener.incoming(event.local_port) {
+                            match queue.peek() {
+                                Some((h, remote)) if remote == &endpoint => {
+                                    return edm_mapping.insert(event.channel_id, *h).is_ok();
+                                }
+                                _ => {}
+                            }
                         }
 
                         sockets
@@ -485,6 +498,13 @@ where
                         // Peek the queue of unaccepted requests, to attempt
                         // binding an EDM channel to a socket handle
                         if let Some(queue) = tcp_listener.incoming(event.local_port) {
+                            match queue.peek() {
+                                Some((h, remote)) if remote == &endpoint => {
+                                    return edm_mapping.insert(event.channel_id, *h).is_ok();
+                                }
+                                _ => {}
+                            }
+                        } else if let Some(queue) = udp_listener.incoming(event.local_port) {
                             match queue.peek() {
                                 Some((h, remote)) if remote == &endpoint => {
                                     return edm_mapping.insert(event.channel_id, *h).is_ok();
