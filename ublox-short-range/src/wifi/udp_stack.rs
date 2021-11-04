@@ -1,7 +1,7 @@
 use crate::{
     command::data_mode::*,
     command::{
-        data_mode::types::{UDPBehaviour, ServerConfig, IPVersion},
+        data_mode::types::{IPVersion, ServerConfig, UDPBehaviour},
         edm::{EdmAtCmdWrapper, EdmDataCommand},
     },
     wifi::peer_builder::PeerUrlBuilder,
@@ -169,35 +169,31 @@ where
         socket: &mut Self::UdpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<(usize, SocketAddr), Self::Error> {
-
         // Handle reciving for udp server ports
-        if self.udp_listener.is_bound(*socket){
-            if !self
-                .udp_listener
-                .available(*socket)
-                .unwrap_or(false)
-            {
+        if self.udp_listener.is_bound(*socket) {
+            if !self.udp_listener.available(*socket).unwrap_or(false) {
                 return Err(nb::Error::WouldBlock);
             }
-    
+
             let (handle, remote) = self
                 .udp_listener
                 .accept(*socket)
                 .map_err(|_| Error::NotBound)?;
-                        
-         
+
             if let Some(ref mut sockets) = self.sockets {
                 let mut udp = sockets
                     .get::<UdpSocket<CLK, L>>(handle)
                     .map_err(Self::Error::from)?;
-    
+
                 let bytes = udp.recv_slice(buffer).map_err(Self::Error::from)?;
-                self.udp_listener.outgoing_connection(handle, remote).map_err(|_| Error::Illegal)?;
+                self.udp_listener
+                    .outgoing_connection(handle, remote)
+                    .map_err(|_| Error::Illegal)?;
                 Ok((bytes, remote))
             } else {
                 Err(Error::Illegal.into())
             }
-        
+
             // Handle reciving for udp normal ports
         } else if let Some(ref mut sockets) = self.sockets {
             let mut udp = sockets
@@ -234,11 +230,11 @@ where
 }
 
 /// UDP Full Stack
-/// 
+///
 /// Limitations:
 /// One can only send to Socket addresses that have send data first.
 /// One can only use send_to once after reciving data once.
-/// 
+///
 impl<C, CLK, RST, const N: usize, const L: usize> UdpFullStack for UbloxClient<C, CLK, RST, N, L>
 where
     C: atat::AtatClient,
@@ -263,7 +259,11 @@ where
         self.send_internal(
             &EdmAtCmdWrapper(ServerConfiguration {
                 id: 1,
-                server_config: ServerConfig::UDP(local_port, UDPBehaviour::AutoConnect, IPVersion::IPv4),
+                server_config: ServerConfig::UDP(
+                    local_port,
+                    UDPBehaviour::AutoConnect,
+                    IPVersion::IPv4,
+                ),
             }),
             false,
         )
@@ -277,13 +277,12 @@ where
     }
 
     fn send_to(
-		&mut self,
-		socket: &mut Self::UdpSocket,
-		remote: SocketAddr,
-		buffer: &[u8],
-	) -> nb::Result<(), Self::Error>{
-
-        if let Ok(Some(socket)) = self.udp_listener.get_outgoing(remote){
+        &mut self,
+        socket: &mut Self::UdpSocket,
+        remote: SocketAddr,
+        buffer: &[u8],
+    ) -> nb::Result<(), Self::Error> {
+        if let Ok(Some(socket)) = self.udp_listener.get_outgoing(remote) {
             if let Some(ref mut sockets) = self.sockets {
                 if let Some(ref con) = self.wifi_connection {
                     if !self.initialized || !con.is_connected() {
@@ -292,22 +291,22 @@ where
                 } else {
                     return Err(Error::Illegal.into());
                 }
-    
+
                 let udp = sockets
                     .get::<UdpSocket<CLK, L>>(socket)
                     .map_err(Self::Error::from)?;
-    
+
                 if !udp.is_open() {
                     return Err(Error::SocketClosed.into());
                 }
-    
+
                 self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
-    
+
                 let channel = *self
                     .edm_mapping
                     .channel_id(&socket)
                     .ok_or(nb::Error::WouldBlock)?;
-    
+
                 for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
                     self.send_internal(
                         &EdmDataCommand {
@@ -327,7 +326,6 @@ where
             Err(Error::Illegal.into())
         }
 
-
         ////// Do with URC
         // Crate a new SocketBuffer allocation for the incoming connection
         // let mut tcp = self
@@ -339,6 +337,5 @@ where
 
         // tcp.update_handle(handle);
         // tcp.set_state(TcpState::Connected(remote.clone()));
-        
     }
 }

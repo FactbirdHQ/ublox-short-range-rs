@@ -25,8 +25,8 @@ use embedded_nal::{nb, IpAddr, Ipv4Addr, SocketAddr};
 use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
 use ublox_sockets::{
-    tcp_listener::TcpListener, AnySocket, SocketSet, SocketType, TcpSocket, TcpState, UdpSocket,
-    udp_listener::UdpListener, UdpState,
+    tcp_listener::TcpListener, udp_listener::UdpListener, AnySocket, SocketSet, SocketType,
+    TcpSocket, TcpState, UdpSocket, UdpState,
 };
 
 #[derive(PartialEq, Copy, Clone)]
@@ -262,7 +262,8 @@ where
                                 if let Some(queue) = tcp_listener.incoming(event.local_port) {
                                     queue.enqueue((event.handle, remote)).unwrap();
                                     return true;
-                                } else if let Some(queue) = udp_listener.incoming(event.local_port) {
+                                } else if let Some(queue) = udp_listener.incoming(event.local_port)
+                                {
                                     queue.enqueue((event.handle, remote)).unwrap();
                                     return true;
                                 } else {
