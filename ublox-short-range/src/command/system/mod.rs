@@ -180,8 +180,8 @@ pub struct SetLocalAddress<'a> {
     /// address will be restored to factory-programmed value.
     /// The least significant bit of the first octet of the <address> must be 0; that is, the
     /// <address> must be a unicast address.
-    #[at_arg(position = 1, len = 20)]
-    pub mac_address: &'a str,
+    #[at_arg(position = 1, len = 12)]
+    pub mac_address: atat::serde_at::ser::Bytes<'a>,
 }
 
 /// 4.14 Get Local address +UMLA

@@ -7,6 +7,7 @@ pub use atat;
 pub use client::UbloxClient;
 
 pub mod command;
+pub mod config;
 pub mod error;
 pub mod wifi;
 
