@@ -2,6 +2,7 @@ use crate::{
     command::{
         data_mode::types::IPProtocol,
         edm::{types::Protocol, urc::EdmEvent, EdmAtCmdWrapper, SwitchToEdmCommand},
+        network::SetNetworkHostName,
         ping::types::PingError,
         system::{
             types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
@@ -10,6 +11,7 @@ use crate::{
         wifi::types::DisconnectReason,
         Urc,
     },
+    config::Config,
     error::Error,
     wifi::{
         connection::{NetworkState, WiFiState, WifiConnection},
@@ -58,13 +60,13 @@ where
     serial_mode: SerialMode,
     pub(crate) wifi_connection: Option<WifiConnection>,
     pub(crate) client: C,
+    pub(crate) config: Config<RST>,
     pub(crate) sockets: Option<&'static mut SocketSet<CLK, N, L>>,
     pub(crate) dns_state: DNSState,
     pub(crate) urc_attempts: u8,
     pub(crate) max_urc_attempts: u8,
     pub(crate) security_credentials: SecurityCredentials,
     pub(crate) timer: CLK,
-    pub(crate) reset_pin: Option<RST>,
     pub(crate) edm_mapping: EdmMap,
     pub(crate) tcp_listener: TcpListener<3, N>,
 }
@@ -76,19 +78,19 @@ where
     RST: OutputPin,
     Generic<CLK::T>: TryInto<Milliseconds>,
 {
-    pub fn new(client: C, timer: CLK, reset_pin: Option<RST>) -> Self {
+    pub fn new(client: C, timer: CLK, config: Config<RST>) -> Self {
         UbloxClient {
             initialized: false,
             serial_mode: SerialMode::Cmd,
             wifi_connection: None,
             client,
+            config,
             sockets: None,
             dns_state: DNSState::NotResolving,
             max_urc_attempts: 5,
             urc_attempts: 0,
             security_credentials: SecurityCredentials::default(),
             timer,
-            reset_pin,
             edm_mapping: EdmMap::new(),
             tcp_listener: TcpListener::new(),
         }
@@ -129,6 +131,15 @@ where
             false,
         )?;
 
+        if let Some(hostname) = self.config.hostname.clone() {
+            self.send_internal(
+                &EdmAtCmdWrapper(SetNetworkHostName {
+                    host_name: hostname.as_str(),
+                }),
+                false,
+            )?;
+        }
+
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
 
         self.initialized = true;
@@ -158,7 +169,7 @@ where
         self.serial_mode = SerialMode::Cmd;
         self.initialized = false;
 
-        if let Some(ref mut pin) = self.reset_pin {
+        if let Some(ref mut pin) = self.config.rst_pin {
             pin.try_set_low().ok();
             self.timer
                 .new_timer(Milliseconds(50))

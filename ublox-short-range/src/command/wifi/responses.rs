@@ -1,6 +1,7 @@
 //! Responses for WiFi Commands
 use super::types::*;
 use atat::atat_derive::AtatResp;
+use atat::heapless_bytes::Bytes;
 use heapless::{String, Vec};
 
 /// 7.1 Wi-Fi station configuration +UWSC
@@ -55,7 +56,7 @@ pub struct WiFiAPStationListResponse {
     #[at_arg(position = 0)]
     pub id: u32,
     #[at_arg(position = 1)]
-    pub mac_addr: String<20>,
+    pub mac_addr: Bytes<12>,
     #[at_arg(position = 2)]
     pub rssi: i32,
 }
@@ -64,5 +65,5 @@ pub struct WiFiAPStationListResponse {
 #[derive(Clone, AtatResp)]
 pub struct WifiMacResponse {
     #[at_arg(position = 0)]
-    pub mac_addr: String<20>,
+    pub mac_addr: Bytes<12>,
 }
