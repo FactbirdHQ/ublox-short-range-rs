@@ -12,9 +12,9 @@ use super::NoResponse;
 
 /// 5.1 Enter data mode O
 ///
-/// Requests the module to move to the new mode.
-/// After executing the data mode command or the extended data mode command, a delay of 50 ms is
-/// required before start of data transmission.
+/// Requests the module to move to the new mode. After executing the data mode
+/// command or the extended data mode command, a delay of 50 ms is required
+/// before start of data transmission.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("O", NoResponse, timeout_ms = 10000, value_sep = false)]
 pub struct ChangeMode {
@@ -24,9 +24,9 @@ pub struct ChangeMode {
 
 /// 5.2 Connect peer +UDCP
 ///
-/// Connects to an enabled service on a remote device. When the host connects to a
-/// service on a remote device, it implicitly registers to receive the "Connection Closed"
-/// event.
+/// Connects to an enabled service on a remote device. When the host connects to
+/// a service on a remote device, it implicitly registers to receive the
+/// "Connection Closed" event.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 10000)]
 pub struct ConnectPeer<'a> {
@@ -46,9 +46,10 @@ pub struct ClosePeerConnection {
 
 /// 5.4 Default remote peer +UDDRP
 ///
-/// The default remote peer command works for Bluetooth BR/EDR, Bluetooth low energy (SPS), TCP, and UDP.
-/// The DCE will connect to a default remote peer when entering either the Data mode or Extended data mode
-/// (either by command or at start up, if defined by the Module Start Mode +UMSM command).
+/// The default remote peer command works for Bluetooth BR/EDR, Bluetooth low
+/// energy (SPS), TCP, and UDP. The DCE will connect to a default remote peer
+/// when entering either the Data mode or Extended data mode (either by command
+/// or at start up, if defined by the Module Start Mode +UMSM command).
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDDRP", NoResponse, timeout_ms = 10000)]
 pub struct SetDefaultRemotePeer<'a> {
@@ -74,7 +75,8 @@ pub struct PeerList;
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDSC", NoResponse, timeout_ms = 10000)]
 pub struct ServerConfiguration {
-    /// 0-6, the server ID to configure. Disable an active server first before changing.
+    /// 0-6, the server ID to configure. Disable an active server first before
+    /// changing.
     #[at_arg(position = 0)]
     pub id: u8,
     #[at_arg(position = 1)]
@@ -83,10 +85,11 @@ pub struct ServerConfiguration {
 
 /// 5.7 Server flags +UDSF
 ///
-/// Bit 0, remote configuration: When the remote configuration bit is set, the module will look for the escape
-/// sequence over the air (see S2 command). When the escape sequence is detected, the channel will enter
-/// command mode and parse AT commands. The command mode is exited by sending an ATO to the module (see
-/// O command).
+/// Bit 0, remote configuration: When the remote configuration bit is set, the
+/// module will look for the escape sequence over the air (see S2 command). When
+/// the escape sequence is detected, the channel will enter command mode and
+/// parse AT commands. The command mode is exited by sending an ATO to the
+/// module (see O command).
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDSF", NoResponse, timeout_ms = 10000)]
 pub struct SetServerFlags {
@@ -100,8 +103,8 @@ pub struct SetServerFlags {
 
 /// 5.8 Watchdog settings +UDWS
 ///
-/// The data watchdog functionality is active only in the data or extended data mode. Additionally, the power
-/// mode must also be set to online or sleep mode.
+/// The data watchdog functionality is active only in the data or extended data
+/// mode. Additionally, the power mode must also be set to online or sleep mode.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDWS", NoResponse, timeout_ms = 10000)]
 pub struct SetWatchdogSettings {
@@ -127,9 +130,8 @@ pub struct SetPeerConfiguration {
 
 /// 5.12 Bind +UDBIND
 ///
-/// Writes backspace character.
-/// This setting changes the decimal value of the character recognized by the DCE as a
-/// request to delete from the command line, the immediately preceding character.
+/// Bind two streams together for transparent data transfer between physical
+/// interfaces.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDBIND", BindResponse, timeout_ms = 10000)]
 pub struct SetBind {
@@ -141,9 +143,9 @@ pub struct SetBind {
 
 /// 5.13 Bind to channel +UDBINDC
 ///
-/// Binds Stream with Id <StreamId> to channel with Id <ChannelId>. Stream ids are
-/// provided on response of a successful connection. Channel id is provided on response
-/// of a successful bind command.
+/// Binds Stream with Id <StreamId> to channel with Id <ChannelId>. Stream ids
+/// are provided on response of a successful connection. Channel id is provided
+/// on response of a successful bind command.
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDBINDC", NoResponse, timeout_ms = 10000)]
 pub struct SoftwareUpdate {
