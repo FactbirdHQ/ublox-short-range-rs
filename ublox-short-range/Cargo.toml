@@ -19,7 +19,8 @@ atat = { version = "0.13.1", features = ["derive", "defmt", "bytes"] }
 heapless = { version = "^0.7", features = ["serde"] }
 no-std-net = { version = "^0.5", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
-ublox-sockets = { git = "https://github.com/BlackbirdHQ/ublox-sockets", rev = "f57d5f1" }
+ublox-sockets = { path = "../../ublox-sockets/" }
+# ublox-sockets = { git = "https://github.com/BlackbirdHQ/ublox-sockets", rev = "f57d5f1" }
 hash32 = "^0.2.1"
 hash32-derive = "^0.1.0"
 

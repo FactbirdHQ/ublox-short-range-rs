@@ -234,6 +234,7 @@ where
 /// Limitations:
 /// One can only send to Socket addresses that have send data first.
 /// One can only use send_to once after reciving data once.
+/// One has to use send_to after reciving data, to release the socket bound by remote host.
 ///
 impl<C, CLK, RST, const N: usize, const L: usize> UdpFullStack for UbloxClient<C, CLK, RST, N, L>
 where
@@ -258,7 +259,7 @@ where
 
         self.send_internal(
             &EdmAtCmdWrapper(ServerConfiguration {
-                id: 1,
+                id: 2,
                 server_config: ServerConfig::UDP(
                     local_port,
                     UDPBehaviour::AutoConnect,
@@ -282,7 +283,12 @@ where
         remote: SocketAddr,
         buffer: &[u8],
     ) -> nb::Result<(), Self::Error> {
-        if let Ok(Some(socket)) = self.udp_listener.get_outgoing(remote) {
+        //Protect against non server sockets
+        if socket.0 != 0 {
+            return Err(Error::Illegal.into())
+        }
+        // Check incomming sockets for the socket address
+        if let Some(socket) = self.udp_listener.get_outgoing(remote) {
             if let Some(ref mut sockets) = self.sockets {
                 if let Some(ref con) = self.wifi_connection {
                     if !self.initialized || !con.is_connected() {
@@ -290,6 +296,11 @@ where
                     }
                 } else {
                     return Err(Error::Illegal.into());
+                }
+
+                if buffer.len() == 0 {
+                    self.close(socket).unwrap();
+                    return Ok(())
                 }
 
                 let udp = sockets

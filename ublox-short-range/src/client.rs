@@ -260,10 +260,22 @@ where
                                 let remote = SocketAddr::new(remote_ip.into(), event.remote_port);
 
                                 if let Some(queue) = tcp_listener.incoming(event.local_port) {
+                                    defmt::debug!(
+                                        "Binding remote {=[u8]:a} to TCP server on port {:?} with socket {:?}",
+                                        event.remote_address.as_slice(),
+                                        event.local_port,
+                                        event.handle
+                                    );
                                     queue.enqueue((event.handle, remote)).unwrap();
                                     return true;
                                 } else if let Some(queue) = udp_listener.incoming(event.local_port)
                                 {
+                                    defmt::debug!(
+                                        "Binding remote {=[u8]:a} to UDP server on port {:?} with socket {:?}",
+                                        event.remote_address.as_slice(),
+                                        event.local_port,
+                                        event.handle
+                                    );
                                     queue.enqueue((event.handle, remote)).unwrap();
                                     return true;
                                 } else {
