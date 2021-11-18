@@ -21,7 +21,7 @@ use crate::{
 use core::convert::TryInto;
 use core::str::FromStr;
 use embedded_hal::digital::OutputPin;
-use embedded_nal::{nb, IpAddr, Ipv4Addr, SocketAddr};
+use embedded_nal::{IpAddr, Ipv4Addr, SocketAddr, TcpFullStack, nb};
 use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
 use ublox_sockets::{
@@ -194,7 +194,8 @@ where
         if !self.initialized {
             return Err(Error::Uninitialized);
         }
-        self.handle_urc()?;
+
+        while self.handle_urc()? {}
 
         if let Some(ref mut con) = self.wifi_connection {
             if !con.is_connected() {
@@ -230,7 +231,9 @@ where
         })
     }
 
-    fn handle_urc(&mut self) -> Result<(), Error> {
+    fn handle_urc(&mut self) -> Result<bool, Error> {
+        let mut ran_f = false;
+
         if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
             let dns_state = &mut self.dns_state;
             let tcp_listener = &mut self.tcp_listener;
@@ -243,6 +246,7 @@ where
             let max = self.max_urc_attempts;
 
             self.client.peek_urc_with::<EdmEvent, _>(|edm_urc| {
+                ran_f = true;
                 let res = match edm_urc {
                     EdmEvent::ATEvent(urc) => {
                         match urc {
@@ -268,8 +272,26 @@ where
                                     );
                                     queue.enqueue((event.handle, remote)).unwrap();
                                     return true;
-                                } else if let Some(queue) = udp_listener.incoming(event.local_port)
-                                {
+                                } else if let Some(queue) = udp_listener.incoming(event.local_port) {
+                                    if sockets.len() >= sockets.capacity() {
+                                        // Check if there are any sockets closed by remote, and close it
+                                        // if it has exceeded its timeout, in order to recycle it.
+                                        // TODO Is this correct?
+                                        if sockets.recycle(&ts) {
+                                            return false;
+                                        }
+                                    }
+                                    let mut new_socket = UdpSocket::new(event.handle.0);
+                                    if new_socket.bind(remote).is_err(){
+                                        return false
+                                    }
+                                    if sockets.add(new_socket).map_err(|_| {
+                                        defmt::error!("[UDP_URC] Opening socket Error: Socket set full");
+                                        Error::SocketMemory
+                                    }).is_err(){
+                                        return false;
+                                    }
+                                    // defmt::debug!("Socket bound to UDP server: {}", event.handle);
                                     defmt::debug!(
                                         "Binding remote {=[u8]:a} to UDP server on port {:?} with socket {:?}",
                                         event.remote_address.as_slice(),
@@ -621,7 +643,7 @@ where
             });
             self.urc_attempts = a;
         }
-        Ok(())
+        Ok(ran_f)
     }
 
     /// Send AT command

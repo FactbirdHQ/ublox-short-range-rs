@@ -40,7 +40,7 @@ where
                 if let Ok(ts) = self.timer.try_now() {
                     // Check if there are any sockets closed by remote, and close it
                     // if it has exceeded its timeout, in order to recycle it.
-                    // TODO Is this connect?
+                    // TODO Is this correct?
                     if sockets.recycle(&ts) {
                         return Err(Error::SocketSetFull);
                     }
@@ -170,8 +170,9 @@ where
         buffer: &mut [u8],
     ) -> nb::Result<(usize, SocketAddr), Self::Error> {
         // Handle reciving for udp server ports
-        if self.udp_listener.is_bound(*socket) {
-            if !self.udp_listener.available(*socket).unwrap_or(false) {
+        let udp_listener = &mut self.udp_listener;
+        if udp_listener.is_bound(*socket) {
+            if !udp_listener.available(*socket).unwrap_or(false) {
                 return Err(nb::Error::WouldBlock);
             }
 
@@ -183,7 +184,7 @@ where
             if let Some(ref mut sockets) = self.sockets {
                 let mut udp = sockets
                     .get::<UdpSocket<CLK, L>>(handle)
-                    .map_err(Self::Error::from)?;
+                    .map_err(|_| Self::Error::InvalidSocket)?;
 
                 let bytes = udp.recv_slice(buffer).map_err(Self::Error::from)?;
                 self.udp_listener
@@ -231,10 +232,13 @@ where
 
 /// UDP Full Stack
 ///
+/// This fullstack is build for request-response type servers due to HW/SW limitations
 /// Limitations:
-/// One can only send to Socket addresses that have send data first.
-/// One can only use send_to once after reciving data once.
-/// One has to use send_to after reciving data, to release the socket bound by remote host.
+/// - One can only send to Socket addresses that have send data first.
+/// - One can only recive an incomming datastream once.
+/// - One can only use send_to once after reciving data once.
+/// - One has to use send_to after reciving data, to release the socket bound by remote host,
+/// even if just sending no bytes. 
 ///
 impl<C, CLK, RST, const N: usize, const L: usize> UdpFullStack for UbloxClient<C, CLK, RST, N, L>
 where
