@@ -238,7 +238,7 @@ where
 /// - One can only recive an incomming datastream once.
 /// - One can only use send_to once after reciving data once.
 /// - One has to use send_to after reciving data, to release the socket bound by remote host,
-/// even if just sending no bytes. 
+/// even if just sending no bytes.
 ///
 impl<C, CLK, RST, const N: usize, const L: usize> UdpFullStack for UbloxClient<C, CLK, RST, N, L>
 where
@@ -289,7 +289,7 @@ where
     ) -> nb::Result<(), Self::Error> {
         //Protect against non server sockets
         if socket.0 != 0 {
-            return Err(Error::Illegal.into())
+            return Err(Error::Illegal.into());
         }
         // Check incomming sockets for the socket address
         if let Some(socket) = self.udp_listener.get_outgoing(remote) {
@@ -304,7 +304,7 @@ where
 
                 if buffer.len() == 0 {
                     self.close(socket).unwrap();
-                    return Ok(())
+                    return Ok(());
                 }
 
                 let udp = sockets

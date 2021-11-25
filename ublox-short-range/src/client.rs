@@ -21,7 +21,7 @@ use crate::{
 use core::convert::TryInto;
 use core::str::FromStr;
 use embedded_hal::digital::OutputPin;
-use embedded_nal::{IpAddr, Ipv4Addr, SocketAddr, TcpFullStack, nb};
+use embedded_nal::{nb, IpAddr, Ipv4Addr, SocketAddr, TcpFullStack};
 use embedded_time::duration::{Generic, Milliseconds};
 use embedded_time::Clock;
 use ublox_sockets::{

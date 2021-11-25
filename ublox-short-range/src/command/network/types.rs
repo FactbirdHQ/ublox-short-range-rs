@@ -1,8 +1,8 @@
 //! Argument and parameter types used by Network Commands and Responses
 
 use atat::atat_derive::AtatEnum;
-use embedded_nal::{IpAddr, Ipv4Addr, Ipv6Addr};
 use atat::heapless_bytes::Bytes;
+use embedded_nal::{IpAddr, Ipv4Addr, Ipv6Addr};
 use heapless::String;
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
