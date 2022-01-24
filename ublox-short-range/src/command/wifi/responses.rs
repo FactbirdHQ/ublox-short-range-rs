@@ -2,7 +2,7 @@
 use super::types::*;
 use atat::atat_derive::AtatResp;
 use atat::heapless_bytes::Bytes;
-use heapless::{String, Vec};
+use heapless::Vec;
 
 /// 7.1 Wi-Fi station configuration +UWSC
 #[derive(Clone, AtatResp)]

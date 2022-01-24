@@ -4,25 +4,21 @@ use crate::{
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
-use core::convert::TryInto;
-use embedded_hal::digital::OutputPin;
+use atat::Clock;
+use embedded_hal::digital::blocking::OutputPin;
 use embedded_nal::{nb, SocketAddr};
-use embedded_time::{
-    duration::{Generic, Milliseconds},
-    Clock,
-};
 
 use embedded_nal::UdpClientStack;
 use ublox_sockets::{Error, SocketHandle, UdpSocket, UdpState};
 
 use super::EGRESS_CHUNK_SIZE;
 
-impl<C, CLK, RST, const N: usize, const L: usize> UdpClientStack for UbloxClient<C, CLK, RST, N, L>
+impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> UdpClientStack
+    for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
     C: atat::AtatClient,
-    CLK: Clock,
+    CLK: Clock<TIMER_HZ>,
     RST: OutputPin,
-    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     type Error = Error;
 
@@ -34,13 +30,9 @@ where
         if let Some(ref mut sockets) = self.sockets {
             // Check if there are any unused sockets available
             if sockets.len() >= sockets.capacity() {
-                if let Ok(ts) = self.timer.try_now() {
-                    // Check if there are any sockets closed by remote, and close it
-                    // if it has exceeded its timeout, in order to recycle it.
-                    if sockets.recycle(&ts) {
-                        return Err(Error::SocketSetFull);
-                    }
-                } else {
+                // Check if there are any sockets closed by remote, and close it
+                // if it has exceeded its timeout, in order to recycle it.
+                if sockets.recycle(self.timer.now()) {
                     return Err(Error::SocketSetFull);
                 }
             }
@@ -96,7 +88,7 @@ where
             .sockets
             .as_mut()
             .unwrap()
-            .get::<UdpSocket<CLK, L>>(*socket)?;
+            .get::<UdpSocket<TIMER_HZ, L>>(*socket)?;
         *socket = SocketHandle(resp.peer_handle);
         udp.bind(remote)?;
         udp.update_handle(*socket);
@@ -105,7 +97,7 @@ where
             .sockets
             .as_mut()
             .unwrap()
-            .get::<UdpSocket<CLK, L>>(*socket)?
+            .get::<UdpSocket<TIMER_HZ, L>>(*socket)?
             .state()
             == UdpState::Closed
         {
@@ -126,7 +118,7 @@ where
             }
 
             let udp = sockets
-                .get::<UdpSocket<CLK, L>>(*socket)
+                .get::<UdpSocket<TIMER_HZ, L>>(*socket)
                 .map_err(Self::Error::from)?;
 
             if !udp.is_open() {
@@ -164,7 +156,7 @@ where
     ) -> nb::Result<(usize, SocketAddr), Self::Error> {
         if let Some(ref mut sockets) = self.sockets {
             let mut udp = sockets
-                .get::<UdpSocket<CLK, L>>(*socket)
+                .get::<UdpSocket<TIMER_HZ, L>>(*socket)
                 .map_err(Self::Error::from)?;
 
             let bytes = udp.recv_slice(buffer).map_err(Self::Error::from)?;
@@ -181,7 +173,7 @@ where
         if let Some(ref mut sockets) = self.sockets {
             defmt::debug!("[UDP] Closing socket: {:?}", socket);
             // If no sockets exists, nothing to close.
-            if let Ok(ref mut udp) = sockets.get::<UdpSocket<CLK, L>>(socket) {
+            if let Ok(ref mut udp) = sockets.get::<UdpSocket<TIMER_HZ, L>>(socket) {
                 let peer_handle = udp.handle();
 
                 udp.close();

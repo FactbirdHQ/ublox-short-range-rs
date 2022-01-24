@@ -1,5 +1,3 @@
-use core::convert::TryInto;
-
 use crate::{
     client::UbloxClient,
     command::{
@@ -19,22 +17,18 @@ use crate::{
         options::{ConnectionOptions, HotspotOptions},
     },
 };
-use atat::heapless_bytes::Bytes;
 use atat::AtatClient;
-use embedded_hal::digital::OutputPin;
-use embedded_time::{
-    duration::{Generic, Milliseconds},
-    Clock,
-};
+use atat::{heapless_bytes::Bytes, Clock};
+use embedded_hal::digital::blocking::OutputPin;
 
 use super::connection::{WiFiState, WifiConnection};
 
-impl<C, CLK, RST, const N: usize, const L: usize> UbloxClient<C, CLK, RST, N, L>
+impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
+    UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
     C: AtatClient,
-    CLK: Clock,
+    CLK: Clock<TIMER_HZ>,
     RST: OutputPin,
-    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     /// Creates wireless hotspot service for host machine.
     pub fn create_hotspot(

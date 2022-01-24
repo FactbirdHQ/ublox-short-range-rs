@@ -1,20 +1,19 @@
 use crate::client::DNSState;
-use core::convert::TryInto;
-use embedded_hal::digital::OutputPin;
+use atat::Clock;
+use embedded_hal::digital::blocking::OutputPin;
 use embedded_nal::{nb, AddrType, Dns, IpAddr};
-use embedded_time::duration::{Extensions, Generic, Milliseconds};
-use embedded_time::Clock;
+use fugit::ExtU32;
 use heapless::String;
 
 use crate::{command::ping::*, UbloxClient};
 use ublox_sockets::Error;
 
-impl<C, CLK, RST, const N: usize, const L: usize> Dns for UbloxClient<C, CLK, RST, N, L>
+impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> Dns
+    for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
     C: atat::AtatClient,
-    CLK: Clock,
+    CLK: Clock<TIMER_HZ>,
     RST: OutputPin,
-    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     type Error = Error;
 
@@ -34,21 +33,12 @@ where
         })
         .map_err(|_| nb::Error::Other(Error::Unaddressable))?;
 
-        let expiration = self
-            .timer
-            .try_now()
-            .map_err(|_| nb::Error::Other(Error::Timer))?
-            + 5_u32.seconds();
+        let expiration = self.timer.now() + 5.secs();
 
         while self.dns_state == DNSState::Resolving {
             self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
 
-            if self
-                .timer
-                .try_now()
-                .map_err(|_| nb::Error::Other(Error::Timer))?
-                >= expiration
-            {
+            if self.timer.now() >= expiration {
                 return Err(nb::Error::Other(Error::Timeout));
             }
         }
