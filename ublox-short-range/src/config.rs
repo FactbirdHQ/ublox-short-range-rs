@@ -1,4 +1,4 @@
-use embedded_hal::digital::OutputPin;
+use embedded_hal::digital::blocking::OutputPin;
 use heapless::String;
 
 pub struct NoPin;
@@ -6,11 +6,11 @@ pub struct NoPin;
 impl OutputPin for NoPin {
     type Error = core::convert::Infallible;
 
-    fn try_set_low(&mut self) -> Result<(), Self::Error> {
+    fn set_low(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
 
-    fn try_set_high(&mut self) -> Result<(), Self::Error> {
+    fn set_high(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
 }

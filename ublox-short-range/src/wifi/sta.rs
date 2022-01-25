@@ -12,21 +12,19 @@ use crate::{
         options::ConnectionOptions,
     },
 };
-use atat::heapless_bytes::Bytes;
 use atat::AtatClient;
+use atat::{heapless_bytes::Bytes, Clock};
 
-use core::convert::{TryFrom, TryInto};
-use embedded_hal::digital::OutputPin;
-use embedded_time::duration::{Generic, Milliseconds};
-use embedded_time::Clock;
+use core::convert::TryFrom;
+use embedded_hal::digital::blocking::OutputPin;
 use heapless::Vec;
 
-impl<C, CLK, RST, const N: usize, const L: usize> UbloxClient<C, CLK, RST, N, L>
+impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
+    UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
     C: AtatClient,
-    CLK: Clock,
+    CLK: Clock<TIMER_HZ>,
     RST: OutputPin,
-    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     /// Attempts to connect to a wireless network with the given connection options.
     pub fn connect(&mut self, options: ConnectionOptions) -> Result<(), WifiConnectionError> {

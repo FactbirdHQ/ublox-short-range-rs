@@ -17,11 +17,10 @@ use crate::{
         EdmMap,
     },
 };
-use core::convert::TryInto;
-use embedded_hal::digital::OutputPin;
+use atat::Clock;
+use embedded_hal::digital::blocking::OutputPin;
 use embedded_nal::{nb, IpAddr, SocketAddr};
-use embedded_time::duration::{Generic, Milliseconds};
-use embedded_time::Clock;
+use fugit::ExtU32;
 use ublox_sockets::{AnySocket, SocketSet, SocketType, TcpSocket, TcpState, UdpSocket, UdpState};
 
 #[derive(PartialEq, Copy, Clone)]
@@ -45,10 +44,10 @@ pub struct SecurityCredentials {
     pub c_key_name: Option<heapless::String<16>>,
 }
 
-pub struct UbloxClient<C, CLK, RST, const N: usize, const L: usize>
+pub struct UbloxClient<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
 where
     C: atat::AtatClient,
-    CLK: 'static + Clock,
+    CLK: Clock<TIMER_HZ>,
     RST: OutputPin,
 {
     pub(crate) initialized: bool,
@@ -56,7 +55,7 @@ where
     pub(crate) wifi_connection: Option<WifiConnection>,
     pub(crate) client: C,
     pub(crate) config: Config<RST>,
-    pub(crate) sockets: Option<&'static mut SocketSet<CLK, N, L>>,
+    pub(crate) sockets: Option<&'static mut SocketSet<TIMER_HZ, N, L>>,
     pub(crate) dns_state: DNSState,
     pub(crate) urc_attempts: u8,
     pub(crate) max_urc_attempts: u8,
@@ -65,12 +64,12 @@ where
     pub(crate) edm_mapping: EdmMap,
 }
 
-impl<C, CLK, RST, const N: usize, const L: usize> UbloxClient<C, CLK, RST, N, L>
+impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
+    UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
     C: atat::AtatClient,
-    CLK: 'static + Clock,
+    CLK: Clock<TIMER_HZ>,
     RST: OutputPin,
-    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     pub fn new(client: C, timer: CLK, config: Config<RST>) -> Self {
         UbloxClient {
@@ -89,12 +88,12 @@ where
         }
     }
 
-    pub fn set_socket_storage(&mut self, socket_set: &'static mut SocketSet<CLK, N, L>) {
+    pub fn set_socket_storage(&mut self, socket_set: &'static mut SocketSet<TIMER_HZ, N, L>) {
         socket_set.prune();
         self.sockets.replace(socket_set);
     }
 
-    pub fn take_socket_storage(&mut self) -> Option<&'static mut SocketSet<CLK, N, L>> {
+    pub fn take_socket_storage(&mut self) -> Option<&'static mut SocketSet<TIMER_HZ, N, L>> {
         self.sockets.take()
     }
 
@@ -163,20 +162,14 @@ where
         self.initialized = false;
 
         if let Some(ref mut pin) = self.config.rst_pin {
-            pin.try_set_low().ok();
-            self.timer
-                .new_timer(Milliseconds(50))
-                .start()
-                .map_err(|_| Error::Timer)?
-                .wait()
-                .map_err(|_| Error::Timer)?;
-            pin.try_set_high().ok();
-            self.timer
-                .new_timer(Milliseconds(3000))
-                .start()
-                .map_err(|_| Error::Timer)?
-                .wait()
-                .map_err(|_| Error::Timer)?;
+            pin.set_low().ok();
+            self.timer.start(50.millis()).map_err(|_| Error::Timer)?;
+            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+
+            pin.set_high().ok();
+
+            self.timer.start(3.secs()).map_err(|_| Error::Timer)?;
+            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
         }
         Ok(())
     }
@@ -226,7 +219,7 @@ where
             let dns_state = &mut self.dns_state;
             let edm_mapping = &mut self.edm_mapping;
             let wifi_connection = self.wifi_connection.as_mut();
-            let ts = self.timer.try_now().map_err(|_| Error::Timer)?;
+            let ts = self.timer.now();
 
             let mut a = self.urc_attempts;
             let max = self.max_urc_attempts;
@@ -253,14 +246,14 @@ where
                                 match sockets.socket_type(msg.handle) {
                                     Some(SocketType::Tcp) => {
                                         if let Ok(mut tcp) =
-                                            sockets.get::<TcpSocket<CLK, L>>(msg.handle)
+                                            sockets.get::<TcpSocket<TIMER_HZ, L>>(msg.handle)
                                         {
                                             tcp.closed_by_remote(ts);
                                         }
                                     }
                                     Some(SocketType::Udp) => {
                                         if let Ok(mut udp) =
-                                            sockets.get::<UdpSocket<CLK, L>>(msg.handle)
+                                            sockets.get::<UdpSocket<TIMER_HZ, L>>(msg.handle)
                                         {
                                             udp.close();
                                         }
@@ -457,7 +450,7 @@ where
                                     Some(SocketType::Tcp) => {
                                         // Handle tcp socket
                                         let mut tcp = sockets
-                                            .get::<TcpSocket<CLK, L>>(*socket_handle)
+                                            .get::<TcpSocket<TIMER_HZ, L>>(*socket_handle)
                                             .unwrap();
                                         if tcp.can_recv() {
                                             tcp.rx_enqueue_slice(&event.data);
@@ -469,7 +462,7 @@ where
                                     Some(SocketType::Udp) => {
                                         // Handle udp socket
                                         let mut udp = sockets
-                                            .get::<UdpSocket<CLK, L>>(*socket_handle)
+                                            .get::<UdpSocket<TIMER_HZ, L>>(*socket_handle)
                                             .unwrap();
 
                                         if udp.can_recv() {

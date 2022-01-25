@@ -7,26 +7,22 @@ use crate::{
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
-use core::convert::TryInto;
-use embedded_hal::digital::OutputPin;
+use atat::Clock;
+use embedded_hal::digital::blocking::OutputPin;
 /// Handles receiving data from sockets
 /// implements TCP and UDP for WiFi client
-use embedded_nal::{nb, SocketAddr, TcpClientStack, TcpFullStack};
-use embedded_time::{
-    duration::{Generic, Milliseconds},
-    Clock,
-};
+use embedded_nal::{nb, SocketAddr, TcpClientStack};
 
 use ublox_sockets::{Error, SocketHandle, TcpSocket, TcpState};
 
 use super::EGRESS_CHUNK_SIZE;
 
-impl<C, CLK, RST, const N: usize, const L: usize> TcpClientStack for UbloxClient<C, CLK, RST, N, L>
+impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> TcpClientStack
+    for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
     C: atat::AtatClient,
-    CLK: Clock,
+    CLK: Clock<TIMER_HZ>,
     RST: OutputPin,
-    Generic<CLK::T>: TryInto<Milliseconds>,
 {
     type Error = Error;
 
@@ -39,13 +35,9 @@ where
         if let Some(ref mut sockets) = self.sockets {
             // Check if there are any unused sockets available
             if sockets.len() >= sockets.capacity() {
-                if let Ok(ts) = self.timer.try_now() {
-                    // Check if there are any sockets closed by remote, and close it
-                    // if it has exceeded its timeout, in order to recycle it.
-                    if sockets.recycle(&ts) {
-                        return Err(Error::SocketSetFull);
-                    }
-                } else {
+                // Check if there are any sockets closed by remote, and close it
+                // if it has exceeded its timeout, in order to recycle it.
+                if sockets.recycle(self.timer.now()) {
                     return Err(Error::SocketSetFull);
                 }
             }
@@ -92,7 +84,7 @@ where
         self.sockets
             .as_mut()
             .unwrap()
-            .get::<TcpSocket<CLK, L>>(*socket)
+            .get::<TcpSocket<TIMER_HZ, L>>(*socket)
             .map_err(Self::Error::from)?;
 
         let url = PeerUrlBuilder::new()
@@ -111,7 +103,7 @@ where
             .sockets
             .as_mut()
             .unwrap()
-            .get::<TcpSocket<CLK, L>>(*socket)
+            .get::<TcpSocket<TIMER_HZ, L>>(*socket)
             .map_err(Self::Error::from)?;
 
         *socket = SocketHandle(peer_handle);
@@ -124,7 +116,7 @@ where
                 self.sockets
                     .as_mut()
                     .unwrap()
-                    .get::<TcpSocket<CLK, L>>(*socket)
+                    .get::<TcpSocket<TIMER_HZ, L>>(*socket)
                     .map_err(Self::Error::from)?
                     .state(),
                 TcpState::WaitingForConnect(_)
@@ -146,7 +138,7 @@ where
                 return Ok(false);
             }
 
-            let tcp = sockets.get::<TcpSocket<CLK, L>>(*socket)?;
+            let tcp = sockets.get::<TcpSocket<TIMER_HZ, L>>(*socket)?;
             Ok(tcp.is_connected())
         } else {
             Err(Error::Illegal)
@@ -170,7 +162,7 @@ where
             }
 
             let tcp = sockets
-                .get::<TcpSocket<CLK, L>>(*socket)
+                .get::<TcpSocket<TIMER_HZ, L>>(*socket)
                 .map_err(|e| nb::Error::Other(e.into()))?;
 
             if !tcp.is_connected() {
@@ -206,7 +198,7 @@ where
         self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
         if let Some(ref mut sockets) = self.sockets {
             let mut tcp = sockets
-                .get::<TcpSocket<CLK, L>>(*socket)
+                .get::<TcpSocket<TIMER_HZ, L>>(*socket)
                 .map_err(Self::Error::from)?;
 
             Ok(tcp.recv_slice(buffer).map_err(Self::Error::from)?)
@@ -220,7 +212,7 @@ where
         if let Some(ref mut sockets) = self.sockets {
             defmt::debug!("[TCP] Closing socket: {:?}", socket);
             // If the socket is not found it is already removed
-            if let Ok(ref tcp) = sockets.get::<TcpSocket<CLK, L>>(socket) {
+            if let Ok(ref tcp) = sockets.get::<TcpSocket<TIMER_HZ, L>>(socket) {
                 // If socket is not closed that means a connection excists which has to be closed
                 if !matches!(
                     tcp.state(),

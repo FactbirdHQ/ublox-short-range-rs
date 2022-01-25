@@ -20,7 +20,7 @@ pub mod tcp_stack;
 
 pub(crate) const EGRESS_CHUNK_SIZE: usize = 512;
 
-pub struct EdmMap(heapless::FnvIndexMap<ChannelId, SocketHandle, 6>);
+pub struct EdmMap(heapless::FnvIndexMap<ChannelId, SocketHandle, 8>);
 
 impl Default for EdmMap {
     fn default() -> Self {

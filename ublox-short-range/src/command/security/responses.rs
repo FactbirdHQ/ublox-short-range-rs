@@ -8,7 +8,7 @@ use heapless::String;
 pub struct ImportResponse {
     /// Type of operation
     #[at_arg(position = 0)]
-    ch: char,
+    pub ch: char,
 }
 
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG
@@ -16,17 +16,17 @@ pub struct ImportResponse {
 pub struct SecurityDataImport {
     /// Type of operation
     #[at_arg(position = 0)]
-    op_code: SecurityOperation,
+    pub op_code: SecurityOperation,
     /// Type of the security data
     #[at_arg(position = 1)]
-    data_type: SecurityDataType,
+    pub data_type: SecurityDataType,
     /// Unique identifier of an imported certificate or private key. If an existing name is
     /// used, the data will be overridden. The maximum length is 32 characters.
     #[at_arg(position = 2)]
-    internal_name: String<32>,
+    pub internal_name: String<32>,
     /// MD5 formatted string.
     #[at_arg(position = 3)]
-    md5_string: String<128>,
+    pub md5_string: String<128>,
 }
 
 /// 10.2 Network status +UNSTAT
@@ -34,12 +34,12 @@ pub struct SecurityDataImport {
 pub struct SecurityDataMD5 {
     /// Type of the security data
     #[at_arg(position = 0)]
-    data_type: SecurityDataType,
+    pub data_type: SecurityDataType,
     /// Unique identifier of an imported certificate or private key. If an existing name is
     /// used, the data will be overridden. The maximum length is 32 characters.
     #[at_arg(position = 1)]
-    internal_name: String<32>,
+    pub internal_name: String<32>,
     /// MD5 formatted string.
     #[at_arg(position = 2)]
-    md5_string: String<128>,
+    pub md5_string: String<128>,
 }
