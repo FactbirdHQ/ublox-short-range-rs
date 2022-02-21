@@ -160,6 +160,12 @@ where
     pub fn reset(&mut self) -> Result<(), Error> {
         self.serial_mode = SerialMode::Cmd;
         self.initialized = false;
+        self.wifi_connection = None;
+        self.urc_attempts = 0;
+        self.security_credentials = SecurityCredentials::default();
+        self.edm_mapping = EdmMap::new();
+
+        self.clear_buffers()?;
 
         if let Some(ref mut pin) = self.config.rst_pin {
             pin.set_low().ok();
@@ -171,6 +177,19 @@ where
             self.timer.start(3.secs()).map_err(|_| Error::Timer)?;
             nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
         }
+        Ok(())
+    }
+
+    pub(crate) fn clear_buffers(&mut self) -> Result<(), Error> {
+        self.client.reset();
+        if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
+            sockets.prune();
+        }
+
+        // Allow ATAT some time to clear the buffers
+        self.timer.start(300.millis()).map_err(|_| Error::Timer)?;
+        nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+
         Ok(())
     }
 
