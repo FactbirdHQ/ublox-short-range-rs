@@ -2,8 +2,7 @@ use crate::command::edm::{
     calc_payload_len,
     types::{PayloadType, AT_COMMAND_POSITION, EDM_OVERHEAD, ENDBYTE, STARTBYTE},
 };
-use atat::InternalError;
-use atat::{DigestResult, Digester, UrcMatcher};
+use atat::{helpers::LossyStr, DigestResult, Digester, InternalError, UrcMatcher};
 use heapless::Vec;
 
 /// State of the `EDMDigester`, used to filter responses
@@ -77,7 +76,7 @@ impl Digester for EdmDigester {
 
         // Debug statement for trace properly
         if !buf.is_empty() {
-            defmt::trace!("Digest {:?} / {=[u8]:x}", self.state, &buf);
+            defmt::trace!("Digest {:?} / {:?}", self.state, LossyStr(&buf));
         }
 
         // Filter message by payload
