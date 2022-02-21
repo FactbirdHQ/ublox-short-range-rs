@@ -34,11 +34,13 @@ impl EdmMap {
     }
 
     pub fn insert(&mut self, channel_id: ChannelId, socket_handle: SocketHandle) -> Result<(), ()> {
+        defmt::trace!("[EDM_MAP] {:?} tied to {:?}", socket_handle, channel_id);
         self.0.insert(channel_id, socket_handle).map_err(drop)?;
         Ok(())
     }
 
     pub fn remove(&mut self, channel_id: &ChannelId) -> Result<(), ()> {
+        defmt::trace!("[EDM_MAP] {:?} removed", channel_id);
         self.0.remove(channel_id).ok_or(())?;
         Ok(())
     }

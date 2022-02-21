@@ -51,9 +51,9 @@ where
                 return Err(Error::Illegal);
             }
 
-            sockets.add(TcpSocket::new(0)).map_err(|_| {
-                defmt::error!("[TCP] Opening socket Error: Socket set full");
-                Error::SocketSetFull
+            sockets.add(TcpSocket::new(0)).map_err(|e| {
+                defmt::error!("[TCP] Opening socket Error: {:?}", e);
+                e
             })
         } else {
             Err(Error::Illegal)
@@ -70,7 +70,7 @@ where
             return Err(Error::Illegal.into());
         }
 
-        defmt::debug!("[TCP] Connect socket: {:?}", socket);
+        defmt::debug!("[TCP] Connect socket");
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized || !con.is_connected() {
                 return Err(nb::Error::Other(Error::Illegal));
@@ -93,8 +93,6 @@ where
             .tcp()
             .map_err(|_| Error::Unaddressable)?;
 
-        defmt::trace!("[TCP] Connecting to url! {=str}", url);
-
         let ConnectPeerResponse { peer_handle } = self
             .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
             .map_err(|_| Error::Unaddressable)?;
@@ -109,6 +107,8 @@ where
         *socket = SocketHandle(peer_handle);
         tcp.set_state(TcpState::WaitingForConnect(remote));
         tcp.update_handle(*socket);
+
+        defmt::trace!("[TCP] Connecting socket: {:?} to url: {=str}", socket, url);
 
         // TODO: Timeout?
         while {
