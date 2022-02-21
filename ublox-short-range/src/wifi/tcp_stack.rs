@@ -79,26 +79,13 @@ where
             return Err(nb::Error::Other(Error::Illegal));
         }
 
-        // If no socket is found we stop here
-        // TODO: This could probably be done nicer?
-        self.sockets
-            .as_mut()
-            .unwrap()
-            .get::<TcpSocket<TIMER_HZ, L>>(*socket)
-            .map_err(Self::Error::from)?;
-
         let url = PeerUrlBuilder::new()
             .address(&remote)
             .creds(self.security_credentials.clone())
             .tcp()
             .map_err(|_| Error::Unaddressable)?;
 
-        defmt::trace!("[TCP] Connecting to url! {=str}", url);
-
-        let ConnectPeerResponse { peer_handle } = self
-            .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
-            .map_err(|_| Error::Unaddressable)?;
-
+        // If no socket is found we stop here
         let mut tcp = self
             .sockets
             .as_mut()
@@ -106,9 +93,33 @@ where
             .get::<TcpSocket<TIMER_HZ, L>>(*socket)
             .map_err(Self::Error::from)?;
 
-        *socket = SocketHandle(peer_handle);
         tcp.set_state(TcpState::WaitingForConnect(remote));
-        tcp.update_handle(*socket);
+
+        match self
+            .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
+            .map_err(|_| Error::Unaddressable)
+        {
+            Ok(resp) => {
+                let mut tcp = self
+                    .sockets
+                    .as_mut()
+                    .unwrap()
+                    .get::<TcpSocket<TIMER_HZ, L>>(*socket)
+                    .map_err(Self::Error::from)?;
+                *socket = SocketHandle(resp.peer_handle);
+                tcp.update_handle(*socket);
+            }
+            Err(e) => {
+                let mut tcp = self
+                    .sockets
+                    .as_mut()
+                    .unwrap()
+                    .get::<TcpSocket<TIMER_HZ, L>>(*socket)
+                    .map_err(Self::Error::from)?;
+                tcp.set_state(TcpState::Created);
+                return Err(nb::Error::Other(e));
+            }
+        }
 
         // TODO: Timeout?
         while {
