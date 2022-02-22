@@ -141,9 +141,10 @@ impl AtatUrc for EdmEvent {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::command::{data_mode::urc::PeerDisconnected, edm::types::DATA_PACKAGE_SIZE, Urc};
+    use crate::command::{
+        data_mode::urc::PeerDisconnected, edm::types::DATA_PACKAGE_SIZE, PeerHandle, Urc,
+    };
     use atat::{heapless::Vec, AtatUrc};
-    use ublox_sockets::SocketHandle;
 
     #[test]
     fn parse_at_urc() {
@@ -169,7 +170,7 @@ mod test {
             // 0xAAu8, 0x00, 0x1B, 0x00, 0x41, 0x2B, 0x55, 0x55, 0x57, 0x4C, 0x45, 0x3A, 0x30, 0x2C, 0x33, 0x32, 0x41, 0x42, 0x36, 0x41, 0x37, 0x41, 0x34, 0x30, 0x34, 0x34, 0x2C, 0x31, 0x0D, 0x0A, 0x55,
         ];
         let urc = EdmEvent::ATEvent(Urc::PeerDisconnected(PeerDisconnected {
-            handle: SocketHandle(3),
+            handle: PeerHandle(3),
         }));
         let parsed_urc = EdmEvent::parse(resp);
         assert_eq!(parsed_urc, Some(urc), "Parsing URC failed");

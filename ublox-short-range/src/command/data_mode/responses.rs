@@ -1,4 +1,5 @@
 //! Responses for Data Mode
+use super::PeerHandle;
 use atat::atat_derive::AtatResp;
 use heapless::String;
 
@@ -6,14 +7,14 @@ use heapless::String;
 #[derive(Clone, AtatResp)]
 pub struct ConnectPeerResponse {
     #[at_arg(position = 0)]
-    pub peer_handle: u8,
+    pub peer_handle: PeerHandle,
 }
 
 /// 5.5 Peer list +UDLP
 #[derive(Clone, AtatResp)]
 pub struct PeerListResponse {
     #[at_arg(position = 0)]
-    pub peer_handle: usize,
+    pub peer_handle: PeerHandle,
     #[at_arg(position = 1)]
     pub protocol: String<64>,
     #[at_arg(position = 2)]
