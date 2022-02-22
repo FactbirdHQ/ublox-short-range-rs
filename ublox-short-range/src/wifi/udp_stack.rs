@@ -80,19 +80,40 @@ where
             .udp()
             .map_err(|_| Error::Unaddressable)?;
         defmt::trace!("[UDP] Connecting URL! {=str}", url);
-        let resp = self
-            .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
-            .map_err(|_| Error::Unaddressable)?;
 
+        // First look to see if socket is valid
         let mut udp = self
             .sockets
             .as_mut()
             .unwrap()
             .get::<UdpSocket<TIMER_HZ, L>>(*socket)?;
-        *socket = SocketHandle(resp.peer_handle);
         udp.bind(remote)?;
-        udp.update_handle(*socket);
 
+        // Then connect modem
+        match self
+            .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
+            .map_err(|_| Error::Unaddressable)
+        {
+            Ok(resp) => {
+                // Just passed, should not fail this time
+                let mut udp = self
+                    .sockets
+                    .as_mut()
+                    .unwrap()
+                    .get::<UdpSocket<TIMER_HZ, L>>(*socket)?;
+                *socket = SocketHandle(resp.peer_handle);
+                udp.update_handle(*socket);
+            }
+            Err(e) => {
+                let mut udp = self
+                    .sockets
+                    .as_mut()
+                    .unwrap()
+                    .get::<UdpSocket<TIMER_HZ, L>>(*socket)?;
+                udp.close();
+                return Err(e);
+            }
+        }
         while self
             .sockets
             .as_mut()
@@ -179,6 +200,8 @@ where
                 udp.close();
                 self.send_at(ClosePeerConnection { peer_handle })
                     .map_err(|_| Error::Unaddressable)?;
+            } else {
+                defmt::error!("No socket matching: {:?}", socket)
             }
 
             Ok(())
