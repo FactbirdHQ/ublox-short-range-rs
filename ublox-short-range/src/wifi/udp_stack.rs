@@ -27,6 +27,7 @@ where
     type UdpSocket = SocketHandle;
 
     fn socket(&mut self) -> Result<Self::UdpSocket, Self::Error> {
+        let socket_id = self.new_socket_num();
         if let Some(ref mut sockets) = self.sockets {
             // Check if there are any unused sockets available
             if sockets.len() >= sockets.capacity() {
@@ -45,8 +46,7 @@ where
             } else {
                 return Err(Error::Illegal);
             }
-
-            sockets.add(UdpSocket::new(0)).map_err(|_| {
+            sockets.add(UdpSocket::new(socket_id)).map_err(|_| {
                 defmt::error!("[UDP] Opening socket Error: Socket set full");
                 Error::SocketSetFull
             })
@@ -94,16 +94,11 @@ where
             .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
             .map_err(|_| Error::Unaddressable)
         {
-            Ok(resp) => {
-                // Just passed, should not fail this time
-                let mut udp = self
-                    .sockets
-                    .as_mut()
-                    .unwrap()
-                    .get::<UdpSocket<TIMER_HZ, L>>(*socket)?;
-                *socket = SocketHandle(resp.peer_handle);
-                udp.update_handle(*socket);
-            }
+            Ok(resp) => self
+                .socket_map
+                .insert_peer(resp.peer_handle.into(), *socket)
+                .map_err(|_| Error::InvalidSocket)?,
+
             Err(e) => {
                 let mut udp = self
                     .sockets
@@ -147,8 +142,8 @@ where
             }
 
             let channel = *self
-                .edm_mapping
-                .channel_id(socket)
+                .socket_map
+                .socket_to_channel_id(socket)
                 .ok_or(nb::Error::Other(Error::SocketClosed))?;
 
             for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
@@ -195,13 +190,21 @@ where
             defmt::debug!("[UDP] Closing socket: {:?}", socket);
             // If no sockets exists, nothing to close.
             if let Ok(ref mut udp) = sockets.get::<UdpSocket<TIMER_HZ, L>>(socket) {
-                let peer_handle = udp.handle();
-
-                udp.close();
-                self.send_at(ClosePeerConnection { peer_handle })
-                    .map_err(|_| Error::Unaddressable)?;
+                match udp.state() {
+                    UdpState::Closed => {
+                        sockets.remove(socket).ok();
+                    }
+                    UdpState::Established => {
+                        udp.close();
+                        if let Some(peer_handle) = self.socket_map.socket_to_peer(&udp.handle()) {
+                            let peer_handle = *peer_handle;
+                            self.send_at(ClosePeerConnection { peer_handle })
+                                .map_err(|_| Error::Unaddressable)?;
+                        }
+                    }
+                }
             } else {
-                defmt::error!("No socket matching: {:?}", socket)
+                defmt::error!("No socket matching: {:?}", socket);
             }
 
             Ok(())

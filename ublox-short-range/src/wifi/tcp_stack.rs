@@ -1,9 +1,6 @@
 use crate::{
     command::data_mode::*,
-    command::{
-        data_mode::responses::ConnectPeerResponse,
-        edm::{EdmAtCmdWrapper, EdmDataCommand},
-    },
+    command::edm::{EdmAtCmdWrapper, EdmDataCommand},
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
@@ -32,6 +29,7 @@ where
 
     /// Open a new TCP socket to the given address and port. The socket starts in the unconnected state.
     fn socket(&mut self) -> Result<Self::TcpSocket, Self::Error> {
+        let socket_id = self.new_socket_num();
         if let Some(ref mut sockets) = self.sockets {
             // Check if there are any unused sockets available
             if sockets.len() >= sockets.capacity() {
@@ -51,7 +49,7 @@ where
                 return Err(Error::Illegal);
             }
 
-            sockets.add(TcpSocket::new(0)).map_err(|e| {
+            sockets.add(TcpSocket::new(socket_id)).map_err(|e| {
                 defmt::error!("[TCP] Opening socket Error: {:?}", e);
                 e
             })
@@ -99,16 +97,10 @@ where
             .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
             .map_err(|_| Error::Unaddressable)
         {
-            Ok(resp) => {
-                let mut tcp = self
-                    .sockets
-                    .as_mut()
-                    .unwrap()
-                    .get::<TcpSocket<TIMER_HZ, L>>(*socket)
-                    .map_err(Self::Error::from)?;
-                *socket = SocketHandle(resp.peer_handle);
-                tcp.update_handle(*socket);
-            }
+            Ok(resp) => self
+                .socket_map
+                .insert_peer(resp.peer_handle, *socket)
+                .map_err(|_| Error::InvalidSocket)?,
             Err(e) => {
                 let mut tcp = self
                     .sockets
@@ -183,8 +175,8 @@ where
             }
 
             let channel = *self
-                .edm_mapping
-                .channel_id(socket)
+                .socket_map
+                .socket_to_channel_id(socket)
                 .ok_or(nb::Error::Other(Error::SocketClosed))?;
 
             for chunk in buffer.chunks(EGRESS_CHUNK_SIZE) {
@@ -231,10 +223,20 @@ where
                     tcp.state(),
                     TcpState::ShutdownForWrite(_) | TcpState::Created
                 ) {
-                    let peer_handle = tcp.handle();
-                    match self.send_at(ClosePeerConnection { peer_handle }) {
-                        Err(crate::error::Error::AT(atat::Error::InvalidResponse)) | Ok(_) => (),
-                        Err(_) => return Err(Error::Unaddressable),
+                    if let Some(peer_handle) = self.socket_map.socket_to_peer(&tcp.handle()) {
+                        let peer_handle = *peer_handle;
+                        match self.send_at(ClosePeerConnection { peer_handle }) {
+                            Err(crate::error::Error::AT(atat::Error::InvalidResponse)) | Ok(_) => {
+                                ()
+                            }
+                            Err(_) => return Err(Error::Unaddressable),
+                        }
+                    } else {
+                        defmt::error!(
+                            "Illigal state! Socket connected but not in socket map: {:?}",
+                            tcp.handle()
+                        );
+                        return Err(Error::Illegal);
                     }
                 } else {
                     // No connection exists the socket should be removed from the set here

@@ -6,9 +6,8 @@ pub mod urc;
 use atat::atat_derive::AtatCmd;
 use responses::*;
 use types::*;
-use ublox_sockets::SocketHandle;
 
-use super::NoResponse;
+use super::{NoResponse, PeerHandle};
 
 /// 5.1 Enter data mode O
 ///
@@ -41,7 +40,7 @@ pub struct ConnectPeer<'a> {
 #[at_cmd("+UDCPC", NoResponse, timeout_ms = 10000)]
 pub struct ClosePeerConnection {
     #[at_arg(position = 0)]
-    pub peer_handle: SocketHandle,
+    pub peer_handle: PeerHandle,
 }
 
 /// 5.4 Default remote peer +UDDRP

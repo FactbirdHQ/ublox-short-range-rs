@@ -13,7 +13,8 @@ pub mod security;
 pub mod system;
 pub mod wifi;
 
-use atat::atat_derive::{AtatCmd, AtatResp, AtatUrc};
+use atat::atat_derive::{AtatCmd, AtatLen, AtatResp, AtatUrc};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, AtatResp, PartialEq)]
 pub struct NoResponse;
@@ -21,6 +22,23 @@ pub struct NoResponse;
 #[derive(Debug, Clone, AtatCmd)]
 #[at_cmd("", NoResponse, timeout_ms = 1000)]
 pub struct AT;
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    AtatLen,
+    Ord,
+    Default,
+    Serialize,
+    Deserialize,
+    defmt::Format,
+    hash32_derive::Hash32,
+)]
+pub struct PeerHandle(u8);
 
 #[derive(Debug, PartialEq, Clone, AtatUrc)]
 pub enum Urc {
