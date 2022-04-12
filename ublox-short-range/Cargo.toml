@@ -15,11 +15,11 @@ name = "ublox_short_range"
 doctest = false
 
 [dependencies]
-atat = { version = "0.15.0", features = ["derive", "defmt", "bytes"] }
+atat = { version = "0.16.1", features = ["derive", "defmt", "bytes"] }
 heapless = { version = "^0.7", features = ["serde"] }
 no-std-net = { version = "^0.5", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
-ublox-sockets = { version = "^0.2", features = ["defmt"] }
+ublox-sockets = { version = "^0.3", features = ["defmt"] }
 hash32 = "^0.2.1"
 hash32-derive = "^0.1.0"
 

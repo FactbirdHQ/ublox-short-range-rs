@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 )]
 pub struct ChannelId(pub u8);
 
-pub const DATA_PACKAGE_SIZE: usize = 540;
+pub const DATA_PACKAGE_SIZE: usize = 4096;
 pub const STARTBYTE: u8 = 0xAA;
 pub const ENDBYTE: u8 = 0x55;
 pub const EDM_SIZE_FILTER: u8 = 0x0F;

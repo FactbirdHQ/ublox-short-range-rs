@@ -181,7 +181,7 @@ pub struct SetLocalAddress<'a> {
     /// The least significant bit of the first octet of the <address> must be 0; that is, the
     /// <address> must be a unicast address.
     #[at_arg(position = 1, len = 12)]
-    pub mac_address: atat::serde_at::ser::Bytes<'a>,
+    pub mac_address: &'a atat::serde_bytes::Bytes,
 }
 
 /// 4.14 Get Local address +UMLA

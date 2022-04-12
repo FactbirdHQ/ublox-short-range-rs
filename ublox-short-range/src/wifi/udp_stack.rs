@@ -4,7 +4,7 @@ use crate::{
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
-use atat::Clock;
+use atat::clock::Clock;
 use embedded_hal::digital::blocking::OutputPin;
 use embedded_nal::{nb, SocketAddr};
 

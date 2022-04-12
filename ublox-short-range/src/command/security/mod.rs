@@ -43,12 +43,11 @@ pub struct PrepareSecurityDataImport<'a> {
     value_sep = false,
     timeout_ms = 10000,
     cmd_prefix = "",
-    termination = "",
-    force_receive_state = true
+    termination = ""
 )]
 pub struct SendSecurityDataImport<'a> {
     #[at_arg(position = 0, len = 2048)]
-    pub data: atat::serde_at::ser::Bytes<'a>,
+    pub data: &'a atat::serde_bytes::Bytes,
 }
 
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG

@@ -26,12 +26,10 @@ pub(crate) struct EdmAtCmdWrapper<T: AtatCmd<LEN>, const LEN: usize>(pub T);
 
 impl<T, const LEN: usize> atat::AtatCmd<1024> for EdmAtCmdWrapper<T, LEN>
 where
-    T: AtatCmd<LEN, Error = atat::GenericError>,
+    T: AtatCmd<LEN>,
 {
     type Response = T::Response;
-    type Error = atat::GenericError;
 
-    const FORCE_RECEIVE_STATE: bool = true;
     const MAX_TIMEOUT_MS: u32 = T::MAX_TIMEOUT_MS;
 
     fn as_bytes(&self) -> Vec<u8, 1024> {
@@ -94,12 +92,10 @@ pub(crate) struct BigEdmAtCmdWrapper<T: AtatCmd<LEN>, const LEN: usize>(pub T);
 
 impl<T, const LEN: usize> atat::AtatCmd<2054> for BigEdmAtCmdWrapper<T, LEN>
 where
-    T: AtatCmd<LEN, Error = atat::GenericError>,
+    T: AtatCmd<LEN>,
 {
     type Response = T::Response;
-    type Error = atat::GenericError;
 
-    const FORCE_RECEIVE_STATE: bool = true;
     const MAX_TIMEOUT_MS: u32 = T::MAX_TIMEOUT_MS;
 
     fn as_bytes(&self) -> Vec<u8, 2054> {
@@ -165,7 +161,6 @@ pub struct EdmDataCommand<'a> {
 // wifi::socket::EGRESS_CHUNK_SIZE + PAYLOAD_OVERHEAD = 512 + 6 + 1 = 519
 impl<'a> atat::AtatCmd<{ EGRESS_CHUNK_SIZE + 7 }> for EdmDataCommand<'a> {
     type Response = NoResponse;
-    type Error = atat::GenericError;
 
     const EXPECTS_RESPONSE_CODE: bool = false;
 
@@ -199,7 +194,6 @@ pub struct EdmResendConnectEventsCommand;
 
 impl atat::AtatCmd<6> for EdmResendConnectEventsCommand {
     type Response = NoResponse;
-    type Error = atat::GenericError;
 
     fn as_bytes(&self) -> Vec<u8, 6> {
         [
@@ -228,8 +222,6 @@ pub struct SwitchToEdmCommand;
 
 impl atat::AtatCmd<6> for SwitchToEdmCommand {
     type Response = NoResponse;
-    type Error = atat::GenericError;
-    const FORCE_RECEIVE_STATE: bool = true;
 
     fn as_bytes(&self) -> Vec<u8, 6> {
         ChangeMode {

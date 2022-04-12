@@ -4,7 +4,7 @@ use crate::{
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
-use atat::Clock;
+use atat::clock::Clock;
 use embedded_hal::digital::blocking::OutputPin;
 /// Handles receiving data from sockets
 /// implements TCP and UDP for WiFi client
