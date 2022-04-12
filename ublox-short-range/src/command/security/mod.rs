@@ -43,12 +43,11 @@ pub struct PrepareSecurityDataImport<'a> {
     value_sep = false,
     timeout_ms = 10000,
     cmd_prefix = "",
-    termination = "",
-    force_receive_state = true
+    termination = ""
 )]
 pub struct SendSecurityDataImport<'a> {
     #[at_arg(position = 0, len = 2048)]
-    pub data: atat::serde_at::ser::Bytes<'a>,
+    pub data: &'a atat::serde_bytes::Bytes,
 }
 
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG
@@ -67,21 +66,21 @@ pub struct RemoveSecurityData<'a> {
     pub name: &'a str,
 }
 
-/// TODO: Implement response for this
-/// 11.1 SSL/TLS certificates and private keys manager +USECMNG
-///
-/// Manages the X.509 certificates and private keys with the following functionalities:
-/// - Validation and import of certificates and private keys
-/// - List and information retrieval of the imported certificates and private keys
-/// - Removal of the certificates and private keys
-/// - MD5 calculation of the imported certificate or private key
-#[derive(Clone, AtatCmd)]
-#[at_cmd("+USECMNG=3,", NoResponse, value_sep = false, timeout_ms = 10000)]
-// #[at_cmd("+USECMNG=3,", ListSecurityDataResponse, value_sep = false, timeout_ms = 10000)]
-pub struct ListSecurityData {
-    // #[at_arg(position = 0)]
-// pub types: SecurityDataType,
-}
+// /// TODO: Implement response for this
+// /// 11.1 SSL/TLS certificates and private keys manager +USECMNG
+// ///
+// /// Manages the X.509 certificates and private keys with the following functionalities:
+// /// - Validation and import of certificates and private keys
+// /// - List and information retrieval of the imported certificates and private keys
+// /// - Removal of the certificates and private keys
+// /// - MD5 calculation of the imported certificate or private key
+// #[derive(Clone, AtatCmd)]
+// #[at_cmd("+USECMNG=3,", NoResponse, value_sep = false, timeout_ms = 10000)]
+// // #[at_cmd("+USECMNG=3,", ListSecurityDataResponse, value_sep = false, timeout_ms = 10000)]
+// pub struct ListSecurityData {
+//     #[at_arg(position = 0)]
+//     pub types: SecurityDataType,
+// }
 
 /// 11.1 SSL/TLS certificates and private keys manager +USECMNG
 ///

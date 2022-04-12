@@ -4,7 +4,7 @@ use crate::{
     error::Error,
     UbloxClient,
 };
-use atat::Clock;
+use atat::clock::Clock;
 use embedded_hal::digital::blocking::OutputPin;
 use heapless::String;
 
@@ -39,7 +39,7 @@ where
 
         self.send_internal(
             &BigEdmAtCmdWrapper(SendSecurityDataImport {
-                data: atat::serde_at::ser::Bytes(certificate),
+                data: atat::serde_bytes::Bytes::new(certificate),
             }),
             false,
         )?;
@@ -64,7 +64,7 @@ where
 
         self.send_internal(
             &BigEdmAtCmdWrapper(SendSecurityDataImport {
-                data: atat::serde_at::ser::Bytes(root_ca),
+                data: atat::serde_bytes::Bytes::new(root_ca),
             }),
             false,
         )?;
@@ -94,7 +94,7 @@ where
 
         self.send_internal(
             &BigEdmAtCmdWrapper(SendSecurityDataImport {
-                data: atat::serde_at::ser::Bytes(private_key),
+                data: atat::serde_bytes::Bytes::new(private_key),
             }),
             false,
         )?;

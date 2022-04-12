@@ -17,7 +17,7 @@ use crate::{
         SocketMap,
     },
 };
-use atat::Clock;
+use atat::clock::Clock;
 use embedded_hal::digital::blocking::OutputPin;
 use embedded_nal::{nb, IpAddr, SocketAddr};
 use fugit::ExtU32;
@@ -148,7 +148,7 @@ where
         attempts: usize,
     ) -> Result<A::Response, Error>
     where
-        A: atat::AtatCmd<LEN, Error = atat::GenericError>,
+        A: atat::AtatCmd<LEN>,
     {
         for _ in 0..attempts {
             match self.send_internal(cmd, true) {
@@ -220,7 +220,7 @@ where
         check_urc: bool,
     ) -> Result<A::Response, Error>
     where
-        A: atat::AtatCmd<LEN, Error = atat::GenericError>,
+        A: atat::AtatCmd<LEN>,
     {
         if check_urc {
             if let Err(e) = self.handle_urc() {
@@ -531,7 +531,7 @@ where
     /// Automaticaly waraps commands in EDM context
     pub fn send_at<A, const LEN: usize>(&mut self, cmd: A) -> Result<A::Response, Error>
     where
-        A: atat::AtatCmd<LEN, Error = atat::GenericError>,
+        A: atat::AtatCmd<LEN>,
     {
         if !self.initialized {
             self.init()?;

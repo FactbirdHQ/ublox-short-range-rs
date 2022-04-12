@@ -18,7 +18,7 @@ use crate::{
     },
 };
 use atat::AtatClient;
-use atat::{heapless_bytes::Bytes, Clock};
+use atat::{clock::Clock, heapless_bytes::Bytes};
 use embedded_hal::digital::blocking::OutputPin;
 
 use super::connection::{WiFiState, WifiConnection};
