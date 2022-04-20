@@ -252,7 +252,7 @@ where
                     EdmEvent::ATEvent(urc) => {
                         match urc {
                             Urc::PeerConnected(_) => {
-                                defmt::trace!("[URC] PeerConnected");
+                                defmt::debug!("[URC] PeerConnected");
 
                                 // TODO:
                                 //
@@ -265,7 +265,7 @@ where
                                 true
                             }
                             Urc::PeerDisconnected(msg) => {
-                                defmt::trace!("[URC] PeerDisconnected");
+                                defmt::debug!("[URC] PeerDisconnected");
                                 if let Some(handle) = socket_map.peer_to_socket(&msg.handle) {
                                     match sockets.socket_type(*handle) {
                                         Some(SocketType::Tcp) => {
@@ -290,7 +290,7 @@ where
                                 true
                             }
                             Urc::WifiLinkConnected(msg) => {
-                                defmt::trace!("[URC] WifiLinkConnected");
+                                defmt::debug!("[URC] WifiLinkConnected");
                                 if let Some(con) = wifi_connection {
                                     con.wifi_state = WiFiState::Connected;
                                     con.network.bssid = msg.bssid;
@@ -299,7 +299,7 @@ where
                                 true
                             }
                             Urc::WifiLinkDisconnected(msg) => {
-                                defmt::trace!("[URC] WifiLinkDisconnected");
+                                defmt::debug!("[URC] WifiLinkDisconnected");
                                 if let Some(con) = wifi_connection {
                                     match msg.reason {
                                         DisconnectReason::NetworkDisabled => {
@@ -316,34 +316,34 @@ where
                                 true
                             }
                             Urc::WifiAPUp(_) => {
-                                defmt::trace!("[URC] WifiAPUp");
+                                defmt::debug!("[URC] WifiAPUp");
                                 true
                             }
                             Urc::WifiAPDown(_) => {
-                                defmt::trace!("[URC] WifiAPDown");
+                                defmt::debug!("[URC] WifiAPDown");
                                 true
                             }
                             Urc::WifiAPStationConnected(client) => {
-                                defmt::trace!(
+                                defmt::debug!(
                                     "[URC] WifiAPStationConnected {=[u8]:a}",
                                     client.mac_addr.into_inner()
                                 );
                                 true
                             }
                             Urc::WifiAPStationDisconnected(_) => {
-                                defmt::trace!("[URC] WifiAPStationDisconnected");
+                                defmt::debug!("[URC] WifiAPStationDisconnected");
                                 true
                             }
                             Urc::EthernetLinkUp(_) => {
-                                defmt::trace!("[URC] EthernetLinkUp");
+                                defmt::debug!("[URC] EthernetLinkUp");
                                 true
                             }
                             Urc::EthernetLinkDown(_) => {
-                                defmt::trace!("[URC] EthernetLinkDown");
+                                defmt::debug!("[URC] EthernetLinkDown");
                                 true
                             }
                             Urc::NetworkUp(_) => {
-                                defmt::trace!("[URC] NetworkUp");
+                                defmt::debug!("[URC] NetworkUp");
                                 if let Some(con) = wifi_connection {
                                     match con.network_state {
                                         NetworkState::Attached => (),
@@ -359,25 +359,25 @@ where
                                 true
                             }
                             Urc::NetworkDown(_) => {
-                                defmt::trace!("[URC] NetworkDown");
+                                defmt::debug!("[URC] NetworkDown");
                                 if let Some(con) = wifi_connection {
                                     con.network_state = NetworkState::Unattached;
                                 }
                                 true
                             }
                             Urc::NetworkError(_) => {
-                                defmt::trace!("[URC] NetworkError");
+                                defmt::debug!("[URC] NetworkError");
                                 true
                             }
                             Urc::PingResponse(resp) => {
-                                defmt::trace!("[URC] PingResponse");
+                                defmt::debug!("[URC] PingResponse");
                                 if *dns_state == DNSState::Resolving {
                                     *dns_state = DNSState::Resolved(resp.ip)
                                 }
                                 true
                             }
                             Urc::PingErrorResponse(resp) => {
-                                defmt::trace!("[URC] PingErrorResponse: {:?}", resp.error);
+                                defmt::debug!("[URC] PingErrorResponse: {:?}", resp.error);
                                 if *dns_state == DNSState::Resolving {
                                     *dns_state = DNSState::Error(resp.error)
                                 }
@@ -386,11 +386,11 @@ where
                         }
                     } // end match urc
                     EdmEvent::StartUp => {
-                        defmt::trace!("[EDM_URC] STARTUP");
+                        defmt::debug!("[EDM_URC] STARTUP");
                         true
                     }
                     EdmEvent::IPv4ConnectEvent(event) => {
-                        defmt::trace!(
+                        defmt::debug!(
                             "[EDM_URC] IPv4ConnectEvent! Channel_id: {:?}",
                             event.channel_id
                         );
@@ -424,7 +424,7 @@ where
                             .is_some()
                     }
                     EdmEvent::IPv6ConnectEvent(event) => {
-                        defmt::trace!(
+                        defmt::debug!(
                             "[EDM_URC] IPv6ConnectEvent! Channel_id: {:?}",
                             event.channel_id
                         );
@@ -458,16 +458,16 @@ where
                             .is_some()
                     }
                     EdmEvent::BluetoothConnectEvent(_) => {
-                        defmt::trace!("[EDM_URC] BluetoothConnectEvent");
+                        defmt::debug!("[EDM_URC] BluetoothConnectEvent");
                         true
                     }
                     EdmEvent::DisconnectEvent(channel_id) => {
-                        defmt::trace!("[EDM_URC] DisconnectEvent! Channel_id: {:?}", channel_id);
+                        defmt::debug!("[EDM_URC] DisconnectEvent! Channel_id: {:?}", channel_id);
                         socket_map.remove_channel(&channel_id).unwrap();
                         true
                     }
                     EdmEvent::DataEvent(event) => {
-                        defmt::trace!("[EDM_URC] DataEvent! Channel_id: {:?}", event.channel_id);
+                        defmt::debug!("[EDM_URC] DataEvent! Channel_id: {:?}", event.channel_id);
                         if !event.data.is_empty() {
                             if let Some(socket_handle) =
                                 socket_map.channel_to_socket(&event.channel_id)

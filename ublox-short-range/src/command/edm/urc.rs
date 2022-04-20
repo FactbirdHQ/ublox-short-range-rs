@@ -140,7 +140,7 @@ impl AtatUrc for EdmEvent {
             }
 
             _ => {
-                defmt::trace!("[Parse URC Error] {:?}", LossyStr(resp));
+                defmt::error!("[Parse URC Error] {:?}", LossyStr(resp));
                 None
             }
         }
