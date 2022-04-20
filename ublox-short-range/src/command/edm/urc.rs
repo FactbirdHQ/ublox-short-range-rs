@@ -1,6 +1,7 @@
 use super::calc_payload_len;
 use super::types::*;
 use super::Urc;
+use atat::helpers::LossyStr;
 use atat::AtatUrc;
 use embedded_nal::{Ipv4Addr, Ipv6Addr};
 use heapless::Vec;
@@ -131,7 +132,7 @@ impl AtatUrc for EdmEvent {
             }
 
             _ => {
-                // defmt::info!("[Parse URC Error] {:?}", resp);
+                defmt::error!("[Parse URC Error] {:?}", LossyStr(resp));
                 None
             }
         }
