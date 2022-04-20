@@ -25,7 +25,7 @@ impl AtatUrc for EdmEvent {
 
     /// Parse the response into a `Self::Response` instance.
     fn parse(resp: &[u8]) -> Option<Self::Response> {
-        // defmt::info!("[Parse URC] {:?}", resp);
+        defmt::trace!("[Parse URC] {:?}", LossyStr(resp));
         // Startup message?
         // TODO: simplify mayby no packet check.
         if resp
@@ -40,19 +40,27 @@ impl AtatUrc for EdmEvent {
             || !resp.starts_with(&[STARTBYTE])
             || !resp.ends_with(&[ENDBYTE])
         {
-            // defmt::info!("[Parse URC Error] {:?}", resp);
+            defmt::error!("[Parse URC Start/End byte Error] {:?}", LossyStr(&resp));
             return None;
         };
         let payload_len = calc_payload_len(resp);
         if resp.len() != payload_len + EDM_OVERHEAD {
-            // defmt::info!("[Parse URC Error] {:?}", resp);
+            defmt::error!("[Parse URC lenght Error] {:?}", LossyStr(resp));
             return None;
         }
 
         match resp[4].into() {
             PayloadType::ATEvent => {
-                // defmt::info!("[Parse URC AT-CMD]: {:?}", &resp[AT_COMMAND_POSITION .. PAYLOAD_POSITION + payload_len]);
-                let cmd = Urc::parse(&resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len])?;
+                defmt::trace!(
+                    "[Parse URC AT-CMD]: {:?}",
+                    LossyStr(&resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len])
+                );
+                let mut urc = &resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len];
+                match urc.iter().position(|x| !x.is_ascii_whitespace()) {
+                    Some(i) => urc = &urc[i..],
+                    None => (),
+                };
+                let cmd = Urc::parse(urc)?;
                 EdmEvent::ATEvent(cmd).into()
             }
 
@@ -143,35 +151,29 @@ impl AtatUrc for EdmEvent {
 mod test {
     use super::*;
     use crate::command::{
-        data_mode::urc::PeerDisconnected, edm::types::DATA_PACKAGE_SIZE, PeerHandle, Urc,
+        data_mode::urc::{PeerConnected, PeerDisconnected},
+        edm::types::DATA_PACKAGE_SIZE,
+        PeerHandle, Urc,
     };
-    use atat::{heapless::Vec, AtatUrc};
+    use atat::{heapless::Vec, heapless_bytes::Bytes, AtatUrc};
 
     #[test]
     fn parse_at_urc() {
         // AT-urc: +UUDPD:3
         let resp = &[
-            // 0xAAu8, 0x00, 0x0E, 0x00, PayloadType::ATEvent as u8, 0x0D, 0x0A, 0x2B, 0x55, 0x55, 0x44, 0x50, 0x44, 0x3A, 0x33, 0x0D, 0x0A, 0x55,
-            0xAAu8,
-            0x00,
-            0x0C,
-            0x00,
-            PayloadType::ATEvent as u8,
-            0x2B,
-            0x55,
-            0x55,
-            0x44,
-            0x50,
-            0x44,
-            0x3A,
-            0x33,
-            0x0D,
-            0x0A,
-            0x55,
-            // 0xAAu8, 0x00, 0x1B, 0x00, 0x41, 0x2B, 0x55, 0x55, 0x57, 0x4C, 0x45, 0x3A, 0x30, 0x2C, 0x33, 0x32, 0x41, 0x42, 0x36, 0x41, 0x37, 0x41, 0x34, 0x30, 0x34, 0x34, 0x2C, 0x31, 0x0D, 0x0A, 0x55,
+            170, 0, 46, 0, 65, 13, 10, 43, 85, 85, 68, 80, 67, 58, 50, 44, 50, 44, 49, 44, 48, 46,
+            48, 46, 48, 46, 48, 44, 48, 44, 49, 54, 50, 46, 49, 53, 57, 46, 50, 48, 48, 46, 49, 44,
+            49, 50, 51, 13, 10, 85,
         ];
-        let urc = EdmEvent::ATEvent(Urc::PeerDisconnected(PeerDisconnected {
-            handle: PeerHandle(3),
+        // URC: b"\xaa\x00.\x00A\r\n+UUDPC:2,2,1,0.0.0.0,0,162.159.200.1,123\r\nU"
+        let urc = EdmEvent::ATEvent(Urc::PeerConnected(PeerConnected {
+            handle: PeerHandle(2),
+            connection_type: crate::command::data_mode::types::ConnectionType::IPv4,
+            protocol: crate::command::data_mode::types::IPProtocol::UDP,
+            local_address: Bytes::from_slice(&"0.0.0.0".as_bytes()).unwrap(),
+            local_port: 0,
+            remote_address: Bytes::from_slice(&"162.159.200.1".as_bytes()).unwrap(),
+            remote_port: 123,
         }));
         let parsed_urc = EdmEvent::parse(resp);
         assert_eq!(parsed_urc, Some(urc), "Parsing URC failed");
