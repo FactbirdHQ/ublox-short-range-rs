@@ -5,11 +5,12 @@ use crate::{
         wifi::{
             self,
             types::{
-                AccessPointAction, AccessPointConfig, AccessPointId, IPv4Mode, OnOff, PasskeyR,
+                AccessPointAction, AccessPointConfig, AccessPointId, IPv4Mode, PasskeyR,
                 SecurityMode, SecurityModePSK,
             },
             SetWifiAPConfig, WifiAPAction,
         },
+        OnOff,
     },
     error::WifiHotspotError,
     wifi::{

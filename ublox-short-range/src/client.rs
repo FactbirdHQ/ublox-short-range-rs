@@ -1,5 +1,6 @@
 use crate::{
     command::{
+        data_mode::{types::PeerConfigParameter, SetPeerConfiguration},
         edm::{types::Protocol, urc::EdmEvent, EdmAtCmdWrapper, SwitchToEdmCommand},
         network::SetNetworkHostName,
         ping::types::PingError,
@@ -8,7 +9,7 @@ use crate::{
             SetRS232Settings, StoreCurrentConfig,
         },
         wifi::types::DisconnectReason,
-        Urc,
+        OnOff, Urc,
     },
     config::Config,
     error::Error,

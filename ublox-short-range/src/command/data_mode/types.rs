@@ -1,13 +1,7 @@
 //! Argument and parameter types used by Data Mode Commands and Responses
+pub use crate::command::OnOff;
 use atat::atat_derive::AtatEnum;
 use heapless::String;
-
-#[derive(Clone, PartialEq, AtatEnum)]
-#[repr(u8)]
-pub enum OnOff {
-    Off = 0,
-    On = 1,
-}
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
@@ -200,6 +194,9 @@ pub enum PeerConfigParameter {
     /// multiple TCP links are used, this should be low.
     #[at_arg(value = 5)]
     TCPOutOfSequenceQueue(u8),
+    /// UDCFG_TCP_FAST_RETRANSMIT = 104 (0 = normal timer, 1 = fast timer)
+    #[at_arg(value = 104)]
+    TCPFastTransmit(OnOff),
 }
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]
