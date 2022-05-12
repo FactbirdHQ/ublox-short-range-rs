@@ -1,4 +1,5 @@
 use crate::{
+    client::new_socket_num,
     command::data_mode::*,
     command::edm::{EdmAtCmdWrapper, EdmDataCommand},
     wifi::peer_builder::PeerUrlBuilder,
@@ -29,7 +30,7 @@ where
 
     /// Open a new TCP socket to the given address and port. The socket starts in the unconnected state.
     fn socket(&mut self) -> Result<Self::TcpSocket, Self::Error> {
-        let socket_id = self.new_socket_num();
+        self.connected_to_network().map_err(|_| Error::Illegal)?;
         if let Some(ref mut sockets) = self.sockets {
             // Check if there are any unused sockets available
             if sockets.len() >= sockets.capacity() {
@@ -41,14 +42,8 @@ where
             }
 
             defmt::debug!("[TCP] Opening socket");
-            if let Some(ref con) = self.wifi_connection {
-                if !self.initialized || !con.is_connected() {
-                    return Err(Error::Illegal);
-                }
-            } else {
-                return Err(Error::Illegal);
-            }
 
+            let socket_id = new_socket_num(sockets).unwrap();
             sockets.add(TcpSocket::new(socket_id)).map_err(|e| {
                 defmt::error!("[TCP] Opening socket Error: {:?}", e);
                 e
@@ -69,13 +64,7 @@ where
         }
 
         defmt::debug!("[TCP] Connect socket");
-        if let Some(ref con) = self.wifi_connection {
-            if !self.initialized || !con.is_connected() {
-                return Err(nb::Error::Other(Error::Illegal));
-            }
-        } else {
-            return Err(nb::Error::Other(Error::Illegal));
-        }
+        self.connected_to_network().map_err(|_| Error::Illegal)?;
 
         let url = PeerUrlBuilder::new()
             .address(&remote)
@@ -134,15 +123,8 @@ where
 
     /// Check if this socket is still connected
     fn is_connected(&mut self, socket: &Self::TcpSocket) -> Result<bool, Self::Error> {
+        self.connected_to_network().map_err(|_| Error::Illegal)?;
         if let Some(ref mut sockets) = self.sockets {
-            if let Some(ref con) = self.wifi_connection {
-                if !self.initialized || !con.is_connected() {
-                    return Ok(false);
-                }
-            } else {
-                return Ok(false);
-            }
-
             let tcp = sockets.get::<TcpSocket<TIMER_HZ, L>>(*socket)?;
             Ok(tcp.is_connected())
         } else {
@@ -157,15 +139,8 @@ where
         socket: &mut Self::TcpSocket,
         buffer: &[u8],
     ) -> nb::Result<usize, Self::Error> {
+        self.connected_to_network().map_err(|_| Error::Illegal)?;
         if let Some(ref mut sockets) = self.sockets {
-            if let Some(ref con) = self.wifi_connection {
-                if !self.initialized || !con.is_connected() {
-                    return Err(Error::Illegal.into());
-                }
-            } else {
-                return Err(Error::Illegal.into());
-            }
-
             let tcp = sockets
                 .get::<TcpSocket<TIMER_HZ, L>>(*socket)
                 .map_err(|e| nb::Error::Other(e.into()))?;

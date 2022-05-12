@@ -21,6 +21,7 @@ pub enum Error {
     Uninitialized,
     Unimplemented,
     SocketMemory,
+    SocketMapMemory,
     Timer,
     _Unknown,
 }
