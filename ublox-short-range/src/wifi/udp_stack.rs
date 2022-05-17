@@ -2,7 +2,7 @@ use crate::{
     client::new_socket_num,
     command::data_mode::*,
     command::{
-        data_mode::types::{IPVersion, ServerConfig, ServerType, UDPBehaviour},
+        data_mode::types::{IPVersion, ServerType, UDPBehaviour},
         edm::{EdmAtCmdWrapper, EdmDataCommand},
     },
     wifi::peer_builder::PeerUrlBuilder,
@@ -83,7 +83,7 @@ where
 
         // Then connect modem
         match self
-            .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), false)
+            .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), true)
             .map_err(|_| Error::Unaddressable)
         {
             Ok(resp) => self
@@ -116,7 +116,7 @@ where
 
     /// Send a datagram to the remote host.
     fn send(&mut self, socket: &mut Self::UdpSocket, buffer: &[u8]) -> nb::Result<(), Self::Error> {
-        self.connected_to_network().map_err(|_| Error::Illegal)?;
+        self.spin().map_err(|_| Error::Illegal)?;
         if let Some(ref mut sockets) = self.sockets {
             // No send for server sockets!
             if self.udp_listener.is_bound(*socket) {
@@ -160,6 +160,7 @@ where
         socket: &mut Self::UdpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<(usize, SocketAddr), Self::Error> {
+        self.spin().ok();
         let udp_listener = &mut self.udp_listener;
         // Handle server sockets
         if udp_listener.is_bound(*socket) {
@@ -201,6 +202,7 @@ where
 
     /// Close an existing UDP socket.
     fn close(&mut self, socket: Self::UdpSocket) -> Result<(), Self::Error> {
+        self.spin().ok();
         // Close server socket
         if self.udp_listener.is_bound(socket) {
             defmt::debug!("[UDP] Closing Server socket: {:?}", socket);
@@ -300,10 +302,9 @@ where
     RST: OutputPin,
 {
     fn bind(&mut self, socket: &mut Self::UdpSocket, local_port: u16) -> Result<(), Self::Error> {
-        if self.sockets.is_none() || self.udp_listener.is_port_bound(local_port) {
+        if self.connected_to_network().is_err() || self.udp_listener.is_port_bound(local_port) {
             return Err(Error::Illegal);
         }
-        self.connected_to_network().map_err(|_| Error::Illegal)?;
 
         defmt::debug!(
             "[UDP] binding socket: {:?} to port: {:?}",
@@ -338,7 +339,7 @@ where
         remote: SocketAddr,
         buffer: &[u8],
     ) -> nb::Result<(), Self::Error> {
-        self.connected_to_network().map_err(|_| Error::Illegal)?;
+        self.spin().map_err(|_| Error::Illegal)?;
         // Protect against non server sockets
         if !self.udp_listener.is_bound(*socket) {
             return Err(Error::Illegal.into());
@@ -359,8 +360,6 @@ where
                     return Err(Error::SocketClosed.into());
                 }
 
-                self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
-
                 let channel = *self
                     .socket_map
                     .socket_to_channel_id(&connection_socket)
@@ -372,7 +371,7 @@ where
                             channel,
                             data: chunk,
                         },
-                        true,
+                        false,
                     )
                     .map_err(|_| nb::Error::Other(Error::Unaddressable))?;
                 }

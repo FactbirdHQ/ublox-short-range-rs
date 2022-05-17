@@ -221,16 +221,10 @@ where
         if !self.initialized {
             return Err(Error::Uninitialized);
         }
-        while self.handle_urc()? {}
-        // while self.handle_urc()? {}
 
-        if let Some(ref mut con) = self.wifi_connection {
-            if !con.is_connected() {
-                return Err(Error::WifiState(con.wifi_state));
-            }
-        } else {
-            return Err(Error::NoWifiSetup);
-        }
+        while self.handle_urc()? {}
+
+        self.connected_to_network()?;
 
         Ok(())
     }
@@ -643,7 +637,6 @@ where
                     }
                     error!("[EDM_URC] URC thrown away");
                 }
-                ran = res;
                 a = 0;
                 true
             });
@@ -669,10 +662,17 @@ where
 
     pub fn connected_to_network(&self) -> Result<(), Error> {
         if let Some(ref con) = self.wifi_connection {
-            if self.initialized || con.is_connected() {
-                return Ok(());
+            if !self.initialized {
+                Err(Error::Uninitialized)
+            } else if !con.is_connected() {
+                Err(Error::WifiState(con.wifi_state))
+            } else if self.sockets.is_none() {
+                Err(Error::MissingSocketSet)
+            } else {
+                Ok(())
             }
+        } else {
+            Err(Error::NoWifiSetup)
         }
-        Err(Error::Network)
     }
 }
