@@ -296,7 +296,7 @@ where
                                 let remote = SocketAddr::new(remote_ip.into(), event.remote_port);
 
                                 if let Some(queue) = udp_listener.incoming(event.local_port) {
-                                    debug!("Server socket incomming");
+                                    trace!("[UDP Server] Server socket incomming");
                                     let mut handled = true;
                                     if sockets.len() >= sockets.capacity() {
                                         // Check if there are any sockets closed by remote, and close it
@@ -328,10 +328,10 @@ where
                                         handled = false;
                                     }
                                     debug!(
-                                        "Binding remote {=[u8]:a} to UDP server on port {:?} with peer {:?}",
+                                        "[URC] Binding remote {=[u8]:a} to UDP server on port: {:?} with handle: {:?}",
                                         event.remote_address.as_slice(),
                                         event.local_port,
-                                        peer_handle
+                                        socket_handle
                                     );
                                     if queue.enqueue((socket_handle, remote)).is_err(){
                                         handled = false
@@ -503,24 +503,13 @@ where
 
                         let endpoint = SocketAddr::new(event.remote_ip.into(), event.remote_port);
 
-                        // if let Some(queue) = tcp_listener.incoming(event.local_port) {
-                        //     match queue.peek() {
-                        //         Some((h, remote)) if remote == &endpoint => {
-                        //             return edm_mapping.insert(event.channel_id, *h).is_ok();
-                        //         }
-                        //         _ => {}
-                        //     }
-                        // } else 
                         // This depends upon Connected AT-URC to arrive first.
                         if let Some(queue) = udp_listener.incoming(event.local_port) {
-                            // TODO iter?
                             if let Some((socket_handle, _ )) = queue.into_iter().find(|(_, remote)| remote == &endpoint) {
                                 socket_map.insert_channel(event.channel_id, *socket_handle).is_ok()
                             } else {
-
                                 false
                             }
-                            //TODO error here?
                         } else {
                             sockets
                                 .iter_mut()
@@ -559,13 +548,11 @@ where
 
                         // This depends upon Connected AT-URC to arrive first.
                         if let Some(queue) = udp_listener.incoming(event.local_port) {
-                            // TODO iter?
                             if let Some((socket_handle, _ )) = queue.into_iter().find(|(_, remote)| remote == &endpoint) {
                                 socket_map.insert_channel(event.channel_id, *socket_handle).is_ok()
                             } else {
                                 false
                             }
-                            //TODO error here?
                         } else {
                             sockets
                                 .iter_mut()

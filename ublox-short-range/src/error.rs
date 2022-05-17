@@ -74,7 +74,7 @@ pub enum WifiError {
     ATError(atat::Error),
     HexError,
     // FIXME: Temp fix!
-    Other,
+    // Other,
 }
 
 #[derive(Debug, defmt::Format)]
