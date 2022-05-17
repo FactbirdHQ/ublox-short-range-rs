@@ -49,6 +49,7 @@ where
                 Error::SocketSetFull
             })
         } else {
+            defmt::error!("[UDP] Opening socket Error: Missing socket set");
             Err(Error::Illegal)
         }
     }
@@ -61,17 +62,16 @@ where
         remote: SocketAddr,
     ) -> Result<(), Self::Error> {
         if self.sockets.is_none() {
+            defmt::error!("[UDP] Connecting socket Error: Missing socket set");
             return Err(Error::Illegal);
         }
-
-        defmt::debug!("[UDP] Connecting socket");
-        self.connected_to_network().map_err(|_| Error::Illegal)?;
-
         let url = PeerUrlBuilder::new()
             .address(&remote)
             .udp()
             .map_err(|_| Error::Unaddressable)?;
-        defmt::trace!("[UDP] Connecting URL! {=str}", url);
+        defmt::debug!("[UDP] Connecting Socket: {:?} to URL: {=str}", socket, url);
+
+        self.connected_to_network().map_err(|_| Error::Illegal)?;
 
         // First look to see if socket is valid
         let mut udp = self
@@ -119,8 +119,7 @@ where
         self.connected_to_network().map_err(|_| Error::Illegal)?;
         if let Some(ref mut sockets) = self.sockets {
             // No send for server sockets!
-            let udp_listener = &mut self.udp_listener;
-            if udp_listener.is_bound(*socket) {
+            if self.udp_listener.is_bound(*socket) {
                 return Err(nb::Error::Other(Error::Illegal));
             }
 
@@ -202,69 +201,61 @@ where
 
     /// Close an existing UDP socket.
     fn close(&mut self, socket: Self::UdpSocket) -> Result<(), Self::Error> {
-        // let udp_listener = &mut self.udp_listener;
+        // Close server socket
         if self.udp_listener.is_bound(socket) {
             defmt::debug!("[UDP] Closing Server socket: {:?}", socket);
 
-            // close incomming connections
+            // ID 2 used by UDP server
+            self.send_internal(
+                &EdmAtCmdWrapper(ServerConfiguration {
+                    id: 2,
+                    server_config: ServerType::Disabled,
+                }),
+                true,
+            )
+            .map_err(|_| Error::Unaddressable)?;
+
+            // Borrow socket set to close server socket
+            if let Some(ref mut sockets) = self.sockets {
+                // If socket in socket set close
+                if sockets.remove(socket).is_err() {
+                    defmt::error!(
+                        "[UDP] Closing server socket error: No socket matching: {:?}",
+                        socket
+                    );
+                    return Err(Error::InvalidSocket);
+                }
+            } else {
+                return Err(Error::Illegal);
+            }
+
+            // Close incomming connections
             while self.udp_listener.available(socket).unwrap_or(false) {
                 if let Ok((connection_handle, _)) = self.udp_listener.get_remote(socket) {
-                    if let Some(ref mut sockets) = self.sockets {
-                        if let Ok(ref mut udp) =
-                            sockets.get::<UdpSocket<TIMER_HZ, L>>(*connection_handle)
-                        {
-                            match udp.state() {
-                                UdpState::Closed => {
-                                    sockets.remove(*connection_handle).ok();
-                                }
-                                UdpState::Established => {
-                                    udp.close();
-                                    if let Some(peer_handle) =
-                                        self.socket_map.socket_to_peer(&udp.handle())
-                                    {
-                                        let peer_handle = *peer_handle;
-                                        self.send_at(ClosePeerConnection { peer_handle })
-                                            .map_err(|_| Error::Unaddressable)?;
-                                    }
-                                }
-                            }
-                        } else {
-                            defmt::error!("No socket matching: {:?}", socket);
-                        }
-                    }
-                }
-            }
-            // Reborrow sockets to close server socket
-            if let Some(ref mut sockets) = self.sockets {
-                // If no sockets exists, nothing to close.
-                if let Ok(ref mut udp) = sockets.get::<UdpSocket<TIMER_HZ, L>>(socket) {
-                    match udp.state() {
-                        UdpState::Closed => {
-                            sockets.remove(socket).ok();
-                        }
-                        UdpState::Established => {
-                            udp.close();
-                            if let Some(peer_handle) = self.socket_map.socket_to_peer(&udp.handle())
-                            {
-                                let peer_handle = *peer_handle;
-                                self.send_at(ClosePeerConnection { peer_handle })
-                                    .map_err(|_| Error::Unaddressable)?;
-                            }
-                        }
-                    }
+                    defmt::debug!(
+                        "[UDP] Closing incomming socket for Server: {:?}",
+                        connection_handle
+                    );
+                    self.close(connection_handle)?;
                 } else {
-                    defmt::error!("No socket matching: {:?}", socket);
+                    defmt::error!("[UDP] Incomming socket for server error - Listener says available, while nothing present");
                 }
-                Ok(())
-            } else {
-                Err(Error::Illegal)
             }
+
+            // Unbind server socket in listener
+            self.udp_listener.unbind(socket).map_err(|_| {
+                defmt::error!(
+                    "[UDP] Closing socket error: No server socket matching: {:?}",
+                    socket
+                );
+                Error::Illegal
+            })
         // Handle normal sockets
         } else if let Some(ref mut sockets) = self.sockets {
             defmt::debug!("[UDP] Closing socket: {:?}", socket);
             // If no sockets exists, nothing to close.
             if let Ok(ref mut udp) = sockets.get::<UdpSocket<TIMER_HZ, L>>(socket) {
-                defmt::debug!("[UDP] Closing socket state: {:?}", udp.state());
+                defmt::trace!("[UDP] Closing socket state: {:?}", udp.state());
                 match udp.state() {
                     UdpState::Closed => {
                         sockets.remove(socket).ok();
@@ -279,9 +270,12 @@ where
                     }
                 }
             } else {
-                defmt::error!("No socket matching: {:?}", socket);
+                defmt::error!(
+                    "[UDP] Closing socket error: No socket matching: {:?}",
+                    socket
+                );
+                return Err(Error::InvalidSocket);
             }
-
             Ok(())
         } else {
             Err(Error::Illegal)
@@ -293,11 +287,10 @@ where
 ///
 /// This fullstack is build for request-response type servers due to HW/SW limitations
 /// Limitations:
-/// - One can only send to Socket addresses that have send data first.
-/// - One can only recive an incomming datastream once.
-/// - One can only use send_to once after reciving data once.
-/// - One has to use send_to after reciving data, to release the socket bound by remote host,
-/// even if just sending no bytes.
+/// - The driver can only send to Socket addresses that have send data first.
+/// - The driver can only call send_to once after reciving data once.
+/// - The driver has to call send_to after reciving data, to release the socket bound by remote host,
+/// even if just sending no bytes. Else these sockets will be held open until closure of server socket.
 ///
 impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> UdpFullStack
     for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
@@ -307,12 +300,16 @@ where
     RST: OutputPin,
 {
     fn bind(&mut self, socket: &mut Self::UdpSocket, local_port: u16) -> Result<(), Self::Error> {
-        if self.sockets.is_none() {
+        if self.sockets.is_none() || self.udp_listener.is_port_bound(local_port) {
             return Err(Error::Illegal);
         }
         self.connected_to_network().map_err(|_| Error::Illegal)?;
 
-        defmt::debug!("[UDP] bind socket: {:?} to port: {:?}", socket, local_port);
+        defmt::debug!(
+            "[UDP] binding socket: {:?} to port: {:?}",
+            socket,
+            local_port
+        );
 
         // ID 2 used by UDP server
         self.send_internal(
@@ -324,7 +321,7 @@ where
                     IPVersion::IPv4,
                 ),
             }),
-            false,
+            true,
         )
         .map_err(|_| Error::Unaddressable)?;
 
@@ -350,8 +347,7 @@ where
         if let Some(connection_socket) = self.udp_listener.get_outgoing(socket, remote) {
             if let Some(ref mut sockets) = self.sockets {
                 if buffer.len() == 0 {
-                    //TODO handle error
-                    self.close(connection_socket).unwrap();
+                    self.close(connection_socket)?;
                     return Ok(());
                 }
 
