@@ -151,9 +151,7 @@ impl AtatUrc for EdmEvent {
 mod test {
     use super::*;
     use crate::command::{
-        data_mode::urc::{PeerConnected, PeerDisconnected},
-        edm::types::DATA_PACKAGE_SIZE,
-        PeerHandle, Urc,
+        data_mode::urc::PeerConnected, edm::types::DATA_PACKAGE_SIZE, PeerHandle, Urc,
     };
     use atat::{heapless::Vec, heapless_bytes::Bytes, AtatUrc};
 

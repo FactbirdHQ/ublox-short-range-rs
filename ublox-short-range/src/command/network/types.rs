@@ -1,14 +1,9 @@
 //! Argument and parameter types used by Network Commands and Responses
 
+pub use crate::command::OnOff;
 use atat::atat_derive::AtatEnum;
 use embedded_nal::{IpAddr, Ipv4Addr, Ipv6Addr};
 use heapless::String;
-#[derive(Clone, PartialEq, AtatEnum)]
-#[repr(u8)]
-pub enum OnOff {
-    Off = 0,
-    On = 1,
-}
 
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum NetworkStatus {

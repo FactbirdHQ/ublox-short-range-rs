@@ -1,14 +1,8 @@
 //! Argument and parameter types used by Ethernet Commands and Responses
 
+pub use crate::command::OnOff;
 use atat::atat_derive::AtatEnum;
 use embedded_nal::Ipv4Addr;
-
-#[derive(Clone, PartialEq, AtatEnum)]
-#[repr(u8)]
-pub enum OnOff {
-    Off = 0,
-    On = 1,
-}
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
