@@ -51,10 +51,6 @@ impl AtatUrc for EdmEvent {
 
         match resp[4].into() {
             PayloadType::ATEvent => {
-                defmt::trace!(
-                    "[Parse URC AT-CMD]: {:?}",
-                    LossyStr(&resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len])
-                );
                 let mut urc = &resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len];
                 match urc.iter().position(|x| !x.is_ascii_whitespace()) {
                     Some(i) => urc = &urc[i..],
