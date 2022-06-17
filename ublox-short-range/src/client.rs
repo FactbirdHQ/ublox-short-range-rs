@@ -226,6 +226,11 @@ where
 
         self.connected_to_network()?;
 
+        // TODO: Is this smart?
+        // if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
+            // sockets.recycle(self.timer.now());
+        // }
+
         Ok(())
     }
 

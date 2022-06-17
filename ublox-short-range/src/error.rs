@@ -1,3 +1,5 @@
+pub use ublox_sockets::Error as SocketError;
+
 #[derive(Debug, defmt::Format)]
 pub enum Error {
     SetState,

@@ -1,5 +1,5 @@
 use crate::command::PeerHandle;
-use ublox_sockets::SocketHandle;
+pub use ublox_sockets::SocketHandle;
 
 use crate::command::edm::types::ChannelId;
 
