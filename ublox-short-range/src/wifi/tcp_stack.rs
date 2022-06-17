@@ -105,6 +105,7 @@ where
         defmt::trace!("[TCP] Connecting socket: {:?} to url: {=str}", socket, url);
 
         // TODO: Timeout?
+        // TODO: Fix the fact that it doesen't wait for both connect messages
         while {
             matches!(
                 self.sockets
@@ -175,8 +176,12 @@ where
         socket: &mut Self::TcpSocket,
         buffer: &mut [u8],
     ) -> nb::Result<usize, Self::Error> {
+        // TODO: Handle error states
         self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
         if let Some(ref mut sockets) = self.sockets {
+            // Enable detecting closed socket from receive function
+            sockets.recycle(self.timer.now());
+
             let mut tcp = sockets
                 .get::<TcpSocket<TIMER_HZ, L>>(*socket)
                 .map_err(Self::Error::from)?;
