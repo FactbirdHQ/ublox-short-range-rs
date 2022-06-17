@@ -2,7 +2,10 @@ use core::str::FromStr;
 
 use crate::{
     command::{
-        data_mode::{types::{IPProtocol, PeerConfigParameter}, SetPeerConfiguration},
+        data_mode::{
+            types::{IPProtocol, PeerConfigParameter},
+            SetPeerConfiguration,
+        },
         edm::{types::Protocol, urc::EdmEvent, EdmAtCmdWrapper, SwitchToEdmCommand},
         network::SetNetworkHostName,
         ping::types::PingError,
@@ -228,7 +231,7 @@ where
 
         // TODO: Is this smart?
         // if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
-            // sockets.recycle(self.timer.now());
+        // sockets.recycle(self.timer.now());
         // }
 
         Ok(())
