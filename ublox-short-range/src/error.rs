@@ -1,5 +1,6 @@
 #[derive(Debug, defmt::Format)]
 pub enum Error {
+    Overflow,
     SetState,
     BadLength,
     Network,

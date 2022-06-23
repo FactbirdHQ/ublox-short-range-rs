@@ -40,7 +40,7 @@ pub struct Layer2Routing {
     #[at_arg(position = 0)]
     pub routing_tag: RoutingTag,
     #[at_arg(position = 1)]
-    pub routing_value: OnOff,
+    pub routing_value: bool,
 }
 
 /// 10.4 Bridge configuration +UBRGC

@@ -13,7 +13,7 @@ pub mod security;
 pub mod system;
 pub mod wifi;
 
-use atat::atat_derive::{AtatCmd, AtatEnum, AtatLen, AtatResp, AtatUrc};
+use atat::atat_derive::{AtatCmd, AtatLen, AtatResp, AtatUrc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, AtatResp, PartialEq)]
@@ -39,13 +39,6 @@ pub struct AT;
     hash32_derive::Hash32,
 )]
 pub struct PeerHandle(u8);
-
-#[derive(Clone, PartialEq, AtatEnum)]
-#[repr(u8)]
-pub enum OnOff {
-    Off = 0,
-    On = 1,
-}
 
 #[derive(Debug, PartialEq, Clone, AtatUrc)]
 pub enum Urc {

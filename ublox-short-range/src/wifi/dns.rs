@@ -26,14 +26,15 @@ where
         hostname: &str,
         _addr_type: AddrType,
     ) -> nb::Result<IpAddr, Self::Error> {
-        self.dns_state = DNSState::Resolving;
+        defmt::debug!("Lookup hostname: {}", hostname);
         self.send_at(Ping {
             hostname,
             retry_num: 1,
         })
         .map_err(|_| nb::Error::Other(Error::Unaddressable))?;
+        self.dns_state = DNSState::Resolving;
 
-        let expiration = self.timer.now() + 5.secs();
+        let expiration = self.timer.now() + 8.secs();
 
         while self.dns_state == DNSState::Resolving {
             self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;

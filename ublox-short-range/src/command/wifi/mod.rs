@@ -37,7 +37,7 @@ pub struct GetWifiStationConfig {
     #[at_arg(position = 0)]
     pub config_id: u8,
     #[at_arg(position = 1)]
-    pub parameter: WifiStationConfigParameter,
+    pub parameter: Option<WifiStationConfigParameter>,
 }
 
 /// 7.2 Wi-Fi station configuration action +UWSCA
@@ -61,7 +61,6 @@ pub struct ExecWifiStationAction {
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UWSCAN", WifiScanResponse, timeout_ms = 10000)]
 pub struct WifiScan<'a> {
-    /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0, len = 64)]
     pub ssid: Option<&'a str>,
 }
@@ -133,7 +132,7 @@ pub struct GetWatchdogConfig {
     #[at_arg(position = 0)]
     pub watchdog_setting: WatchdogSetting,
     #[at_arg(position = 1)]
-    pub value: OnOff,
+    pub value: bool,
 }
 
 /// 7.8 Wi-Fi Access point configuration +UWAPC

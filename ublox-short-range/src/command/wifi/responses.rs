@@ -17,7 +17,7 @@ pub struct GetWifiStationConfigResponse {
 #[derive(Clone, AtatResp)]
 pub struct WifiScanResponse {
     #[at_arg(position = 0)]
-    pub network_list: Vec<ScanedWifiNetwork, 32>,
+    pub network_list: Vec<ScannedWifiNetwork, 32>,
 }
 
 /// 7.5 Wi-Fi station status +UWSSTAT

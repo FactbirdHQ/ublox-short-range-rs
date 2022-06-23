@@ -1,5 +1,6 @@
 use embedded_nal::Ipv4Addr;
 use heapless::String;
+use serde::{Deserialize, Serialize};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
@@ -54,41 +55,22 @@ impl HotspotOptions {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, defmt::Format)]
 pub struct ConnectionOptions {
-    pub config_id: Option<u8>,
-
     pub ssid: String<64>,
     pub password: Option<String<64>>,
 
+    #[defmt(Debug2Format)]
     pub ip: Option<Ipv4Addr>,
+    #[defmt(Debug2Format)]
     pub subnet: Option<Ipv4Addr>,
+    #[defmt(Debug2Format)]
     pub gateway: Option<Ipv4Addr>,
-}
-
-impl Default for ConnectionOptions {
-    fn default() -> Self {
-        Self {
-            config_id: Some(0),
-
-            ssid: String::new(),
-            password: None,
-
-            ip: None,
-            subnet: None,
-            gateway: None,
-        }
-    }
 }
 
 impl ConnectionOptions {
     pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn config_id(mut self, config_id: u8) -> Self {
-        self.config_id = Some(config_id);
-        self
+        Self::default()
     }
 
     pub fn ssid(mut self, ssid: String<64>) -> Self {
