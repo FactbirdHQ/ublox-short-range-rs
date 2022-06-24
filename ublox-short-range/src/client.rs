@@ -1,6 +1,7 @@
 use crate::{
     command::{
         edm::{types::Protocol, urc::EdmEvent, EdmAtCmdWrapper, SwitchToEdmCommand},
+        general::{types::FirmwareVersion, SoftwareVersion},
         network::SetNetworkHostName,
         ping::types::PingError,
         system::{
@@ -66,6 +67,7 @@ where
     pub(crate) timer: CLK,
     pub(crate) socket_map: SocketMap,
     socket_num: u8,
+    network_up_bug: bool,
 }
 
 impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
@@ -90,6 +92,7 @@ where
             timer,
             socket_map: SocketMap::default(),
             socket_num: 0,
+            network_up_bug: false,
         }
     }
 
@@ -144,8 +147,17 @@ where
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
         self.supplicant::<10>().load()?;
 
+        if self.firmware_version()? < FirmwareVersion::new(8, 0, 0) {
+            self.network_up_bug = true;
+        }
+
         self.initialized = true;
         Ok(())
+    }
+
+    pub fn firmware_version(&mut self) -> Result<FirmwareVersion, Error> {
+        let response = self.send_at(SoftwareVersion)?;
+        Ok(response.version)
     }
 
     pub fn retry_send<A, const LEN: usize>(
@@ -353,16 +365,19 @@ where
                         Urc::NetworkUp(_) => {
                             defmt::debug!("[URC] NetworkUp");
                             if let Some(con) = wifi_connection {
-                                // match con.network_state {
-                                //     NetworkState::Attached => (),
-                                //     NetworkState::AlmostAttached => {
-                                //         con.network_state = NetworkState::Attached
-                                //     }
-                                //     NetworkState::Unattached => {
-                                //         con.network_state = NetworkState::AlmostAttached
-                                //     }
-                                // }
-                                con.network_state = NetworkState::Attached;
+                                if self.network_up_bug {
+                                    match con.network_state {
+                                        NetworkState::Attached => (),
+                                        NetworkState::AlmostAttached => {
+                                            con.network_state = NetworkState::Attached
+                                        }
+                                        NetworkState::Unattached => {
+                                            con.network_state = NetworkState::AlmostAttached
+                                        }
+                                    }
+                                } else {
+                                    con.network_state = NetworkState::Attached;
+                                }
                             }
                             true
                         }

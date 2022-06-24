@@ -1,4 +1,5 @@
 //! Responses for General Commands
+use super::types::*;
 use atat::atat_derive::AtatResp;
 use heapless::String;
 
@@ -23,7 +24,7 @@ pub struct ModelIdentificationResponse {
 pub struct SoftwareVersionResponse {
     /// Text string that identifies the Model identification.
     #[at_arg(position = 0)]
-    pub version: String<64>,
+    pub version: FirmwareVersion,
 }
 
 /// 3.5 Serial number +CGSN
@@ -45,9 +46,9 @@ pub struct IdentificationInfomationTypeCodeResponse {
 /// 3.10 Identification information I9
 #[derive(Clone, AtatResp)]
 pub struct IdentificationInfomationSoftwareVersionResponse {
-    /// Text string that identifies the serial number.
+    /// Text string that identifies the firmware version.
     #[at_arg(position = 0)]
-    pub serial_number: String<64>,
+    pub version: String<64>,
 }
 
 /// 3.10 Identification information I10
