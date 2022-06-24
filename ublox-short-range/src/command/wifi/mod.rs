@@ -16,7 +16,7 @@ use super::NoResponse;
 /// activated (Wi-Fi Station Configuration Action +UWSCA) before use.
 /// If more than one configuration has active on start up parameter enabled, the behaviour is undefined.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWSC", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UWSC", NoResponse, timeout_ms = 1000)]
 pub struct SetWifiStationConfig {
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
@@ -31,7 +31,7 @@ pub struct SetWifiStationConfig {
 /// activated (Wi-Fi Station Configuration Action +UWSCA) before use.
 /// If more than one configuration has active on start up parameter enabled, the behaviour is undefined.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWSC", GetWifiStationConfigResponse, timeout_ms = 10000)]
+#[at_cmd("+UWSC", GetWifiStationConfigResponse, timeout_ms = 1000)]
 pub struct GetWifiStationConfig {
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
@@ -43,7 +43,7 @@ pub struct GetWifiStationConfig {
 /// 7.2 Wi-Fi station configuration action +UWSCA
 /// Executes an action for the Wi-Fi network.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWSCA", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UWSCA", NoResponse, timeout_ms = 1000)]
 pub struct ExecWifiStationAction {
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
@@ -59,7 +59,7 @@ pub struct ExecWifiStationAction {
 /// Channels scanned is given by the channel list. See +UWCL for more information. If
 /// the SSID is defined, a directed scan will be performed.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWSCAN", WifiScanResponse, timeout_ms = 10000)]
+#[at_cmd("+UWSCAN", WifiScanResponse, timeout_ms = 1000)]
 pub struct WifiScan<'a> {
     #[at_arg(position = 0, len = 64)]
     pub ssid: Option<&'a str>,
@@ -85,7 +85,7 @@ pub struct WifiScan<'a> {
 /// - Any DFS channel will be disabled for active use until an appropriate authoritative source has been found
 ///   for clearing each specific channel.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWCL", WifiScanResponse, timeout_ms = 10000)]
+#[at_cmd("+UWCL", WifiScanResponse, timeout_ms = 1000)]
 pub struct SetChannelList {
     #[at_arg(position = 0)]
     pub channels: Vec<u8, 10>,
@@ -95,7 +95,7 @@ pub struct SetChannelList {
 ///
 /// Writes the required channel list for station mode.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWSSTAT", WifiStatusResponse, timeout_ms = 10000)]
+#[at_cmd("+UWSSTAT", WifiStatusResponse, timeout_ms = 1000)]
 pub struct GetWifiStatus {
     /// Wi-Fi configuration id. 0-9
     #[at_arg(position = 0)]
@@ -106,7 +106,7 @@ pub struct GetWifiStatus {
 ///
 /// Writes configuration parameter.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWCFG", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UWCFG", NoResponse, timeout_ms = 1000)]
 pub struct SetWifiConfig {
     #[at_arg(position = 0)]
     pub config_param: WifiConfig,
@@ -116,7 +116,7 @@ pub struct SetWifiConfig {
 ///
 /// Reads configuration parameter.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWCFG", WifiConfigResponse, timeout_ms = 10000)]
+#[at_cmd("+UWCFG", WifiConfigResponse, timeout_ms = 1000)]
 pub struct GetWifiConfig {
     #[at_arg(position = 0)]
     pub config_param: WifiConfigParameter,
@@ -127,7 +127,7 @@ pub struct GetWifiConfig {
 /// Writes watchdog parameters.
 /// This command is deprecated and kept for backwards compatibility. Use +UDWS instead.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWWS", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UWWS", NoResponse, timeout_ms = 1000)]
 pub struct GetWatchdogConfig {
     #[at_arg(position = 0)]
     pub watchdog_setting: WatchdogSetting,
@@ -142,7 +142,7 @@ pub struct GetWatchdogConfig {
 /// The command will generate an error if the configuration id is active. See "Wi-Fi Access Point Configuration
 /// Action +UWAPCA" for instructions on how to deactivate a configuration.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWAPC", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UWAPC", NoResponse, timeout_ms = 1000)]
 pub struct SetWifiAPConfig {
     #[at_arg(position = 0)]
     pub ap_config_id: AccessPointId,
@@ -157,7 +157,7 @@ pub struct SetWifiAPConfig {
 /// The command will generate an error if the configuration id is active. See "Wi-Fi Access Point Configuration
 /// Action +UWAPCA" for instructions on how to deactivate a configuration.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWAPC", WifiAPConfigResponse, timeout_ms = 10000)]
+#[at_cmd("+UWAPC", WifiAPConfigResponse, timeout_ms = 1000)]
 pub struct GetWifiAPConfig {
     #[at_arg(position = 0)]
     pub ap_id: AccessPointId,
@@ -169,7 +169,7 @@ pub struct GetWifiAPConfig {
 ///
 /// Executes an action for the Wi-Fi network.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWAPCA", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UWAPCA", NoResponse, timeout_ms = 1000)]
 pub struct WifiAPAction {
     #[at_arg(position = 0)]
     pub ap_config_id: AccessPointId,
@@ -181,7 +181,7 @@ pub struct WifiAPAction {
 ///
 /// Reads current status of the Wi-Fi interface.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWAPSTAT", WifiAPStatusResponse, timeout_ms = 10000)]
+#[at_cmd("+UWAPSTAT", WifiAPStatusResponse, timeout_ms = 1000)]
 pub struct WifiAPStatus {
     #[at_arg(position = 0)]
     pub ap_status_id: AccessPointStatusId,
@@ -191,12 +191,12 @@ pub struct WifiAPStatus {
 ///
 /// Lists all the stations connected to the Wireless access point.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWAPSTALIST?", WiFiAPStationListResponse, timeout_ms = 10000)]
+#[at_cmd("+UWAPSTALIST?", WiFiAPStationListResponse, timeout_ms = 1000)]
 pub struct WiFiAPStationList;
 
 /// 7.12 Wi-Fi MAC address +UWAPMACADDR
 ///
 /// Lists the currently used MAC address.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UWAPMACADDR", WifiMacResponse, timeout_ms = 10000)]
+#[at_cmd("+UWAPMACADDR", WifiMacResponse, timeout_ms = 1000)]
 pub struct GetWifiMac;

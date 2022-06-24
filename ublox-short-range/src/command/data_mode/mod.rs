@@ -15,7 +15,7 @@ use super::{NoResponse, PeerHandle};
 /// After executing the data mode command or the extended data mode command, a delay of 50 ms is
 /// required before start of data transmission.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("O", NoResponse, timeout_ms = 10000, value_sep = false)]
+#[at_cmd("O", NoResponse, timeout_ms = 1000, value_sep = false)]
 pub struct ChangeMode {
     #[at_arg(position = 0)]
     pub mode: Mode,
@@ -27,7 +27,7 @@ pub struct ChangeMode {
 /// service on a remote device, it implicitly registers to receive the "Connection Closed"
 /// event.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 10000)]
+#[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 1000)]
 pub struct ConnectPeer<'a> {
     #[at_arg(position = 0, len = 128)]
     pub url: &'a str,
@@ -37,7 +37,7 @@ pub struct ConnectPeer<'a> {
 ///
 /// Closes an existing peer connection.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDCPC", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UDCPC", NoResponse, timeout_ms = 1000)]
 pub struct ClosePeerConnection {
     #[at_arg(position = 0)]
     pub peer_handle: PeerHandle,
@@ -49,7 +49,7 @@ pub struct ClosePeerConnection {
 /// The DCE will connect to a default remote peer when entering either the Data mode or Extended data mode
 /// (either by command or at start up, if defined by the Module Start Mode +UMSM command).
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDDRP", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UDDRP", NoResponse, timeout_ms = 1000)]
 pub struct SetDefaultRemotePeer<'a> {
     /// For ODIN-W2, the peer ID can be 0-6.
     #[at_arg(position = 0)]
@@ -64,14 +64,14 @@ pub struct SetDefaultRemotePeer<'a> {
 ///
 /// This command reads the connected peers (peer handle).
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDLP?", PeerListResponse, timeout_ms = 10000)]
+#[at_cmd("+UDLP?", PeerListResponse, timeout_ms = 1000)]
 pub struct PeerList;
 
 /// 5.6 Server configuration +UDSC
 ///
 /// Writes server configuration. Only one option from option2 is to be used.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDSC", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UDSC", NoResponse, timeout_ms = 1000)]
 pub struct ServerConfiguration {
     /// 0-6, the server ID to configure. Disable an active server first before changing.
     #[at_arg(position = 0)]
@@ -87,7 +87,7 @@ pub struct ServerConfiguration {
 /// command mode and parse AT commands. The command mode is exited by sending an ATO to the module (see
 /// O command).
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDSF", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UDSF", NoResponse, timeout_ms = 1000)]
 pub struct SetServerFlags {
     /// Id as given by AT+UDSC
     #[at_arg(position = 0)]
@@ -102,7 +102,7 @@ pub struct SetServerFlags {
 /// The data watchdog functionality is active only in the data or extended data mode. Additionally, the power
 /// mode must also be set to online or sleep mode.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDWS", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UDWS", NoResponse, timeout_ms = 1000)]
 pub struct SetWatchdogSettings {
     #[at_arg(position = 0)]
     pub setting_type: WatchdogSetting,
@@ -118,7 +118,7 @@ pub struct SetWatchdogSettings {
 /// 2                       |    >= 4.0.0
 /// 4,5                     |    >= 7.0.0
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDCFG", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UDCFG", NoResponse, timeout_ms = 1000)]
 pub struct SetPeerConfiguration {
     #[at_arg(position = 0)]
     pub parameter: PeerConfigParameter,
@@ -130,7 +130,7 @@ pub struct SetPeerConfiguration {
 /// This setting changes the decimal value of the character recognized by the DCE as a
 /// request to delete from the command line, the immediately preceding character.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDBIND", BindResponse, timeout_ms = 10000)]
+#[at_cmd("+UDBIND", BindResponse, timeout_ms = 1000)]
 pub struct SetBind {
     #[at_arg(position = 0)]
     pub stream_id_1: u8,
@@ -144,7 +144,7 @@ pub struct SetBind {
 /// provided on response of a successful connection. Channel id is provided on response
 /// of a successful bind command.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDBINDC", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UDBINDC", NoResponse, timeout_ms = 1000)]
 pub struct SoftwareUpdate {
     #[at_arg(position = 0)]
     pub stream_id: u8,

@@ -25,7 +25,7 @@ use atat::atat_derive::AtatCmd;
 /// OBS: If a remote host does not reply to an ICMP echo request, it does not mean that the host cannot be reached
 /// in another way.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UPING", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UPING", NoResponse, timeout_ms = 1000)]
 pub struct Ping<'a> {
     /// IP address (dotted decimal representation) or domain name of the remote host
     /// - Maximum length: 64 characters

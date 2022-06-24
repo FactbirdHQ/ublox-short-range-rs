@@ -13,7 +13,7 @@ use super::NoResponse;
 ///
 /// Sets a new host name.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UNHN", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UNHN", NoResponse, timeout_ms = 1000)]
 pub struct SetNetworkHostName<'a> {
     #[at_arg(position = 0, len = 64)]
     pub host_name: &'a str,
@@ -23,7 +23,7 @@ pub struct SetNetworkHostName<'a> {
 ///
 /// Shows current status of the network interface id.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UNSTAT", NetworkStatusResponse, timeout_ms = 10000)]
+#[at_cmd("+UNSTAT", NetworkStatusResponse, timeout_ms = 1000)]
 pub struct GetNetworkStatus {
     #[at_arg(position = 0)]
     pub interface_id: u8,
@@ -35,7 +35,7 @@ pub struct GetNetworkStatus {
 ///
 /// Writes configuration for layer-2 routing.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UNL2RCFG", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UNL2RCFG", NoResponse, timeout_ms = 1000)]
 pub struct Layer2Routing {
     #[at_arg(position = 0)]
     pub routing_tag: RoutingTag,
@@ -53,7 +53,7 @@ pub struct Layer2Routing {
 /// Configuration Action +UBRGCA command for instructions on how to deactivate a configuration.
 /// ODIN-W2-SW3.0.x onwards
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UBRGC", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UBRGC", NoResponse, timeout_ms = 1000)]
 pub struct SetBridgeConfiguration {
     #[at_arg(position = 0)]
     pub config_id: BridgeConfigId,
@@ -65,7 +65,7 @@ pub struct SetBridgeConfiguration {
 ///
 /// Executes an action for the network bridge configuration.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UBRGCA", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UBRGCA", NoResponse, timeout_ms = 1000)]
 pub struct BridgeConfigurationAction {
     #[at_arg(position = 0)]
     pub config_id: BridgeConfigId,
@@ -77,7 +77,7 @@ pub struct BridgeConfigurationAction {
 ///
 /// Sets parameters for IPv4 address conflict detection as described in RFC5227.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UNACDT", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UNACDT", NoResponse, timeout_ms = 1000)]
 pub struct AddressConflictDetectionTiming {
     #[at_arg(position = 0)]
     pub parameter: Timing,
