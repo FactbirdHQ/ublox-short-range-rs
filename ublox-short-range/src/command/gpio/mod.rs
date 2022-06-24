@@ -16,7 +16,7 @@ use super::NoResponse;
 /// disabled.
 /// Supported by ODIN-W2 from software version 3.0.0 onwards only.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UGPIOC", NoResponse, timeout_ms = 10000)]
+#[at_cmd("+UGPIOC", NoResponse, timeout_ms = 1000)]
 pub struct ConfigureGPIO {
     #[at_arg(position = 0)]
     pub id: GPIOId,
@@ -30,7 +30,7 @@ pub struct ConfigureGPIO {
 /// configuration.
 /// Supported by ODIN-W2 from software version 3.0.0 onwards only.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UGPIOR", ReadGPIOResponse, timeout_ms = 10000)]
+#[at_cmd("+UGPIOR", ReadGPIOResponse, timeout_ms = 1000)]
 pub struct ReadGPIO {
     #[at_arg(position = 0)]
     pub id: GPIOId,
@@ -41,7 +41,7 @@ pub struct ReadGPIO {
 /// Writes the value of an enabled GPIO pin configured as output.
 /// Supported by ODIN-W2 from software version 3.0.0 onwards only.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UGPIOW", NoResponse, value_sep = false, timeout_ms = 10000)]
+#[at_cmd("+UGPIOW", NoResponse, value_sep = false, timeout_ms = 1000)]
 pub struct WriteGPIO {
     #[at_arg(position = 0)]
     pub id: GPIOId,

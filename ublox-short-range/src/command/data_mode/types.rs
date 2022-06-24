@@ -1,5 +1,4 @@
 //! Argument and parameter types used by Data Mode Commands and Responses
-pub use crate::command::OnOff;
 use atat::atat_derive::AtatEnum;
 use heapless::String;
 
@@ -130,13 +129,13 @@ pub enum WatchdogSetting {
     /// - Off (factory default): Disabled
     /// - On: Enabled
     #[at_arg(value = 2)]
-    BluetoothDisconnectReset(OnOff),
+    BluetoothDisconnectReset(bool),
     /// Wi-Fi Station disconnect reset: <value> defines if the DCE shall reset on dropped
     /// Wi-Fi Station connection (not on actively closed connection)
     /// - Off (factory default): Disabled
     /// - On: Enabled
     #[at_arg(value = 3)]
-    WiFiDisconnectReset(OnOff),
+    WiFiDisconnectReset(bool),
     /// Wi-Fi connect timeout: <param_val1> is the time, in seconds, that an ongoing
     /// connection attempt, for a station, will proceed before a Wi-Fi recovery is done. Note
     /// that after the recovery, the connection attempt will continue and there is no need
@@ -162,7 +161,7 @@ pub enum PeerConfigParameter {
     /// - Off: Disconnect peers when entering the command mode
     /// - On (default): Keep connections when entering the command mode
     #[at_arg(value = 0)]
-    KeepInCommandMode(OnOff),
+    KeepInCommandMode(bool),
     /// The module will be reset to factory default settings if it detects the following
     /// sequence on the DTR line: 1 second silence, 5 transfers from DEASSERTED to
     /// ASSERTED within 1 second, and 1 second silence.
@@ -170,7 +169,7 @@ pub enum PeerConfigParameter {
     /// - Off: Disabled
     /// - On (default): Enabled
     #[at_arg(value = 1)]
-    DTRReset(OnOff),
+    DTRReset(bool),
     /// Number of allowed TCP links.
     /// ODIN-W2:
     /// - 1-8: Default is 2.
@@ -196,7 +195,7 @@ pub enum PeerConfigParameter {
     TCPOutOfSequenceQueue(u8),
     /// UDCFG_TCP_FAST_RETRANSMIT = 104 (0 = normal timer, 1 = fast timer)
     #[at_arg(value = 104)]
-    TCPFastTransmit(OnOff),
+    TCPFastTransmit(bool),
 }
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]

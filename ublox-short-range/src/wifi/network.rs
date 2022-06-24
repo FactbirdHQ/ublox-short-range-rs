@@ -1,4 +1,4 @@
-use crate::command::wifi::types::{OperationMode, ScanedWifiNetwork};
+use crate::command::wifi::types::{OperationMode, ScannedWifiNetwork};
 use crate::error::WifiError;
 use crate::hex::from_hex;
 use atat::heapless_bytes::Bytes;
@@ -25,10 +25,10 @@ pub struct WifiNetwork {
     pub mode: WifiMode,
 }
 
-impl TryFrom<ScanedWifiNetwork> for WifiNetwork {
+impl TryFrom<ScannedWifiNetwork> for WifiNetwork {
     type Error = WifiError;
 
-    fn try_from(r: ScanedWifiNetwork) -> Result<Self, Self::Error> {
+    fn try_from(r: ScannedWifiNetwork) -> Result<Self, Self::Error> {
         Ok(WifiNetwork {
             bssid: r.bssid,
             op_mode: r.op_mode,

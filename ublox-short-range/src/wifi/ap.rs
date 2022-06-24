@@ -10,7 +10,6 @@ use crate::{
             },
             SetWifiAPConfig, WifiAPAction,
         },
-        OnOff,
     },
     error::WifiHotspotError,
     wifi::{
@@ -108,7 +107,7 @@ where
         self.send_internal(
             &EdmAtCmdWrapper(SetWifiAPConfig {
                 ap_config_id,
-                ap_config_param: AccessPointConfig::DHCPServer(OnOff::On),
+                ap_config_param: AccessPointConfig::DHCPServer(true),
             }),
             true,
         )?;
@@ -116,7 +115,7 @@ where
         // Active on startup
         // self.send_internal(&SetWifiAPConfig{
         //     ap_config_id,
-        //     ap_config_param: AccessPointConfig::ActiveOnStartup(OnOff::On),
+        //     ap_config_param: AccessPointConfig::ActiveOnStartup(true),
         // }, true)?;
 
         // Wifi part

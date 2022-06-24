@@ -17,7 +17,7 @@ use super::NoResponse;
 /// - Removal of the certificates and private keys
 /// - MD5 calculation of the imported certificate or private key
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+USECMNG=0,", ImportResponse, value_sep = false, timeout_ms = 10000)]
+#[at_cmd("+USECMNG=0,", ImportResponse, value_sep = false, timeout_ms = 1000)]
 pub struct PrepareSecurityDataImport<'a> {
     /// Type of the security data
     #[at_arg(position = 0)]
@@ -41,7 +41,7 @@ pub struct PrepareSecurityDataImport<'a> {
     "",
     SecurityDataImport,
     value_sep = false,
-    timeout_ms = 10000,
+    timeout_ms = 1000,
     cmd_prefix = "",
     termination = ""
 )]
@@ -58,7 +58,7 @@ pub struct SendSecurityDataImport<'a> {
 /// - Removal of the certificates and private keys
 /// - MD5 calculation of the imported certificate or private key
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+USECMNG=2,", NoResponse, value_sep = false, timeout_ms = 10000)]
+#[at_cmd("+USECMNG=2,", NoResponse, value_sep = false, timeout_ms = 1000)]
 pub struct RemoveSecurityData<'a> {
     #[at_arg(position = 0)]
     pub types: SecurityDataType,
@@ -75,8 +75,8 @@ pub struct RemoveSecurityData<'a> {
 // /// - Removal of the certificates and private keys
 // /// - MD5 calculation of the imported certificate or private key
 // #[derive(Clone, AtatCmd)]
-// #[at_cmd("+USECMNG=3,", NoResponse, value_sep = false, timeout_ms = 10000)]
-// // #[at_cmd("+USECMNG=3,", ListSecurityDataResponse, value_sep = false, timeout_ms = 10000)]
+// #[at_cmd("+USECMNG=3,", NoResponse, value_sep = false, timeout_ms = 1000)]
+// // #[at_cmd("+USECMNG=3,", ListSecurityDataResponse, value_sep = false, timeout_ms = 1000)]
 // pub struct ListSecurityData {
 //     #[at_arg(position = 0)]
 //     pub types: SecurityDataType,
@@ -90,7 +90,7 @@ pub struct RemoveSecurityData<'a> {
 /// - Removal of the certificates and private keys
 /// - MD5 calculation of the imported certificate or private key
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+USECMNG=4,", SecurityDataMD5, value_sep = false, timeout_ms = 10000)]
+#[at_cmd("+USECMNG=4,", SecurityDataMD5, value_sep = false, timeout_ms = 1000)]
 pub struct GetSecurityDataMD5 {
     #[at_arg(position = 0)]
     pub types: SecurityDataType,
