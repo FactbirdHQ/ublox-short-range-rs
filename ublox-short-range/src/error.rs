@@ -1,3 +1,5 @@
+pub use ublox_sockets::Error as SocketError;
+
 #[derive(Debug, defmt::Format)]
 pub enum Error {
     Overflow,
@@ -10,6 +12,7 @@ pub enum Error {
     WrongSocketType,
     SocketNotFound,
     SocketNotConnected,
+    MissingSocketSet,
     NetworkState(crate::wifi::connection::NetworkState),
     NoWifiSetup,
     WifiState(crate::wifi::connection::WiFiState),
@@ -22,6 +25,7 @@ pub enum Error {
     Uninitialized,
     Unimplemented,
     SocketMemory,
+    SocketMapMemory,
     Timer,
     _Unknown,
 }
@@ -74,7 +78,7 @@ pub enum WifiError {
     ATError(atat::Error),
     HexError,
     // FIXME: Temp fix!
-    Other,
+    // Other,
 }
 
 #[derive(Debug, defmt::Format)]

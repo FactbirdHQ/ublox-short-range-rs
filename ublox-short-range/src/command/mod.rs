@@ -38,7 +38,7 @@ pub struct AT;
     defmt::Format,
     hash32_derive::Hash32,
 )]
-pub struct PeerHandle(u8);
+pub struct PeerHandle(pub u8);
 
 #[derive(Debug, PartialEq, Clone, AtatUrc)]
 pub enum Urc {

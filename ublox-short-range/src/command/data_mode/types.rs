@@ -43,7 +43,7 @@ pub enum ServerConfig {
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum ServerType {
     #[at_arg(value = 0)]
-    Dissabled,
+    Disabled,
     #[at_arg(value = 1)]
     TCP(u16, ImmediateFlush),
     #[at_arg(value = 2)]
