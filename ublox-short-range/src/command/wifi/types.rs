@@ -727,7 +727,7 @@ pub enum WifiConfig {
     /// - Off: Disable remain on channel Supported software versions 6.0.0
     ///   onwards
     #[at_arg(value = 15)]
-    RemainOnChannel(bool),
+    RemainOnChannel(u8),
     /// Station TX rates bit mask where bit masks are defined according to:
     /// 0x00000001: Rate 1 Mbps 0x00000002: Rate 2 Mbps 0x00000004: Rate 5.5
     /// Mbps 0x00000008: Rate 11 Mbps 0x00000010: Rate 6 Mbps 0x00000020: Rate 9
