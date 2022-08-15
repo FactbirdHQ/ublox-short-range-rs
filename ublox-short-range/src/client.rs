@@ -11,7 +11,10 @@ use crate::{
             types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
             SetRS232Settings, StoreCurrentConfig,
         },
-        wifi::types::DisconnectReason,
+        wifi::{
+            types::{DisconnectReason, WifiConfig},
+            SetWifiConfig,
+        },
         Urc,
     },
     config::Config,
@@ -163,6 +166,13 @@ where
                 false,
             )?;
         }
+
+        self.send_internal(
+            &EdmAtCmdWrapper(SetWifiConfig {
+                config_param: WifiConfig::RemainOnChannel(0),
+            }),
+            false,
+        )?;
 
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
         self.supplicant::<10>().load()?;
