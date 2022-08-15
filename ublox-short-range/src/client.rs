@@ -111,7 +111,7 @@ where
             security_credentials: SecurityCredentials::default(),
             timer,
             socket_map: SocketMap::default(),
-            network_up_bug: false,
+            network_up_bug: true,
             udp_listener: UdpListener::new(),
         }
     }
@@ -622,7 +622,7 @@ where
                 }
                 EdmEvent::DisconnectEvent(channel_id) => {
                     debug!("[EDM_URC] DisconnectEvent! Channel_id: {:?}", channel_id);
-                    socket_map.remove_channel(&channel_id).unwrap();
+                    socket_map.remove_channel(&channel_id).ok();
                     true
                 }
                 EdmEvent::DataEvent(event) => {
