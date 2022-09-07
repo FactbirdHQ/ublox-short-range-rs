@@ -56,6 +56,10 @@ pub enum WifiConnectionError {
     WaitingForWifiDeactivation,
     BufferOverflow,
     // SsidNotFound,
+    /// Config id above 9.
+    IncompatiableConfigId,
+    /// Trying to enter an illigal state
+    Illigal,
     Internal(Error),
 }
 

@@ -22,6 +22,28 @@ use super::{
     options::ConnectionOptions,
 };
 
+use defmt::{debug, trace};
+
+/// Supplicant is used to
+///
+///
+/// ```
+/// // Add, activate and remove network
+/// let network = ConnectionOptions::new().ssid("my-ssid").password("hunter2");
+/// let config_id: u8 = 0;
+/// let mut supplicant = ublox.supplicant::<MAX_NETWORKS>()
+///
+/// supplicant.upsert_connection(config_id, network).unwrap();
+/// supplicant.activate(config_id).unwrap();
+///
+/// supplicant.deactivate(0).unwrap();
+/// // Connection has to be down before removal
+/// while ublox.connected_to_network().is_ok() {
+///     ublox.spin().ok();
+/// }
+/// ublox.supplicant::<MAX_NETWORKS>()supplicant::<MAX_NETWORKS>().remove_connection(0)
+///
+///
 pub struct Supplicant<'a, C, const N: usize> {
     pub(crate) client: &'a mut C,
     pub(crate) wifi_connection: &'a mut Option<WifiConnection>,
@@ -132,6 +154,19 @@ where
         Ok(Some(options))
     }
 
+    /// Get id of active config
+    pub fn get_active_config_id(&self) -> Option<u8> {
+        if let Some(ref wifi) = self.wifi_connection {
+            if wifi.active {
+                return Some(wifi.config_id);
+            }
+        }
+        None
+    }
+
+    /// List connections stored in module
+    ///
+    /// Sorted by config ID
     pub fn list_connections(&mut self) -> Result<Vec<(u8, ConnectionOptions), N>, Error> {
         Ok((0..N as u8)
             .filter_map(|config_id| {
@@ -142,11 +177,19 @@ where
             .collect())
     }
 
+    /// Attempts to remove a stored wireless network
+    ///
+    /// Removing the active connection is not possible. Deactivate the network first.
     pub fn remove_connection(&mut self, config_id: u8) -> Result<(), WifiConnectionError> {
-        self.deactivate(config_id)?;
+        // self.deactivate(config_id)?;
+        if let Some(w) = self.wifi_connection {
+            if w.config_id == config_id && w.active {
+                return Err(WifiConnectionError::Illigal);
+            }
+        }
 
         if let Some(ref con) = self.wifi_connection {
-            if con.config_id == config_id && con.wifi_state != WiFiState::Inactive {
+            if con.config_id == config_id && con.is_connected() {
                 return Err(WifiConnectionError::WaitingForWifiDeactivation);
             }
         }
@@ -160,24 +203,29 @@ where
             config_id,
             action: WifiStationAction::Store,
         }))?;
+        debug!("[SUP] Remove config: {:?}", config_id);
 
         Ok(())
     }
 
-    /// Attempts to connect to a wireless network with the given connection options.
+    /// Attempts to store a wireless network with the given connection options.
+    ///
+    /// Replacing the currently active network is not possible.
     pub fn upsert_connection(
         &mut self,
-        id: u8,
+        config_id: u8,
         options: &ConnectionOptions,
     ) -> Result<(), WifiConnectionError> {
         // Network part
-        // Deactivate & reset network config slot
-        self.remove_connection(id)?;
+        // Reset network config slot
+        self.remove_connection(config_id)?;
+
+        debug!("[SUP] Upsert config: {:?}", config_id);
 
         // Disable DHCP Client (static IP address will be used)
         if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
             self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
-                config_id: id,
+                config_id,
                 config_param: WifiStationConfig::IPv4Mode(IPv4Mode::Static),
             }))?;
         }
@@ -185,21 +233,21 @@ where
         // Network IP address
         if let Some(ip) = options.ip {
             self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
-                config_id: id,
+                config_id,
                 config_param: WifiStationConfig::IPv4Address(ip),
             }))?;
         }
         // Network Subnet mask
         if let Some(subnet) = options.subnet {
             self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
-                config_id: id,
+                config_id,
                 config_param: WifiStationConfig::SubnetMask(subnet),
             }))?;
         }
         // Network Default gateway
         if let Some(gateway) = options.gateway {
             self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
-                config_id: id,
+                config_id,
                 config_param: WifiStationConfig::DefaultGateway(gateway),
             }))?;
         }
@@ -207,70 +255,96 @@ where
         // Wifi part
         // Set the Network SSID to connect to
         self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
-            config_id: id,
+            config_id,
             config_param: WifiStationConfig::SSID(options.ssid.clone()),
         }))?;
 
         if let Some(pass) = options.password.clone() {
             // Use WPA2 as authentication type
             self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
-                config_id: id,
+                config_id,
                 config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
             }))?;
 
             // Input passphrase
             self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
-                config_id: id,
+                config_id,
                 config_param: WifiStationConfig::WpaPskOrPassphrase(pass),
             }))?;
         } else {
             self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
-                config_id: id,
+                config_id,
                 config_param: WifiStationConfig::Authentication(Authentication::Open),
             }))?;
         }
 
+        // Store config
         self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
-            config_id: id,
+            config_id,
             action: WifiStationAction::Store,
         }))?;
 
         Ok(())
     }
 
+    /// Activate a given network config
+    /// Only one config can be active at any time.
     pub fn activate(&mut self, config_id: u8) -> Result<(), WifiConnectionError> {
+        if let Some(w) = self.wifi_connection {
+            if w.active {
+                return Err(WifiConnectionError::Illigal);
+            }
+        }
+
         self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
             config_id,
             action: WifiStationAction::Activate,
         }))?;
 
-        self.wifi_connection.replace(WifiConnection::new(
-            WifiNetwork {
-                bssid: atat::heapless_bytes::Bytes::new(),
-                op_mode: crate::command::wifi::types::OperationMode::Infrastructure,
-                ssid: heapless::String::new(),
-                channel: 0,
-                rssi: 1,
-                authentication_suites: 0,
-                unicast_ciphers: 0,
-                group_ciphers: 0,
-                mode: super::network::WifiMode::Station,
-            },
-            WiFiState::NotConnected,
-            config_id,
-        ));
+        self.wifi_connection.replace(
+            WifiConnection::new(
+                WifiNetwork {
+                    bssid: atat::heapless_bytes::Bytes::new(),
+                    op_mode: crate::command::wifi::types::OperationMode::Infrastructure,
+                    ssid: heapless::String::new(),
+                    channel: 0,
+                    rssi: 1,
+                    authentication_suites: 0,
+                    unicast_ciphers: 0,
+                    group_ciphers: 0,
+                    mode: super::network::WifiMode::Station,
+                },
+                WiFiState::NotConnected,
+                config_id,
+            )
+            .activate(),
+        );
+        debug!("[SUP] Activated: {:?}", config_id);
 
         Ok(())
     }
 
+    /// Deactivates a given network config
+    ///
+    /// Operation not done untill network conneciton is lost
     pub fn deactivate(&mut self, config_id: u8) -> Result<(), WifiConnectionError> {
-        self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
-            config_id,
-            action: WifiStationAction::Deactivate,
-        }))?;
+        let mut active = false;
+        if let Some(wifi) = self.wifi_connection {
+            if wifi.config_id == config_id && wifi.active {
+                active = true
+            }
+        }
+        if active {
+            self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
+                config_id,
+                action: WifiStationAction::Deactivate,
+            }))?;
 
-        self.wifi_connection.take();
-
+            if let Some(ref mut w) = self.wifi_connection {
+                w.deactivate();
+            }
+            debug!("[SUP] Deactivated: {:?}", config_id);
+        }
         Ok(())
     }
 
@@ -290,5 +364,9 @@ where
             .as_ref()
             .map(WifiConnection::is_connected)
             .unwrap_or_default()
+    }
+
+    pub fn flush(&mut self) -> Result<(), WifiConnectionError> {
+        todo!()
     }
 }
