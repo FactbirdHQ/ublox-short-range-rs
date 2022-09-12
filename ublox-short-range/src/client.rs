@@ -83,6 +83,7 @@ where
     pub(crate) initialized: bool,
     serial_mode: SerialMode,
     pub(crate) wifi_connection: Option<WifiConnection>,
+    pub(crate) wifi_config_active_on_startup: Option<u8>,
     pub(crate) client: C,
     pub(crate) config: Config<RST>,
     pub(crate) sockets: Option<&'static mut SocketSet<TIMER_HZ, N, L>>,
@@ -106,6 +107,7 @@ where
             initialized: false,
             serial_mode: SerialMode::Cmd,
             wifi_connection: None,
+            wifi_config_active_on_startup: None,
             client,
             config,
             sockets: None,
@@ -194,9 +196,9 @@ where
         }
 
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
-        self.supplicant::<10>().load()?;
 
         self.initialized = true;
+        self.supplicant::<10>()?.load()?;
 
         if self.firmware_version()? < FirmwareVersion::new(8, 0, 0) {
             self.config.network_up_bug = true;
@@ -733,11 +735,17 @@ where
         }
     }
 
-    pub fn supplicant<const M: usize>(&mut self) -> Supplicant<C, M> {
-        Supplicant {
+    pub fn supplicant<const M: usize>(&mut self) -> Result<Supplicant<C, M>, Error> {
+        // TODO: better solution
+        if !self.initialized {
+            return Err(Error::Uninitialized);
+        }
+
+        Ok(Supplicant {
             client: &mut self.client,
             wifi_connection: &mut self.wifi_connection,
-        }
+            active_on_startup: &mut self.wifi_config_active_on_startup,
+        })
     }
 
     pub fn connected_to_network(&self) -> Result<(), Error> {
