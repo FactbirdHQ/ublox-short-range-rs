@@ -67,7 +67,17 @@ where
         })
     }
 
-    pub fn load(&mut self) -> Result<(), Error> {
+    // pub fn load(&mut self) {
+    //     for config_id in 0..N as u8 {
+    //         self.client
+    //             .send(&EdmAtCmdWrapper(ExecWifiStationAction {
+    //                 config_id,
+    //                 action: WifiStationAction::Load,
+    //             }))
+    //             .ok();
+    //     }
+    // }
+    pub(crate) fn init(&mut self) -> Result<(), Error> {
         for config_id in 0..N as u8 {
             self.client
                 .send(&EdmAtCmdWrapper(ExecWifiStationAction {
@@ -89,6 +99,33 @@ where
             if active_on_startup {
                 if *self.active_on_startup == None || *self.active_on_startup == Some(config_id) {
                     *self.active_on_startup = Some(config_id);
+                    if self.wifi_connection.is_none() {
+                        self.wifi_connection.replace(
+                            WifiConnection::new(
+                                WifiNetwork {
+                                    bssid: atat::heapless_bytes::Bytes::new(),
+                                    op_mode:
+                                        crate::command::wifi::types::OperationMode::Infrastructure,
+                                    ssid: heapless::String::new(),
+                                    channel: 0,
+                                    rssi: 1,
+                                    authentication_suites: 0,
+                                    unicast_ciphers: 0,
+                                    group_ciphers: 0,
+                                    mode: super::network::WifiMode::Station,
+                                },
+                                WiFiState::NotConnected,
+                                config_id,
+                            )
+                            .activate(),
+                        );
+                    } else if let Some(ref mut con) = self.wifi_connection {
+                        if con.config_id == 255 {
+                            con.config_id = config_id;
+                        }
+                    }
+                    // One could argue that an excisting connection should be verified,
+                    // but should this be the case, the module is already having unexpected behaviour
                 } else {
                     // This causes unexpected behaviour
                     panic!("Two configs are active on startup!")

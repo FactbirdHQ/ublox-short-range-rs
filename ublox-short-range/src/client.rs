@@ -25,7 +25,7 @@ use crate::{
     wifi::{
         connection::{NetworkState, WiFiState, WifiConnection},
         supplicant::Supplicant,
-        SocketMap,
+        SocketMap, network::{WifiNetwork, WifiMode},
     },
 };
 use atat::clock::Clock;
@@ -198,7 +198,7 @@ where
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
 
         self.initialized = true;
-        self.supplicant::<10>()?.load()?;
+        self.supplicant::<10>()?.init()?;
 
         if self.firmware_version()? < FirmwareVersion::new(8, 0, 0) {
             self.config.network_up_bug = true;
@@ -313,7 +313,7 @@ where
         let dns_state = &mut self.dns_state;
         let socket_map = &mut self.socket_map;
         let udp_listener = &mut self.udp_listener;
-        let wifi_connection = self.wifi_connection.as_mut();
+        let wifi_connection = &mut self.wifi_connection;
         let ts = self.timer.now();
 
         let mut a = self.urc_attempts;
@@ -452,10 +452,29 @@ where
                         }
                         Urc::WifiLinkConnected(msg) => {
                             debug!("[URC] WifiLinkConnected");
-                            if let Some(con) = wifi_connection {
+                            if let Some(ref mut con) = wifi_connection {
                                 con.wifi_state = WiFiState::Connected;
                                 con.network.bssid = msg.bssid;
                                 con.network.channel = msg.channel;
+                            } else {
+                                debug!("[URC] Active network config discovered");
+                                wifi_connection.replace(
+                                    WifiConnection::new(
+                                        WifiNetwork {
+                                            bssid: msg.bssid,
+                                            op_mode: crate::command::wifi::types::OperationMode::Infrastructure,
+                                            ssid: heapless::String::new(),
+                                            channel: msg.channel,
+                                            rssi: 1,
+                                            authentication_suites: 0,
+                                            unicast_ciphers: 0,
+                                            group_ciphers: 0,
+                                            mode: WifiMode::Station,
+                                        },
+                                        WiFiState::Connected,
+                                        255,
+                                    ).activate()
+                                );
                             }
                             true
                         }
@@ -463,9 +482,9 @@ where
                             debug!("[URC] WifiLinkDisconnected");
                             if let Some(con) = wifi_connection {
                                 match msg.reason {
-                                    DisconnectReason::NetworkDisabled => {
-                                        con.wifi_state = WiFiState::Inactive;
-                                    }
+                                    // DisconnectReason::NetworkDisabled => {
+                                    //     con.wifi_state = WiFiState::Inactive;
+                                    // }
                                     DisconnectReason::SecurityProblems => {
                                         error!("Wifi Security Problems");
                                     }
