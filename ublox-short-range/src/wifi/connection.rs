@@ -2,8 +2,6 @@ use crate::wifi::network::{WifiMode, WifiNetwork};
 
 #[derive(Debug, Clone, Copy, PartialEq, defmt::Format)]
 pub enum WiFiState {
-    /// Disconnected, Wifi off
-    Inactive,
     /// Searching for Wifi
     NotConnected,
     Connected,
@@ -23,6 +21,7 @@ pub struct WifiConnection {
     pub wifi_state: WiFiState,
     pub network_state: NetworkState,
     pub network: WifiNetwork,
+    /// Numbre from 0-9. 255 used for unknown
     pub config_id: u8,
     /// Keeps track of activation of the config
     pub active: bool,
