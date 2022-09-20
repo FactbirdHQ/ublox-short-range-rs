@@ -482,9 +482,9 @@ where
                             debug!("[URC] WifiLinkDisconnected");
                             if let Some(con) = wifi_connection {
                                 match msg.reason {
-                                    // DisconnectReason::NetworkDisabled => {
-                                    //     con.wifi_state = WiFiState::Inactive;
-                                    // }
+                                    DisconnectReason::NetworkDisabled => {
+                                        con.wifi_state = WiFiState::Inactive;
+                                    }
                                     DisconnectReason::SecurityProblems => {
                                         error!("Wifi Security Problems");
                                     }
