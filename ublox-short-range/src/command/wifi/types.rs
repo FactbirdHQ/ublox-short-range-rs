@@ -7,6 +7,31 @@ use heapless::{String, Vec};
 use serde::Deserialize;
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[repr(u8)]
+pub enum OnOff {
+    On = 1,
+    Off = 0,
+}
+
+impl From<bool> for OnOff {
+    fn from(b: bool) -> Self {
+        match b {
+            true => Self::On,
+            false => Self::Off,
+        }
+    }
+}
+
+impl Into<bool> for OnOff {
+    fn into(self) -> bool {
+        match self {
+            Self::On => true,
+            Self::Off => false,
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u16)]
 pub enum WifiStationConfigParameter {
     /// <param_val1> decides if the station is active on start up.
@@ -122,7 +147,7 @@ pub enum WifiStationConfig {
     /// - Off (default): Inactive
     /// - On: active
     #[at_arg(value = 0)]
-    ActiveOnStartup(bool),
+    ActiveOnStartup(OnOff),
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default
     /// value is an empty string ("").
     #[at_arg(value = 2)]
@@ -262,7 +287,7 @@ pub enum WifiStationConfigR {
     /// - Off (default): Inactive
     /// - On: active
     #[at_arg(value = 0)]
-    ActiveOnStartup(bool),
+    ActiveOnStartup(OnOff),
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default
     /// value is an empty string ("").
     #[at_arg(value = 2)]
