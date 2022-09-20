@@ -57,7 +57,7 @@ where
         )?;
 
         if let Some(ref con) = self.wifi_connection {
-            if con.active {
+            if con.activated {
                 return Err(WifiHotspotError::CreationFailed);
             }
         }
@@ -205,7 +205,7 @@ where
         let ap_config_id = AccessPointId::Id0;
 
         if let Some(ref con) = self.wifi_connection {
-            if con.active{
+            if con.activated{
                 self.send_internal(
                     &EdmAtCmdWrapper(WifiAPAction {
                         ap_config_id,
