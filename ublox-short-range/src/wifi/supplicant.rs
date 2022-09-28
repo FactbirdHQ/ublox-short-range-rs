@@ -184,7 +184,7 @@ where
         // self.deactivate(config_id)?;
         if let Some(w) = self.wifi_connection {
             if w.config_id == config_id && w.active {
-                return Err(WifiConnectionError::Illigal);
+                return Err(WifiConnectionError::Illegal);
             }
         }
 
@@ -292,7 +292,7 @@ where
     pub fn activate(&mut self, config_id: u8) -> Result<(), WifiConnectionError> {
         if let Some(w) = self.wifi_connection {
             if w.active {
-                return Err(WifiConnectionError::Illigal);
+                return Err(WifiConnectionError::Illegal);
             }
         }
 
