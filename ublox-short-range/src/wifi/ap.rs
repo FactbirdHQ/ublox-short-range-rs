@@ -179,22 +179,25 @@ where
             }),
             true,
         )?;
-        
-        self.wifi_connection.replace(WifiConnection::new(
-            WifiNetwork {
-                bssid: Bytes::new(),
-                op_mode: wifi::types::OperationMode::AdHoc,
-                ssid: options.ssid,
-                channel: 0,
-                rssi: 1,
-                authentication_suites: 0,
-                unicast_ciphers: 0,
-                group_ciphers: 0,
-                mode: WifiMode::AccessPoint,
-            },
-            WiFiState::NotConnected,
-            ap_config_id as u8,
-        ).activate());
+
+        self.wifi_connection.replace(
+            WifiConnection::new(
+                WifiNetwork {
+                    bssid: Bytes::new(),
+                    op_mode: wifi::types::OperationMode::AdHoc,
+                    ssid: options.ssid,
+                    channel: 0,
+                    rssi: 1,
+                    authentication_suites: 0,
+                    unicast_ciphers: 0,
+                    group_ciphers: 0,
+                    mode: WifiMode::AccessPoint,
+                },
+                WiFiState::NotConnected,
+                ap_config_id as u8,
+            )
+            .activate(),
+        );
         Ok(())
     }
 
@@ -205,7 +208,7 @@ where
         let ap_config_id = AccessPointId::Id0;
 
         if let Some(ref con) = self.wifi_connection {
-            if con.activated{
+            if con.activated {
                 self.send_internal(
                     &EdmAtCmdWrapper(WifiAPAction {
                         ap_config_id,

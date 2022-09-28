@@ -35,6 +35,7 @@ pub const AT_COMMAND_POSITION: usize = 5;
 /// Index in packet at which payload starts
 pub const PAYLOAD_POSITION: usize = 3;
 pub const STARTUPMESSAGE: &[u8] = b"\r\n+STARTUP\r\n";
+pub const AUTOCONNECTMESSAGE: &[u8] = b"\r\n+UUWLE:0,966C7D936881,1\r\n";
 
 #[derive(Debug, PartialEq)]
 #[repr(u8)]
@@ -66,6 +67,7 @@ pub(crate) enum PayloadType {
     IPhoneEvent = 0x61,
     /// Sent when the module recovers from reset or at power on. This packet may need
     /// special module configuration to be transmitted.
+    /// Sent on entering EDM mode
     StartEvent = 0x71,
     Unknown = 0x00,
 }

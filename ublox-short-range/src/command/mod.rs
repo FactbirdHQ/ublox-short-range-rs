@@ -42,6 +42,9 @@ pub struct PeerHandle(pub u8);
 
 #[derive(Debug, PartialEq, Clone, AtatUrc)]
 pub enum Urc {
+    /// Startup Message
+    #[at_urc("+STARTUP")]
+    StartUp,
     /// 5.10 Peer connected +UUDPC
     #[at_urc("+UUDPC")]
     PeerConnected(data_mode::urc::PeerConnected),

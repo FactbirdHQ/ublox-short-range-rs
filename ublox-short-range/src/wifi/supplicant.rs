@@ -133,7 +133,7 @@ where
                     // but should this be the case, the module is already having unexpected behaviour
                 } else {
                     // This causes unexpected behaviour
-                    panic!("Two configs are active on startup!")
+                    defmt::panic!("Two configs are active on startup!")
                 }
             } else if load.is_err() {
                 //Handle shadow store bug
@@ -148,13 +148,15 @@ where
                 if let WifiStationConfigR::SSID(ssid) = parameter {
                     if !ssid.is_empty() {
                         defmt::error!("Shadow store bug!");
-                        self.client
-                            .send(&EdmAtCmdWrapper(ExecWifiStationAction {
-                                config_id,
-                                action: WifiStationAction::Deactivate,
-                            }))
-                            .ok();
-                        // self.remove_connection(config_id).map_err(|_| Error::Supplicant)?;
+                        // defmt::panic!("Shadow store bug!");
+                        // self.client
+                        //     .send(&EdmAtCmdWrapper(ExecWifiStationAction {
+                        //         config_id,
+                        //         action: WifiStationAction::Reset,
+                        //     }))
+                        //     .ok();
+                        self.remove_connection(config_id)
+                            .map_err(|_| Error::Supplicant)?;
                     }
                 }
             }
@@ -504,7 +506,10 @@ where
 
     /// Returns Active on startup config ID if any
     pub fn get_active_on_startup(&self) -> Option<u8> {
-        debug!("[SUP] Get active on startup");
+        debug!(
+            "[SUP] Get active on startup: {:?}",
+            self.active_on_startup.clone()
+        );
         return self.active_on_startup.clone();
     }
 
