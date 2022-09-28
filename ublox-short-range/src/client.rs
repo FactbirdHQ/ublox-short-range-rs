@@ -2,7 +2,10 @@ use core::str::FromStr;
 
 use crate::{
     command::{
-        data_mode::types::IPProtocol,
+        data_mode::{
+            types::{IPProtocol, PeerConfigParameter},
+            SetPeerConfiguration,
+        },
         edm::{types::Protocol, urc::EdmEvent, EdmAtCmdWrapper, SwitchToEdmCommand},
         general::{types::FirmwareVersion, SoftwareVersion},
         network::SetNetworkHostName,
@@ -85,11 +88,9 @@ where
     pub(crate) sockets: Option<&'static mut SocketSet<TIMER_HZ, N, L>>,
     pub(crate) dns_state: DNSState,
     pub(crate) urc_attempts: u8,
-    pub(crate) max_urc_attempts: u8,
     pub(crate) security_credentials: SecurityCredentials,
     pub(crate) timer: CLK,
     pub(crate) socket_map: SocketMap,
-    network_up_bug: bool,
     pub(crate) udp_listener: UdpListener<4, N>,
 }
 
@@ -109,12 +110,10 @@ where
             config,
             sockets: None,
             dns_state: DNSState::NotResolving,
-            max_urc_attempts: 5,
             urc_attempts: 0,
             security_credentials: SecurityCredentials::default(),
             timer,
             socket_map: SocketMap::default(),
-            network_up_bug: true,
             udp_listener: UdpListener::new(),
         }
     }
@@ -174,13 +173,22 @@ where
             false,
         )?;
 
+        if self.config.max_tls_in_buffer {
+            self.send_internal(
+                &EdmAtCmdWrapper(SetPeerConfiguration {
+                    parameter: PeerConfigParameter::TlsInBuffer(16384),
+                }),
+                false,
+            )?;
+        }
+
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
         self.supplicant::<10>().load()?;
 
         self.initialized = true;
 
         if self.firmware_version()? < FirmwareVersion::new(8, 0, 0) {
-            self.network_up_bug = true;
+            self.config.network_up_bug = true;
         }
 
         Ok(())
@@ -296,7 +304,7 @@ where
         let ts = self.timer.now();
 
         let mut a = self.urc_attempts;
-        let max = self.max_urc_attempts;
+        let max = self.config.max_urc_attempts;
 
         self.client.peek_urc_with::<EdmEvent, _>(|edm_urc| {
             ran = true;
@@ -485,7 +493,7 @@ where
                         Urc::NetworkUp(_) => {
                             debug!("[URC] NetworkUp");
                             if let Some(con) = wifi_connection {
-                                if self.network_up_bug {
+                                if self.config.network_up_bug {
                                     match con.network_state {
                                         NetworkState::Attached => (),
                                         NetworkState::AlmostAttached => {
