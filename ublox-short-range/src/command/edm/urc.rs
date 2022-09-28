@@ -28,6 +28,24 @@ impl AtatUrc for EdmEvent {
         defmt::trace!("[Parse URC] {:?}", LossyStr(resp));
         // Startup message?
         // TODO: simplify mayby no packet check.
+        if resp.len() >= STARTUPMESSAGE.len()
+            && resp[..2] == *b"\r\n"
+            && resp[resp.len() - 2..] == *b"\r\n"
+        {
+            if resp == STARTUPMESSAGE {
+                return EdmEvent::ATEvent(Urc::StartUp).into();
+            } else if resp.len() == AUTOCONNECTMESSAGE.len()
+                || resp.len() == AUTOCONNECTMESSAGE.len() + 1
+            {
+                let mut urc = resp;
+                match urc.iter().position(|x| !x.is_ascii_whitespace()) {
+                    Some(i) => urc = &urc[i..],
+                    None => (),
+                };
+                let cmd = Urc::parse(urc)?;
+                return EdmEvent::ATEvent(cmd).into();
+            }
+        }
         if resp
             .windows(STARTUPMESSAGE.len())
             .position(|window| window == STARTUPMESSAGE)
@@ -134,6 +152,8 @@ impl AtatUrc for EdmEvent {
                     })
                     .map(EdmEvent::DataEvent)
             }
+
+            PayloadType::StartEvent => EdmEvent::StartUp.into(),
 
             _ => {
                 defmt::error!("[Parse URC Error] {:?}", LossyStr(resp));

@@ -24,8 +24,9 @@ use crate::{
     error::Error,
     wifi::{
         connection::{NetworkState, WiFiState, WifiConnection},
+        network::{WifiMode, WifiNetwork},
         supplicant::Supplicant,
-        SocketMap, network::{WifiNetwork, WifiMode},
+        SocketMap,
     },
 };
 use atat::clock::Clock;
@@ -80,6 +81,7 @@ where
     CLK: Clock<TIMER_HZ>,
     RST: OutputPin,
 {
+    pub(crate) module_started: bool,
     pub(crate) initialized: bool,
     serial_mode: SerialMode,
     pub(crate) wifi_connection: Option<WifiConnection>,
@@ -104,6 +106,7 @@ where
 {
     pub fn new(client: C, timer: CLK, config: Config<RST>) -> Self {
         UbloxClient {
+            module_started: false,
             initialized: false,
             serial_mode: SerialMode::Cmd,
             wifi_connection: None,
@@ -141,9 +144,16 @@ where
         self.reset()?;
 
         // Switch to EDM on Init. If in EDM, fail and check with autosense
-        if self.serial_mode != SerialMode::ExtendedData {
-            self.retry_send(&SwitchToEdmCommand, 5)?;
-            self.serial_mode = SerialMode::ExtendedData;
+        // if self.serial_mode != SerialMode::ExtendedData {
+        //     self.retry_send(&SwitchToEdmCommand, 5)?;
+        //     self.serial_mode = SerialMode::ExtendedData;
+        // }
+
+        while self.serial_mode != SerialMode::ExtendedData {
+            self.send_internal(&SwitchToEdmCommand, true).ok();
+            self.timer.start(100.millis()).map_err(|_| Error::Timer)?;
+            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+            while self.handle_urc()? {}
         }
 
         // TODO: handle EDM settings quirk see EDM datasheet: 2.2.5.1 AT Request Serial settings
@@ -234,6 +244,7 @@ where
     pub fn reset(&mut self) -> Result<(), Error> {
         self.serial_mode = SerialMode::Cmd;
         self.initialized = false;
+        self.module_started = false;
         self.wifi_connection = None;
         self.urc_attempts = 0;
         self.security_credentials = SecurityCredentials::default();
@@ -242,14 +253,26 @@ where
         self.clear_buffers()?;
 
         if let Some(ref mut pin) = self.config.rst_pin {
+            defmt::warn!("Hard resetting Ublox Short Range");
             pin.set_low().ok();
             self.timer.start(50.millis()).map_err(|_| Error::Timer)?;
             nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
 
             pin.set_high().ok();
 
-            self.timer.start(3.secs()).map_err(|_| Error::Timer)?;
-            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+            self.timer.start(4.secs()).map_err(|_| Error::Timer)?;
+            loop {
+                match self.timer.wait() {
+                    Ok(()) => return Err(Error::_Unknown),
+                    Err(nb::Error::WouldBlock) => {
+                        self.handle_urc().ok();
+                        if self.module_started {
+                            break;
+                        }
+                    }
+                    Err(_) => return Err(Error::Timer),
+                }
+            }
         }
         Ok(())
     }
@@ -324,6 +347,13 @@ where
             let res = match edm_urc {
                 EdmEvent::ATEvent(urc) => {
                     match urc {
+                        Urc::StartUp => {
+                            debug!("[URC] Startup");
+                            self.module_started = true;
+                            self.initialized = false;
+                            self.serial_mode = SerialMode::Cmd;
+                            true
+                        }
                         Urc::PeerConnected(event) => {
                             debug!("[URC] PeerConnected");
 
@@ -570,6 +600,8 @@ where
                 } // end match urc
                 EdmEvent::StartUp => {
                     debug!("[EDM_URC] STARTUP");
+                    self.module_started = true;
+                    self.serial_mode = SerialMode::ExtendedData;
                     true
                 }
                 EdmEvent::IPv4ConnectEvent(event) => {
