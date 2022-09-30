@@ -24,6 +24,8 @@ pub struct WifiConnection {
     pub network_state: NetworkState,
     pub network: WifiNetwork,
     pub config_id: u8,
+    /// Keeps track of activation of the config
+    pub active: bool,
 }
 
 impl WifiConnection {
@@ -33,6 +35,7 @@ impl WifiConnection {
             network_state: NetworkState::Unattached,
             network,
             config_id,
+            active: false,
         }
     }
 
@@ -46,5 +49,14 @@ impl WifiConnection {
 
     pub fn is_access_point(&self) -> bool {
         !self.is_station()
+    }
+
+    pub(crate) fn activate(mut self) -> Self {
+        self.active = true;
+        self
+    }
+
+    pub(crate) fn deactivate(&mut self) {
+        self.active = false;
     }
 }

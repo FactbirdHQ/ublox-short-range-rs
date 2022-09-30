@@ -11,7 +11,10 @@ use crate::{
             types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
             SetRS232Settings, StoreCurrentConfig,
         },
-        wifi::types::DisconnectReason,
+        wifi::{
+            types::{DisconnectReason, WifiConfig},
+            SetWifiConfig,
+        },
         Urc,
     },
     config::Config,
@@ -111,7 +114,7 @@ where
             security_credentials: SecurityCredentials::default(),
             timer,
             socket_map: SocketMap::default(),
-            network_up_bug: false,
+            network_up_bug: true,
             udp_listener: UdpListener::new(),
         }
     }
@@ -163,6 +166,13 @@ where
                 false,
             )?;
         }
+
+        self.send_internal(
+            &EdmAtCmdWrapper(SetWifiConfig {
+                config_param: WifiConfig::RemainOnChannel(0),
+            }),
+            false,
+        )?;
 
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
         self.supplicant::<10>().load()?;
@@ -622,7 +632,7 @@ where
                 }
                 EdmEvent::DisconnectEvent(channel_id) => {
                     debug!("[EDM_URC] DisconnectEvent! Channel_id: {:?}", channel_id);
-                    socket_map.remove_channel(&channel_id).unwrap();
+                    socket_map.remove_channel(&channel_id).ok();
                     true
                 }
                 EdmEvent::DataEvent(event) => {

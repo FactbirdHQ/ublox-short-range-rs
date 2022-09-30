@@ -1,4 +1,4 @@
-use embedded_hal::digital::{OutputPin, ErrorType};
+use embedded_hal::digital::{ErrorType, OutputPin};
 use heapless::String;
 
 pub struct NoPin;
