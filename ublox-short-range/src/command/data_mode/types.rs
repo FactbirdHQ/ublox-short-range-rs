@@ -193,7 +193,24 @@ pub enum PeerConfigParameter {
     /// multiple TCP links are used, this should be low.
     #[at_arg(value = 5)]
     TCPOutOfSequenceQueue(u8),
+    /// Minimum is 512 and maximum is 16K (16384).
+    /// There is no guarantee that this has no side effects, since changing the memory handling can give strange behaviour.
+    /// If Bluetooth is not used this should be OK to use.
+    /// AT+UDCFG=101 is the TLS in buffer
+    /// DEFAULT_TLS_IN_BUFFER_SIZE (7800)
+    /// UNDOCUMENTED!
+    #[at_arg(value = 101)]
+    TlsInBuffer(u16),
+    /// Minimum is 512 and maximum is 16K (16384).
+    /// There is no guarantee that this has no side effects, since changing the memory handling can give strange behaviour.
+    /// If Bluetooth is not used this should be OK to use.
+    /// AT+UDCFG=102 is the TLS out buffer
+    /// DEFAULT_TLS_OUT_BUFFER_SIZE (3072)
+    /// UNDOCUMENTED!
+    #[at_arg(value = 102)]
+    TlsOutBuffer(u16),
     /// UDCFG_TCP_FAST_RETRANSMIT = 104 (0 = normal timer, 1 = fast timer)
+    /// UNDOCUMENTED!
     #[at_arg(value = 104)]
     TCPFastTransmit(bool),
 }
