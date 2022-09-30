@@ -173,10 +173,21 @@ where
             false,
         )?;
 
-        if self.config.max_tls_in_buffer {
+        if let Some(size) = self.config.tls_in_buffer_size {
+            assert!(size > 512);
             self.send_internal(
                 &EdmAtCmdWrapper(SetPeerConfiguration {
-                    parameter: PeerConfigParameter::TlsInBuffer(16384),
+                    parameter: PeerConfigParameter::TlsInBuffer(size),
+                }),
+                false,
+            )?;
+        }
+
+        if let Some(size) = self.config.tls_out_buffer_size {
+            assert!(size > 512);
+            self.send_internal(
+                &EdmAtCmdWrapper(SetPeerConfiguration {
+                    parameter: PeerConfigParameter::TlsOutBuffer(size),
                 }),
                 false,
             )?;

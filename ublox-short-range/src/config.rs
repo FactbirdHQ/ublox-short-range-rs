@@ -21,7 +21,8 @@ impl OutputPin for NoPin {
 pub struct Config<RST> {
     pub(crate) rst_pin: Option<RST>,
     pub(crate) hostname: Option<String<20>>,
-    pub(crate) max_tls_in_buffer: bool,
+    pub(crate) tls_in_buffer_size: Option<u16>,
+    pub(crate) tls_out_buffer_size: Option<u16>,
     pub(crate) max_urc_attempts: u8,
     pub(crate) network_up_bug: bool,
 }
@@ -31,7 +32,8 @@ impl Default for Config<NoPin> {
         Config {
             rst_pin: None,
             hostname: None,
-            max_tls_in_buffer: false,
+            tls_in_buffer_size: None,
+            tls_out_buffer_size: None,
             max_urc_attempts: 5,
             network_up_bug: true,
         }
@@ -46,7 +48,8 @@ where
         Config {
             rst_pin: None,
             hostname: None,
-            max_tls_in_buffer: false,
+            tls_in_buffer_size: None,
+            tls_out_buffer_size: None,
             max_urc_attempts: 5,
             network_up_bug: true,
         }
@@ -74,10 +77,17 @@ where
     }
 
     /// Experimental use of undocumented setting for TLS buffers
-    /// Used to enable streaming TLS with client certificate
-    pub fn max_tls_in_buffer(self) -> Self {
+    pub fn tls_in_buffer_size(self, bytes: u16) -> Self {
         Config {
-            max_tls_in_buffer: true,
+            tls_in_buffer_size: Some(bytes),
+            ..self
+        }
+    }
+
+    /// Experimental use of undocumented setting for TLS buffers
+    pub fn tls_out_buffer_size(self, bytes: u16) -> Self {
+        Config {
+            tls_out_buffer_size: Some(bytes),
             ..self
         }
     }
