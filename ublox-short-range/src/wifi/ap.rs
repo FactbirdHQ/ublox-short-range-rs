@@ -19,7 +19,7 @@ use crate::{
 };
 use atat::AtatClient;
 use atat::{clock::Clock, heapless_bytes::Bytes};
-use embedded_hal::digital::blocking::OutputPin;
+use embedded_hal::digital::OutputPin;
 
 use super::connection::{WiFiState, WifiConnection};
 

@@ -5,7 +5,7 @@ use crate::{
     UbloxClient,
 };
 use atat::clock::Clock;
-use embedded_hal::digital::blocking::OutputPin;
+use embedded_hal::digital::OutputPin;
 use heapless::String;
 
 pub trait TLS {

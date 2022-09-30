@@ -9,7 +9,7 @@ use crate::{
     UbloxClient,
 };
 use atat::clock::Clock;
-use embedded_hal::digital::blocking::OutputPin;
+use embedded_hal::digital::OutputPin;
 use embedded_nal::{nb, SocketAddr, UdpFullStack};
 
 use embedded_nal::UdpClientStack;
