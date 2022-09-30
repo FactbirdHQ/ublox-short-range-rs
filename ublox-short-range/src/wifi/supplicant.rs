@@ -1,4 +1,4 @@
-use embedded_hal::nb;
+use embedded_nal::nb;
 use heapless::Vec;
 
 use crate::{

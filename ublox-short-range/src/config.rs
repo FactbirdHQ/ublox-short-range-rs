@@ -1,11 +1,13 @@
-use embedded_hal::digital::blocking::OutputPin;
+use embedded_hal::digital::{ErrorType, OutputPin};
 use heapless::String;
 
 pub struct NoPin;
 
-impl OutputPin for NoPin {
+impl ErrorType for NoPin {
     type Error = core::convert::Infallible;
+}
 
+impl OutputPin for NoPin {
     fn set_low(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
