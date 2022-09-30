@@ -6,7 +6,7 @@ use crate::{
     UbloxClient,
 };
 use atat::clock::Clock;
-use embedded_hal::digital::blocking::OutputPin;
+use embedded_hal::digital::OutputPin;
 /// Handles receiving data from sockets
 /// implements TCP and UDP for WiFi client
 use embedded_nal::{nb, SocketAddr, TcpClientStack};

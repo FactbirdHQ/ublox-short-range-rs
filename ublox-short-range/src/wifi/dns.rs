@@ -1,6 +1,6 @@
 use crate::client::DNSState;
 use atat::clock::Clock;
-use embedded_hal::digital::blocking::OutputPin;
+use embedded_hal::digital::OutputPin;
 use embedded_nal::{nb, AddrType, Dns, IpAddr};
 use fugit::ExtU32;
 use heapless::String;

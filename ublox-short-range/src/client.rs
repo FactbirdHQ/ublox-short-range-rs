@@ -24,7 +24,7 @@ use crate::{
 };
 use atat::clock::Clock;
 use defmt::{debug, error, trace};
-use embedded_hal::digital::blocking::OutputPin;
+use embedded_hal::digital::OutputPin;
 use embedded_nal::{nb, IpAddr, Ipv4Addr, SocketAddr};
 use fugit::ExtU32;
 use ublox_sockets::{
