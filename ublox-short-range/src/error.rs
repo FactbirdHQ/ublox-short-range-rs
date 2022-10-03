@@ -28,6 +28,7 @@ pub enum Error {
     SocketMapMemory,
     Supplicant,
     Timer,
+    ShadowStoreBug,
     _Unknown,
 }
 

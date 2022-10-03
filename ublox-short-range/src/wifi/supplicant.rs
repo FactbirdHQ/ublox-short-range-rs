@@ -11,7 +11,7 @@ use crate::{
                 WifiStationConfigParameter, WifiStationConfigR,
             },
             ExecWifiStationAction, GetWifiStationConfig, SetWifiStationConfig, WifiScan,
-        },
+        }, system::RebootDCE,
     },
     error::{Error, WifiConnectionError, WifiError},
 };
@@ -133,7 +133,8 @@ where
                     // but should this be the case, the module is already having unexpected behaviour
                 } else {
                     // This causes unexpected behaviour
-                    defmt::panic!("Two configs are active on startup!")
+                    defmt::error!("Two configs are active on startup!");
+                    return Err(Error::Supplicant);
                 }
             } else if load.is_err() {
                 //Handle shadow store bug
@@ -148,15 +149,11 @@ where
                 if let WifiStationConfigR::SSID(ssid) = parameter {
                     if !ssid.is_empty() {
                         defmt::error!("Shadow store bug!");
-                        // defmt::panic!("Shadow store bug!");
-                        // self.client
-                        //     .send(&EdmAtCmdWrapper(ExecWifiStationAction {
-                        //         config_id,
-                        //         action: WifiStationAction::Reset,
-                        //     }))
-                        //     .ok();
+                        // This should fix the issue
                         self.remove_connection(config_id)
                             .map_err(|_| Error::Supplicant)?;
+                        self.send_at(&EdmAtCmdWrapper(RebootDCE)).ok();
+                        return Err(Error::ShadowStoreBug)
                     }
                 }
             }
@@ -254,15 +251,13 @@ where
     }
 
     /// Get id of active config
-    pub fn get_active_config_id_quiet(&self) -> Option<u8> {
-        // debug!("[SUP] Get active config id");
+    pub fn has_active_config_id(&self) -> bool {
         if let Some(ref wifi) = self.wifi_connection {
             if wifi.wifi_state != WiFiState::Inactive {
-                // debug!("[SUP] Active: {:?}", wifi.config_id);
-                return Some(wifi.config_id);
+                return true;
             }
         }
-        None
+        false
     }
 
     /// List connections stored in module
@@ -511,6 +506,11 @@ where
             self.active_on_startup.clone()
         );
         return self.active_on_startup.clone();
+    }
+
+    /// Returns Active on startup config ID if any
+    pub fn has_active_on_startup(&self) -> bool {
+        return self.active_on_startup.is_some();
     }
 
     /// Sets a config as active on startup, replacing the current.
