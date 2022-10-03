@@ -5,31 +5,7 @@ use atat::heapless_bytes::Bytes;
 use embedded_nal::{Ipv4Addr, Ipv6Addr};
 use heapless::{String, Vec};
 use serde::Deserialize;
-
-#[derive(Clone, PartialEq, AtatEnum)]
-#[repr(u8)]
-pub enum OnOff {
-    On = 1,
-    Off = 0,
-}
-
-impl From<bool> for OnOff {
-    fn from(b: bool) -> Self {
-        match b {
-            true => Self::On,
-            false => Self::Off,
-        }
-    }
-}
-
-impl Into<bool> for OnOff {
-    fn into(self) -> bool {
-        match self {
-            Self::On => true,
-            Self::Off => false,
-        }
-    }
-}
+use crate::command::OnOff;
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u16)]
@@ -222,7 +198,7 @@ pub enum WifiStationConfig {
     /// validated during authentication. Supported software versions 5.0.0
     /// onwards
     #[at_arg(value = 15)]
-    ValidateCACertificate(bool),
+    ValidateCACertificate(OnOff),
     /// IPv4 Mode - <param_val1> to set the way to retrieve an IP address
     /// - 1: Static
     /// - 2 (default): DHCP
@@ -254,7 +230,7 @@ pub enum WifiStationConfig {
     /// - Off: Disabled
     /// - On: Enabled
     #[at_arg(value = 106)]
-    AddressConflictDetection(bool),
+    AddressConflictDetection(OnOff),
     /// IPv6 Mode - <param_val1> to set the way to retrieve an IP address
     /// - 1 (default): Link Local IpAddress
     #[at_arg(value = 200)]
@@ -277,7 +253,7 @@ pub enum WifiStationConfig {
     /// - 1: Enabled To use WEP with open authentication, the WEP key index must
     ///   be different from zero (0).
     #[at_arg(value = 301)]
-    DTIMInPowerSave(bool),
+    DTIMInPowerSave(OnOff),
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
@@ -287,7 +263,7 @@ pub enum WifiStationConfigR {
     /// - Off (default): Inactive
     /// - On: active
     #[at_arg(value = 0)]
-    ActiveOnStartup(OnOff),
+    ActiveOnStartup(bool),
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default
     /// value is an empty string ("").
     #[at_arg(value = 2)]
@@ -726,7 +702,7 @@ pub enum WifiConfig {
     /// - On: Drop the network when the Wi-Fi link is lost; data may be lost
     ///   with this option. Supported software versions 5.0.0 onwards
     #[at_arg(value = 10)]
-    DropNetworkOnLinkLoss(bool),
+    DropNetworkOnLinkLoss(OnOff),
     /// Force world mode
     /// - Off: Use all channels in the channel list; See +UWCL for more
     ///      information. The channel list will be filtered by 802.11d.
@@ -738,7 +714,7 @@ pub enum WifiConfig {
     ///     0) or by storing the setting (&W) to non-volatile memory and
     ///        restarting the module. Supported software versions 5.0.0 onwards
     #[at_arg(value = 11)]
-    ForceWorldMode(bool),
+    ForceWorldMode(OnOff),
     /// Fast transition mode (802.11r) Supported software versions 6.0.0 onwards
     #[at_arg(value = 12)]
     FastTransitionMode(FastTransitionMode),
@@ -811,13 +787,13 @@ pub enum WifiConfig {
     ///     networks, this may not work. Supported software versions 7.0.0
     ///     onwards
     #[at_arg(value = 22)]
-    ScanFilter(bool),
+    ScanFilter(OnOff),
     /// Enable block acknowledgement
     /// - Off (default): Disable block acknowledgement
     /// - On: Enable block acknowledgement Supported software versions 7.0.2
     ///   onwards
     #[at_arg(value = 23)]
-    BlockAcknowledgment(bool),
+    BlockAcknowledgment(OnOff),
     /// Minimum TLS version. Default: TLS v1.0 Supported software versions 7.0.2
     /// onwards
     #[at_arg(value = 24)]
@@ -891,7 +867,7 @@ pub enum AccessPointConfig {
     /// - 0 (default): Inactive
     /// - 1: active
     #[at_arg(value = 0)]
-    ActiveOnStartup(bool),
+    ActiveOnStartup(OnOff),
     /// SSID - <param_val1> is the Service Set identification of the access
     /// point. The factory-programmed value is ("UBXWifi").
     #[at_arg(value = 2)]
@@ -974,7 +950,7 @@ pub enum AccessPointConfig {
     /// - Bit 0 (default): Disable hidden SSID
     /// - Bit 1: Enable hidden SSID Supported software versions 6.0.0 onwards
     #[at_arg(value = 16)]
-    HiddenSSID(bool),
+    HiddenSSID(OnOff),
     /// White List - <param_val1>...<param_val10> List of MAC addresses of
     /// stations that is allowed to connect or 0 to allow all. The factory
     /// default is 0.
@@ -1014,12 +990,12 @@ pub enum AccessPointConfig {
     /// - 1 Enable DHCP server. The DHCP Server will provide addresses according
     ///   to the following formula: (Static address and subnet mask) + 100
     #[at_arg(value = 106)]
-    DHCPServer(bool),
+    DHCPServer(OnOff),
     /// Address conflict detection. The factory default value is 0 (disabled).
     /// - 0: Disabled
     /// - 1: Enabled Supported software versions 6.0.0 onwards
     #[at_arg(value = 107)]
-    AddressConflictDetection(bool),
+    AddressConflictDetection(OnOff),
     ///  IPv6 Mode - <param_val> to set the way to retrieve an IP address
     /// - 1 (default): Link Local IP address
     #[at_arg(value = 200)]
