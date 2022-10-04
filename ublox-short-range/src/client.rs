@@ -782,7 +782,7 @@ where
             active_on_startup: &mut self.wifi_config_active_on_startup,
         })
     }
-
+    /// Is the module attached to a WiFi and ready to open sockets
     pub fn connected_to_network(&self) -> Result<(), Error> {
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized {
@@ -791,6 +791,22 @@ where
                 Err(Error::WifiState(con.wifi_state))
             } else if self.sockets.is_none() {
                 Err(Error::MissingSocketSet)
+            } else {
+                Ok(())
+            }
+        } else {
+            Err(Error::NoWifiSetup)
+        }
+    }
+
+
+    /// Is the module attached to a WiFi
+    pub fn attached_to_wifi(&self) -> Result<(), Error> {
+        if let Some(ref con) = self.wifi_connection {
+            if !self.initialized {
+                Err(Error::Uninitialized)
+            } else if !con.is_connected() {
+                Err(Error::WifiState(con.wifi_state))
             } else {
                 Ok(())
             }
