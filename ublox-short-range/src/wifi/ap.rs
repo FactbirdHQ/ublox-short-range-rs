@@ -107,7 +107,7 @@ where
         self.send_internal(
             &EdmAtCmdWrapper(SetWifiAPConfig {
                 ap_config_id,
-                ap_config_param: AccessPointConfig::DHCPServer(true),
+                ap_config_param: AccessPointConfig::DHCPServer(true.into()),
             }),
             true,
         )?;
