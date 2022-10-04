@@ -230,9 +230,12 @@ where
         self.initialized = false;
         self.module_started = false;
         self.wifi_connection = None;
+        self.wifi_config_active_on_startup = None;
+        self.dns_state = DNSState::NotResolving;
         self.urc_attempts = 0;
         self.security_credentials = SecurityCredentials::default();
         self.socket_map = SocketMap::default();
+        self.udp_listener = UdpListener::new();
 
         self.clear_buffers()?;
 
@@ -799,13 +802,15 @@ where
         }
     }
 
-
     /// Is the module attached to a WiFi
+    ///
+    /// WiFi connection can disconnect momentarily, but if the network state does not change
+    /// the current context is safe.
     pub fn attached_to_wifi(&self) -> Result<(), Error> {
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized {
                 Err(Error::Uninitialized)
-            } else if !con.is_connected() {
+            } else if !(con.network_state == NetworkState::Attached) {
                 Err(Error::WifiState(con.wifi_state))
             } else {
                 Ok(())

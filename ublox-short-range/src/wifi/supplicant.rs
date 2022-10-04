@@ -4,6 +4,7 @@ use heapless::Vec;
 use crate::{
     command::{
         edm::EdmAtCmdWrapper,
+        system::RebootDCE,
         wifi::{
             responses::GetWifiStationConfigResponse,
             types::{
@@ -11,7 +12,7 @@ use crate::{
                 WifiStationConfigParameter, WifiStationConfigR,
             },
             ExecWifiStationAction, GetWifiStationConfig, SetWifiStationConfig, WifiScan,
-        }, system::RebootDCE,
+        },
     },
     error::{Error, WifiConnectionError, WifiError},
 };
@@ -22,7 +23,7 @@ use super::{
     options::ConnectionOptions,
 };
 
-use defmt::{debug, trace};
+use defmt::debug;
 
 /// Supplicant is used to
 ///
@@ -153,7 +154,7 @@ where
                         self.remove_connection(config_id)
                             .map_err(|_| Error::Supplicant)?;
                         self.send_at(&EdmAtCmdWrapper(RebootDCE)).ok();
-                        return Err(Error::ShadowStoreBug)
+                        return Err(Error::ShadowStoreBug);
                     }
                 }
             }
