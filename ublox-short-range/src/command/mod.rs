@@ -13,7 +13,7 @@ pub mod security;
 pub mod system;
 pub mod wifi;
 
-use atat::atat_derive::{AtatCmd, AtatLen, AtatResp, AtatUrc, AtatEnum};
+use atat::atat_derive::{AtatCmd, AtatEnum, AtatLen, AtatResp, AtatUrc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, AtatResp, PartialEq)]
@@ -89,7 +89,6 @@ pub enum Urc {
     #[at_urc("+UUPINGER")]
     PingErrorResponse(ping::urc::PingErrorResponse),
 }
-
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]

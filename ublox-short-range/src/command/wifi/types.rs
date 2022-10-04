@@ -1,11 +1,11 @@
 //! Argument and parameter types used by WiFi Commands and Responses
 
+use crate::command::OnOff;
 use atat::atat_derive::AtatEnum;
 use atat::heapless_bytes::Bytes;
 use embedded_nal::{Ipv4Addr, Ipv6Addr};
 use heapless::{String, Vec};
 use serde::Deserialize;
-use crate::command::OnOff;
 
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u16)]
