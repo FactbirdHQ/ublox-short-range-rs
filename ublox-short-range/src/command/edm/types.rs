@@ -35,7 +35,7 @@ pub const AT_COMMAND_POSITION: usize = 5;
 /// Index in packet at which payload starts
 pub const PAYLOAD_POSITION: usize = 3;
 pub const STARTUPMESSAGE: &[u8] = b"\r\n+STARTUP\r\n";
-pub const AUTOCONNECTMESSAGE: &[u8] = b"\r\n+UUWLE:0,966C7D936881,1\r\n";
+pub const AUTOCONNECTMESSAGE: &[u8] = b"\r\n+UUWLE:0,XXXXXXXXXXXX,1\r\n";
 
 #[derive(Debug, PartialEq)]
 #[repr(u8)]
