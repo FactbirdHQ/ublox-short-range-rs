@@ -77,6 +77,10 @@ where
     }
 
     /// Experimental use of undocumented setting for TLS buffers
+    ///
+    /// For Odin:
+    /// Minimum is 512 and maximum is 16K (16384).
+    /// DEFAULT_TLS_IN_BUFFER_SIZE (7800)
     pub fn tls_in_buffer_size(self, bytes: u16) -> Self {
         Config {
             tls_in_buffer_size: Some(bytes),
@@ -85,6 +89,10 @@ where
     }
 
     /// Experimental use of undocumented setting for TLS buffers
+    ///
+    /// For Odin:
+    /// Minimum is 512 and maximum is 16K (16384).
+    /// DEFAULT_TLS_OUT_BUFFER_SIZE (3072)
     pub fn tls_out_buffer_size(self, bytes: u16) -> Self {
         Config {
             tls_out_buffer_size: Some(bytes),

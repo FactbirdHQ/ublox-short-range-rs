@@ -2,7 +2,6 @@ use crate::wifi::network::{WifiMode, WifiNetwork};
 
 #[derive(Debug, Clone, Copy, PartialEq, defmt::Format)]
 pub enum WiFiState {
-    /// Disconnected, Wifi off
     Inactive,
     /// Searching for Wifi
     NotConnected,
@@ -20,12 +19,14 @@ pub enum NetworkState {
 
 // Fold into wifi connectivity
 pub struct WifiConnection {
+    /// Keeps track of connection state on module
     pub wifi_state: WiFiState,
     pub network_state: NetworkState,
     pub network: WifiNetwork,
+    /// Numbre from 0-9. 255 used for unknown
     pub config_id: u8,
-    /// Keeps track of activation of the config
-    pub active: bool,
+    /// Keeps track of activation of the config by driver
+    pub activated: bool,
 }
 
 impl WifiConnection {
@@ -35,7 +36,7 @@ impl WifiConnection {
             network_state: NetworkState::Unattached,
             network,
             config_id,
-            active: false,
+            activated: false,
         }
     }
 
@@ -52,11 +53,11 @@ impl WifiConnection {
     }
 
     pub(crate) fn activate(mut self) -> Self {
-        self.active = true;
+        self.activated = true;
         self
     }
 
     pub(crate) fn deactivate(&mut self) {
-        self.active = false;
+        self.activated = false;
     }
 }

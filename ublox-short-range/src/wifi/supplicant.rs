@@ -4,6 +4,7 @@ use heapless::Vec;
 use crate::{
     command::{
         edm::EdmAtCmdWrapper,
+        system::RebootDCE,
         wifi::{
             responses::GetWifiStationConfigResponse,
             types::{
@@ -22,7 +23,7 @@ use super::{
     options::ConnectionOptions,
 };
 
-use defmt::{debug, trace};
+use defmt::debug;
 
 /// Supplicant is used to
 ///
@@ -31,22 +32,29 @@ use defmt::{debug, trace};
 /// // Add, activate and remove network
 /// let network = ConnectionOptions::new().ssid("my-ssid").password("hunter2");
 /// let config_id: u8 = 0;
-/// let mut supplicant = ublox.supplicant::<MAX_NETWORKS>()
+/// let mut supplicant = ublox.supplicant::<MAX_NETWORKS>().unwrap();
 ///
 /// supplicant.upsert_connection(config_id, network).unwrap();
 /// supplicant.activate(config_id).unwrap();
-///
-/// supplicant.deactivate(0).unwrap();
-/// // Connection has to be down before removal
-/// while ublox.connected_to_network().is_ok() {
+/// while ublox.connected_to_network().is_err() {
 ///     ublox.spin().ok();
 /// }
-/// ublox.supplicant::<MAX_NETWORKS>()supplicant::<MAX_NETWORKS>().remove_connection(0)
+/// // Now connected to a wifi network.
+///
+/// let mut supplicant = ublox.supplicant::<MAX_NETWORKS>().unwrap();
+/// supplicant.deactivate(0).unwrap();
+/// // Connection has to be down before removal
+/// while ublox.supplicant::<MAX_NETWORKS>().unwrap().get_active_config().is_some() {
+///     ublox.spin().ok();
+/// }
+/// let mut supplicant = ublox.supplicant::<MAX_NETWORKS>().unwrap();
+/// supplicant.remove_connection(0)
 ///
 ///
 pub struct Supplicant<'a, C, const N: usize> {
     pub(crate) client: &'a mut C,
     pub(crate) wifi_connection: &'a mut Option<WifiConnection>,
+    pub(crate) active_on_startup: &'a mut Option<u8>,
 }
 
 impl<'a, C, const N: usize> Supplicant<'a, C, N>
@@ -66,19 +74,96 @@ where
         })
     }
 
-    pub fn load(&mut self) -> Result<(), Error> {
+    // pub fn load(&mut self) {
+    //     for config_id in 0..N as u8 {
+    //         self.client
+    //             .send(&EdmAtCmdWrapper(ExecWifiStationAction {
+    //                 config_id,
+    //                 action: WifiStationAction::Load,
+    //             }))
+    //             .ok();
+    //     }
+    // }
+    pub(crate) fn init(&mut self) -> Result<(), Error> {
+        debug!("[SUP] init");
         for config_id in 0..N as u8 {
-            self.client
-                .send(&EdmAtCmdWrapper(ExecWifiStationAction {
+            let load = self.client.send(&EdmAtCmdWrapper(ExecWifiStationAction {
+                config_id,
+                action: WifiStationAction::Load,
+            }));
+
+            let GetWifiStationConfigResponse { parameter, .. } =
+                self.send_at(&EdmAtCmdWrapper(GetWifiStationConfig {
                     config_id,
-                    action: WifiStationAction::Load,
-                }))
-                .ok();
+                    parameter: Some(WifiStationConfigParameter::ActiveOnStartup),
+                }))?;
+
+            if parameter == WifiStationConfigR::ActiveOnStartup(true.into()) {
+                debug!("[SUP] Config {:?} is active on startup", config_id);
+                if *self.active_on_startup == None || *self.active_on_startup == Some(config_id) {
+                    *self.active_on_startup = Some(config_id);
+                    // Update wifi connection
+                    if self.wifi_connection.is_none() {
+                        let con = self.get_connection(config_id)?.unwrap_or_default();
+
+                        self.wifi_connection.replace(
+                            WifiConnection::new(
+                                WifiNetwork {
+                                    bssid: atat::heapless_bytes::Bytes::new(),
+                                    op_mode:
+                                        crate::command::wifi::types::OperationMode::Infrastructure,
+                                    ssid: con.ssid,
+                                    channel: 0,
+                                    rssi: 1,
+                                    authentication_suites: 0,
+                                    unicast_ciphers: 0,
+                                    group_ciphers: 0,
+                                    mode: super::network::WifiMode::Station,
+                                },
+                                WiFiState::NotConnected,
+                                config_id,
+                            )
+                            .activate(),
+                        );
+                    } else if let Some(ref mut con) = self.wifi_connection {
+                        if con.config_id == 255 {
+                            con.config_id = config_id;
+                        }
+                    }
+                    // One could argue that an excisting connection should be verified,
+                    // but should this be the case, the module is already having unexpected behaviour
+                } else {
+                    // This causes unexpected behaviour
+                    defmt::error!("Two configs are active on startup!");
+                    return Err(Error::Supplicant);
+                }
+            } else if load.is_err() {
+                //Handle shadow store bug
+                //TODO: Check if the ssid is set, if so the credential has to be cleared, as it is not there actually.
+
+                let GetWifiStationConfigResponse { parameter, .. } =
+                    self.send_at(&EdmAtCmdWrapper(GetWifiStationConfig {
+                        config_id,
+                        parameter: Some(WifiStationConfigParameter::SSID),
+                    }))?;
+
+                if let WifiStationConfigR::SSID(ssid) = parameter {
+                    if !ssid.is_empty() {
+                        defmt::error!("Shadow store bug!");
+                        // This should fix the issue
+                        self.remove_connection(config_id)
+                            .map_err(|_| Error::Supplicant)?;
+                        self.send_at(&EdmAtCmdWrapper(RebootDCE)).ok();
+                        return Err(Error::ShadowStoreBug);
+                    }
+                }
+            }
         }
         Ok(())
     }
 
     pub fn get_connection(&mut self, config_id: u8) -> Result<Option<ConnectionOptions>, Error> {
+        debug!("[SUP] Get connection: {:?}", config_id);
         let GetWifiStationConfigResponse {
             parameter: ip_mode, ..
         } = self.send_at(&EdmAtCmdWrapper(GetWifiStationConfig {
@@ -156,18 +241,31 @@ where
 
     /// Get id of active config
     pub fn get_active_config_id(&self) -> Option<u8> {
+        debug!("[SUP] Get active config id");
         if let Some(ref wifi) = self.wifi_connection {
-            if wifi.active {
+            if wifi.wifi_state != WiFiState::Inactive {
+                debug!("[SUP] Active: {:?}", wifi.config_id);
                 return Some(wifi.config_id);
             }
         }
         None
     }
 
+    /// Get id of active config
+    pub fn has_active_config_id(&self) -> bool {
+        if let Some(ref wifi) = self.wifi_connection {
+            if wifi.wifi_state != WiFiState::Inactive {
+                return true;
+            }
+        }
+        false
+    }
+
     /// List connections stored in module
     ///
     /// Sorted by config ID
     pub fn list_connections(&mut self) -> Result<Vec<(u8, ConnectionOptions), N>, Error> {
+        debug!("[SUP] list connections");
         Ok((0..N as u8)
             .filter_map(|config_id| {
                 self.get_connection(config_id)
@@ -182,16 +280,11 @@ where
     /// Removing the active connection is not possible. Deactivate the network first.
     pub fn remove_connection(&mut self, config_id: u8) -> Result<(), WifiConnectionError> {
         // self.deactivate(config_id)?;
-        if let Some(w) = self.wifi_connection {
-            if w.config_id == config_id && w.active {
-                return Err(WifiConnectionError::Illegal);
-            }
-        }
-
-        if let Some(ref con) = self.wifi_connection {
-            if con.config_id == config_id && con.is_connected() {
-                return Err(WifiConnectionError::WaitingForWifiDeactivation);
-            }
+        debug!("[SUP] Remove connection: {:?}", config_id);
+        // check for active
+        if self.is_config_in_use(config_id) {
+            defmt::error!("Config id is active!");
+            return Err(WifiConnectionError::Illegal);
         }
 
         self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
@@ -203,7 +296,11 @@ where
             config_id,
             action: WifiStationAction::Store,
         }))?;
-        debug!("[SUP] Remove config: {:?}", config_id);
+
+        if Some(config_id) == self.get_active_on_startup() {
+            self.unset_active_on_startup()?;
+        }
+        // debug!("[SUP] Remove config: {:?}", config_id);
 
         Ok(())
     }
@@ -211,16 +308,28 @@ where
     /// Attempts to store a wireless network with the given connection options.
     ///
     /// Replacing the currently active network is not possible.
-    pub fn upsert_connection(
+    pub fn insert_connection(
         &mut self,
         config_id: u8,
         options: &ConnectionOptions,
     ) -> Result<(), WifiConnectionError> {
+        debug!("[SUP] Insert config: {:?}", config_id);
         // Network part
         // Reset network config slot
-        self.remove_connection(config_id)?;
 
-        debug!("[SUP] Upsert config: {:?}", config_id);
+        // check for active
+        if self.is_config_in_use(config_id) {
+            defmt::error!("Config id is active!");
+            return Err(WifiConnectionError::Illegal);
+        }
+
+        self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
+            config_id,
+            action: WifiStationAction::Reset,
+        }))?;
+        if Some(config_id) == self.get_active_on_startup() {
+            self.unset_active_on_startup()?;
+        }
 
         // Disable DHCP Client (static IP address will be used)
         if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
@@ -289,12 +398,30 @@ where
 
     /// Activate a given network config
     /// Only one config can be active at any time.
+    ///
+    /// The driver has two modes of active for ID's. Active in driver and active on module.
+    /// These are differentiated by the driver mode being called activated and modules
+    /// mode called active. The driver activates a config, and then the driver reacts
+    /// asyncronous to the request and sets a config as active.
+    /// Driver activation is seen as `wificonnection.active()`.
+    /// Module is seen in `wificonnection.state`, where `inactive` is inactive and all others
+    /// are activated.
+    ///
+    /// The activation flow is as follows:
+    ///
+    /// driver.activate()     driver.deactivate()
+    ///       ┼─────────────────────────┼
+    ///              ┼─────────────────────────┼
+    ///        module is active          module inactive
     pub fn activate(&mut self, config_id: u8) -> Result<(), WifiConnectionError> {
+        debug!("[SUP] Activate connection: {:?}", config_id);
         if let Some(w) = self.wifi_connection {
-            if w.active {
+            if w.activated {
                 return Err(WifiConnectionError::Illegal);
             }
         }
+
+        let con = self.get_connection(config_id)?.unwrap_or_default();
 
         self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
             config_id,
@@ -306,7 +433,7 @@ where
                 WifiNetwork {
                     bssid: atat::heapless_bytes::Bytes::new(),
                     op_mode: crate::command::wifi::types::OperationMode::Infrastructure,
-                    ssid: heapless::String::new(),
+                    ssid: con.ssid,
                     channel: 0,
                     rssi: 1,
                     authentication_suites: 0,
@@ -314,7 +441,7 @@ where
                     group_ciphers: 0,
                     mode: super::network::WifiMode::Station,
                 },
-                WiFiState::NotConnected,
+                WiFiState::Inactive,
                 config_id,
             )
             .activate(),
@@ -326,22 +453,25 @@ where
 
     /// Deactivates a given network config
     ///
-    /// Operation not done untill network conneciton is lost
+    /// Operation not done until network conneciton is lost
     pub fn deactivate(&mut self, config_id: u8) -> Result<(), WifiConnectionError> {
+        debug!("[SUP] Deactivate connection: {:?}", config_id);
         let mut active = false;
-        if let Some(wifi) = self.wifi_connection {
-            if wifi.config_id == config_id && wifi.active {
-                active = true
+
+        if let Some(con) = self.wifi_connection {
+            if con.activated && con.config_id == config_id {
+                active = true;
             }
         }
+
         if active {
             self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
                 config_id,
                 action: WifiStationAction::Deactivate,
             }))?;
 
-            if let Some(ref mut w) = self.wifi_connection {
-                w.deactivate();
+            if let Some(ref mut con) = self.wifi_connection {
+                con.deactivate();
             }
             debug!("[SUP] Deactivated: {:?}", config_id);
         }
@@ -368,5 +498,113 @@ where
 
     pub fn flush(&mut self) -> Result<(), WifiConnectionError> {
         todo!()
+    }
+
+    /// Returns Active on startup config ID if any
+    pub fn get_active_on_startup(&self) -> Option<u8> {
+        debug!(
+            "[SUP] Get active on startup: {:?}",
+            self.active_on_startup.clone()
+        );
+        return self.active_on_startup.clone();
+    }
+
+    /// Returns Active on startup config ID if any
+    pub fn has_active_on_startup(&self) -> bool {
+        return self.active_on_startup.is_some();
+    }
+
+    /// Sets a config as active on startup, replacing the current.
+    ///
+    /// This is not possible if any of the two are currently active.
+    pub fn set_active_on_startup(&mut self, config_id: u8) -> Result<(), WifiConnectionError> {
+        debug!("[SUP] Set active on startup connection: {:?}", config_id);
+        // check end condition true
+        if let Some(active_on_startup) = *self.active_on_startup {
+            if active_on_startup == config_id {
+                return Ok(());
+            }
+            // check for active connection
+            if self.is_config_in_use(active_on_startup) {
+                defmt::error!("Active on startup is active!");
+                return Err(WifiConnectionError::Illegal);
+            }
+        }
+        if self.is_config_in_use(config_id) {
+            defmt::error!("Config id is active!");
+            return Err(WifiConnectionError::Illegal);
+        }
+
+        // disable current active on startup
+        if let Some(active_on_startup) = *self.active_on_startup {
+            // if any active on startup remove this parameter.
+            self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
+                config_id: active_on_startup,
+                config_param: WifiStationConfig::ActiveOnStartup(false.into()),
+            }))?;
+
+            self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
+                config_id: active_on_startup,
+                action: WifiStationAction::Store,
+            }))?;
+        }
+
+        // Insert the new one as active on startup.
+        self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
+            config_id,
+            config_param: WifiStationConfig::ActiveOnStartup(true.into()),
+        }))?;
+
+        self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
+            config_id,
+            action: WifiStationAction::Store,
+        }))?;
+
+        *self.active_on_startup = Some(config_id);
+
+        Ok(())
+    }
+
+    /// Unsets a config as active on startup, replacing the current.
+    ///
+    /// This is not possible if any of the two are currently active.
+    pub fn unset_active_on_startup(&mut self) -> Result<(), WifiConnectionError> {
+        debug!("[SUP] Unset active on startup connection");
+        // check for any of them as active
+        if let Some(active_on_startup) = self.active_on_startup.clone() {
+            // check for active connection
+            if self.is_config_in_use(active_on_startup) {
+                defmt::error!("Active on startup is active!");
+                return Err(WifiConnectionError::Illegal);
+            }
+            // if any active remove this asset.
+            self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {
+                config_id: active_on_startup,
+                config_param: WifiStationConfig::ActiveOnStartup(false.into()),
+            }))?;
+
+            self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
+                config_id: active_on_startup,
+                action: WifiStationAction::Store,
+            }))?;
+            *self.active_on_startup = None;
+        }
+        Ok(())
+    }
+
+    /// Checks for active and activated.
+    /// See self.activate for explanation.
+    fn is_config_in_use(&self, config_id: u8) -> bool {
+        if let Some(active_id) = self.get_active_config_id() {
+            if active_id == config_id {
+                return true;
+            }
+        } else if let Some(ref con) = self.wifi_connection {
+            if con.activated && con.config_id == config_id {
+                defmt::error!("One of the IDs being changed is activated!");
+                return true;
+            }
+        }
+        false
     }
 }

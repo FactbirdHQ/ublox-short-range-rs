@@ -26,7 +26,9 @@ pub enum Error {
     Unimplemented,
     SocketMemory,
     SocketMapMemory,
+    Supplicant,
     Timer,
+    ShadowStoreBug,
     _Unknown,
 }
 
