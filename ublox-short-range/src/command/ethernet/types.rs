@@ -3,6 +3,8 @@
 use atat::atat_derive::AtatEnum;
 use embedded_nal::Ipv4Addr;
 
+use crate::command::OnOff;
+
 #[derive(Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
 pub enum EthernetConfigParameter {
@@ -62,13 +64,13 @@ pub enum EthernetConfig {
     /// - 0 (default): Inactive
     /// - 1: active
     #[at_arg(value = 0)]
-    ActiveOnStartup(bool),
+    ActiveOnStartup(OnOff),
     /// <param_val> Phy support mode
     /// - 0: disabled
     /// - 1 (default): enabled
     /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
     #[at_arg(value = 1)]
-    PhySupport(bool),
+    PhySupport(OnOff),
     /// <param_val> Ethernet speed
     /// - 0 (default): 100 Mbit/s
     /// - 1: 10 Mbit/s
@@ -86,7 +88,7 @@ pub enum EthernetConfig {
     /// - 1 (default): enabled
     /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
     #[at_arg(value = 4)]
-    AutoNegotiation(bool),
+    AutoNegotiation(OnOff),
     /// <param_val> is the Phy address. The factory default value is 0x3 (for ODIN) and 0x0
     /// (for NINA-W13 and NINA-W15).
     #[at_arg(value = 5)]
@@ -118,7 +120,7 @@ pub enum EthernetConfig {
     /// - 0: Disabled
     /// - 1: Enabled
     #[at_arg(value = 107)]
-    AddressConflictDetection(bool),
+    AddressConflictDetection(OnOff),
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
@@ -127,13 +129,13 @@ pub enum EthernetConfigR {
     /// - 0 (default): Inactive
     /// - 1: active
     #[at_arg(value = 0)]
-    ActiveOnStartup(bool),
+    ActiveOnStartup(OnOff),
     /// <param_val> Phy support mode
     /// - 0: disabled
     /// - 1 (default): enabled
     /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
     #[at_arg(value = 1)]
-    PhySupport(bool),
+    PhySupport(OnOff),
     /// <param_val> Ethernet speed
     /// - 0 (default): 100 Mbit/s
     /// - 1: 10 Mbit/s
@@ -151,7 +153,7 @@ pub enum EthernetConfigR {
     /// - 1 (default): enabled
     /// Not available for ODIN-W2 software versions 2.0.0 or 2.0.1. Default PHY values will be used.
     #[at_arg(value = 4)]
-    AutoNegotiation(bool),
+    AutoNegotiation(OnOff),
     /// <param_val> is the Phy address. The factory default value is 0x3 (for ODIN) and 0x0
     /// (for NINA-W13 and NINA-W15).
     #[at_arg(value = 5)]
@@ -183,7 +185,7 @@ pub enum EthernetConfigR {
     /// - 0: Disabled
     /// - 1: Enabled
     #[at_arg(value = 107)]
-    AddressConflictDetection(bool),
+    AddressConflictDetection(OnOff),
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
