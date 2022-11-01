@@ -6,6 +6,9 @@ use atat::heapless_bytes::Bytes;
 /// 7.15 Wi-Fi Link connected +UUWLE
 #[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct WifiLinkConnected {
+    /// Not the config id!
+    /// Shame Ublox!
+    /// UBX-14044127
     #[at_arg(position = 0)]
     pub connection_id: u32,
     #[at_arg(position = 1)]

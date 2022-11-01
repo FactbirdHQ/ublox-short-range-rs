@@ -4,6 +4,8 @@ use crate::command::edm::{
 };
 use atat::{helpers::LossyStr, DigestResult, Digester, InternalError};
 
+use super::edm::types::{AUTOCONNECTMESSAGE, STARTUPMESSAGE};
+
 /// Digester for EDM context
 #[derive(Debug, Default)]
 pub struct EdmDigester;
@@ -12,9 +14,39 @@ impl Digester for EdmDigester {
     fn digest<'a>(&mut self, buf: &'a [u8]) -> (DigestResult<'a>, usize) {
         // TODO: Handle module restart, tests and set default startupmessage in client, and optimize this!
 
+        if buf.is_empty() {
+            return (DigestResult::None, 0);
+        }
+
+        defmt::trace!("Digest {:?}", LossyStr(&buf));
+        if buf.len() >= STARTUPMESSAGE.len() && buf[..2] == *b"\r\n" {
+            if let Some(i) = buf[2..].windows(2).position(|x| x == *b"\r\n") {
+                // Two for starting position, one for index -> len and one for the window size.
+                let len = i + 4;
+                defmt::trace!("Digest common at {:?}; i: {:?}", LossyStr(&buf[..len]), i);
+                if buf[..len] == *STARTUPMESSAGE {
+                    return (
+                        DigestResult::Urc(&buf[..STARTUPMESSAGE.len()]),
+                        STARTUPMESSAGE.len(),
+                    );
+                } else if len == AUTOCONNECTMESSAGE.len() || len == AUTOCONNECTMESSAGE.len() + 1 {
+                    return (DigestResult::Urc(&buf[..len]), len);
+                } else {
+                    return (DigestResult::None, len);
+                }
+            }
+        } else if buf.len() > STARTUPMESSAGE.len()
+            && buf[buf.len() - STARTUPMESSAGE.len()..] == *STARTUPMESSAGE
+        {
+            return (
+                DigestResult::Urc(&buf[buf.len() - STARTUPMESSAGE.len()..]),
+                buf.len(),
+            );
+        }
+
         let start_pos = match buf.windows(1).position(|byte| byte[0] == STARTBYTE) {
             Some(pos) => pos,
-            None => return (DigestResult::None, 0), // handle leading error data. // TODO: handle error input before message start.
+            None => return (DigestResult::None, 0), // handle leading error data. // TODO: handle error input without message start.
         };
 
         // Trim leading invalid data.
@@ -52,7 +84,8 @@ impl Digester for EdmDigester {
                 };
                 (return_val, edm_len)
             }
-            PayloadType::StartEvent => (DigestResult::Response(Ok(&buf[..edm_len])), edm_len),
+            PayloadType::StartEvent => (DigestResult::Urc(&buf[..edm_len]), edm_len),
+            // PayloadType::StartEvent => (DigestResult::Response(Ok(&buf[..edm_len])), edm_len),
             PayloadType::ATEvent
             | PayloadType::ConnectEvent
             | PayloadType::DataEvent

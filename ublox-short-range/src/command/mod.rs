@@ -13,7 +13,7 @@ pub mod security;
 pub mod system;
 pub mod wifi;
 
-use atat::atat_derive::{AtatCmd, AtatLen, AtatResp, AtatUrc};
+use atat::atat_derive::{AtatCmd, AtatEnum, AtatLen, AtatResp, AtatUrc};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, AtatResp, PartialEq)]
@@ -42,6 +42,9 @@ pub struct PeerHandle(pub u8);
 
 #[derive(Debug, PartialEq, Clone, AtatUrc)]
 pub enum Urc {
+    /// Startup Message
+    #[at_urc("+STARTUP")]
+    StartUp,
     /// 5.10 Peer connected +UUDPC
     #[at_urc("+UUDPC")]
     PeerConnected(data_mode::urc::PeerConnected),
@@ -85,4 +88,29 @@ pub enum Urc {
     PingResponse(ping::urc::PingResponse),
     #[at_urc("+UUPINGER")]
     PingErrorResponse(ping::urc::PingErrorResponse),
+}
+
+#[derive(Clone, PartialEq, AtatEnum)]
+#[repr(u8)]
+pub enum OnOff {
+    On = 1,
+    Off = 0,
+}
+
+impl From<bool> for OnOff {
+    fn from(b: bool) -> Self {
+        match b {
+            true => Self::On,
+            false => Self::Off,
+        }
+    }
+}
+
+impl Into<bool> for OnOff {
+    fn into(self) -> bool {
+        match self {
+            Self::On => true,
+            Self::Off => false,
+        }
+    }
 }

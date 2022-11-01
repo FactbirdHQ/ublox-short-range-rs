@@ -57,7 +57,7 @@ where
         )?;
 
         if let Some(ref con) = self.wifi_connection {
-            if con.wifi_state != WiFiState::Inactive {
+            if con.activated {
                 return Err(WifiHotspotError::CreationFailed);
             }
         }
@@ -107,7 +107,7 @@ where
         self.send_internal(
             &EdmAtCmdWrapper(SetWifiAPConfig {
                 ap_config_id,
-                ap_config_param: AccessPointConfig::DHCPServer(true),
+                ap_config_param: AccessPointConfig::DHCPServer(true.into()),
             }),
             true,
         )?;
@@ -172,21 +172,6 @@ where
             )?;
         }
 
-        self.wifi_connection.replace(WifiConnection::new(
-            WifiNetwork {
-                bssid: Bytes::new(),
-                op_mode: wifi::types::OperationMode::AdHoc,
-                ssid: options.ssid,
-                channel: 0,
-                rssi: 1,
-                authentication_suites: 0,
-                unicast_ciphers: 0,
-                group_ciphers: 0,
-                mode: WifiMode::AccessPoint,
-            },
-            WiFiState::NotConnected,
-            ap_config_id as u8,
-        ));
         self.send_internal(
             &EdmAtCmdWrapper(WifiAPAction {
                 ap_config_id,
@@ -195,6 +180,24 @@ where
             true,
         )?;
 
+        self.wifi_connection.replace(
+            WifiConnection::new(
+                WifiNetwork {
+                    bssid: Bytes::new(),
+                    op_mode: wifi::types::OperationMode::AdHoc,
+                    ssid: options.ssid,
+                    channel: 0,
+                    rssi: 1,
+                    authentication_suites: 0,
+                    unicast_ciphers: 0,
+                    group_ciphers: 0,
+                    mode: WifiMode::AccessPoint,
+                },
+                WiFiState::NotConnected,
+                ap_config_id as u8,
+            )
+            .activate(),
+        );
         Ok(())
     }
 
@@ -205,21 +208,20 @@ where
         let ap_config_id = AccessPointId::Id0;
 
         if let Some(ref con) = self.wifi_connection {
-            match con.wifi_state {
-                WiFiState::Connected | WiFiState::NotConnected => {
-                    // con.wifi_state = WiFiState::Inactive;
-                    self.send_internal(
-                        &EdmAtCmdWrapper(WifiAPAction {
-                            ap_config_id,
-                            ap_action: AccessPointAction::Deactivate,
-                        }),
-                        true,
-                    )?;
-                }
-                WiFiState::Inactive => {}
+            if con.activated {
+                self.send_internal(
+                    &EdmAtCmdWrapper(WifiAPAction {
+                        ap_config_id,
+                        ap_action: AccessPointAction::Deactivate,
+                    }),
+                    true,
+                )?;
             }
         } else {
             return Err(WifiHotspotError::FailedToStop);
+        }
+        if let Some(ref mut con) = self.wifi_connection {
+            con.deactivate()
         }
 
         Ok(())

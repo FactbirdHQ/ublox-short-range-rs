@@ -24,6 +24,7 @@ use crate::{
     error::Error,
     wifi::{
         connection::{NetworkState, WiFiState, WifiConnection},
+        network::{WifiMode, WifiNetwork},
         supplicant::Supplicant,
         SocketMap,
     },
@@ -80,9 +81,11 @@ where
     CLK: Clock<TIMER_HZ>,
     RST: OutputPin,
 {
+    pub(crate) module_started: bool,
     pub(crate) initialized: bool,
     serial_mode: SerialMode,
     pub(crate) wifi_connection: Option<WifiConnection>,
+    pub(crate) wifi_config_active_on_startup: Option<u8>,
     pub(crate) client: C,
     pub(crate) config: Config<RST>,
     pub(crate) sockets: Option<&'static mut SocketSet<TIMER_HZ, N, L>>,
@@ -103,9 +106,11 @@ where
 {
     pub fn new(client: C, timer: CLK, config: Config<RST>) -> Self {
         UbloxClient {
+            module_started: false,
             initialized: false,
             serial_mode: SerialMode::Cmd,
             wifi_connection: None,
+            wifi_config_active_on_startup: None,
             client,
             config,
             sockets: None,
@@ -139,9 +144,16 @@ where
         self.reset()?;
 
         // Switch to EDM on Init. If in EDM, fail and check with autosense
-        if self.serial_mode != SerialMode::ExtendedData {
-            self.retry_send(&SwitchToEdmCommand, 5)?;
-            self.serial_mode = SerialMode::ExtendedData;
+        // if self.serial_mode != SerialMode::ExtendedData {
+        //     self.retry_send(&SwitchToEdmCommand, 5)?;
+        //     self.serial_mode = SerialMode::ExtendedData;
+        // }
+
+        while self.serial_mode != SerialMode::ExtendedData {
+            self.send_internal(&SwitchToEdmCommand, true).ok();
+            self.timer.start(100.millis()).map_err(|_| Error::Timer)?;
+            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+            while self.handle_urc()? {}
         }
 
         // TODO: handle EDM settings quirk see EDM datasheet: 2.2.5.1 AT Request Serial settings
@@ -174,8 +186,8 @@ where
         )?;
 
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
-        self.supplicant::<10>().load()?;
 
+      
         if self.firmware_version()? < FirmwareVersion::new(8, 0, 0) {
             self.config.network_up_bug = true;
         } else {
@@ -199,6 +211,7 @@ where
         }
 
         self.initialized = true;
+        self.supplicant::<10>()?.init()?;
 
         Ok(())
     }
@@ -230,22 +243,38 @@ where
     pub fn reset(&mut self) -> Result<(), Error> {
         self.serial_mode = SerialMode::Cmd;
         self.initialized = false;
+        self.module_started = false;
         self.wifi_connection = None;
+        self.wifi_config_active_on_startup = None;
+        self.dns_state = DNSState::NotResolving;
         self.urc_attempts = 0;
         self.security_credentials = SecurityCredentials::default();
         self.socket_map = SocketMap::default();
+        self.udp_listener = UdpListener::new();
 
         self.clear_buffers()?;
 
         if let Some(ref mut pin) = self.config.rst_pin {
+            defmt::warn!("Hard resetting Ublox Short Range");
             pin.set_low().ok();
             self.timer.start(50.millis()).map_err(|_| Error::Timer)?;
             nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
 
             pin.set_high().ok();
 
-            self.timer.start(3.secs()).map_err(|_| Error::Timer)?;
-            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+            self.timer.start(4.secs()).map_err(|_| Error::Timer)?;
+            loop {
+                match self.timer.wait() {
+                    Ok(()) => return Err(Error::_Unknown),
+                    Err(nb::Error::WouldBlock) => {
+                        self.handle_urc().ok();
+                        if self.module_started {
+                            break;
+                        }
+                    }
+                    Err(_) => return Err(Error::Timer),
+                }
+            }
         }
         Ok(())
     }
@@ -309,7 +338,7 @@ where
         let dns_state = &mut self.dns_state;
         let socket_map = &mut self.socket_map;
         let udp_listener = &mut self.udp_listener;
-        let wifi_connection = self.wifi_connection.as_mut();
+        let wifi_connection = &mut self.wifi_connection;
         let ts = self.timer.now();
 
         let mut a = self.urc_attempts;
@@ -320,6 +349,13 @@ where
             let res = match edm_urc {
                 EdmEvent::ATEvent(urc) => {
                     match urc {
+                        Urc::StartUp => {
+                            debug!("[URC] Startup");
+                            self.module_started = true;
+                            self.initialized = false;
+                            self.serial_mode = SerialMode::Cmd;
+                            true
+                        }
                         Urc::PeerConnected(event) => {
                             debug!("[URC] PeerConnected");
 
@@ -448,10 +484,29 @@ where
                         }
                         Urc::WifiLinkConnected(msg) => {
                             debug!("[URC] WifiLinkConnected");
-                            if let Some(con) = wifi_connection {
+                            if let Some(ref mut con) = wifi_connection {
                                 con.wifi_state = WiFiState::Connected;
                                 con.network.bssid = msg.bssid;
                                 con.network.channel = msg.channel;
+                            } else {
+                                debug!("[URC] Active network config discovered");
+                                wifi_connection.replace(
+                                    WifiConnection::new(
+                                        WifiNetwork {
+                                            bssid: msg.bssid,
+                                            op_mode: crate::command::wifi::types::OperationMode::Infrastructure,
+                                            ssid: heapless::String::new(),
+                                            channel: msg.channel,
+                                            rssi: 1,
+                                            authentication_suites: 0,
+                                            unicast_ciphers: 0,
+                                            group_ciphers: 0,
+                                            mode: WifiMode::Station,
+                                        },
+                                        WiFiState::Connected,
+                                        255,
+                                    ).activate()
+                                );
                             }
                             true
                         }
@@ -547,6 +602,8 @@ where
                 } // end match urc
                 EdmEvent::StartUp => {
                     debug!("[EDM_URC] STARTUP");
+                    self.module_started = true;
+                    self.serial_mode = SerialMode::ExtendedData;
                     true
                 }
                 EdmEvent::IPv4ConnectEvent(event) => {
@@ -731,13 +788,19 @@ where
         }
     }
 
-    pub fn supplicant<const M: usize>(&mut self) -> Supplicant<C, M> {
-        Supplicant {
+    pub fn supplicant<const M: usize>(&mut self) -> Result<Supplicant<C, M>, Error> {
+        // TODO: better solution
+        if !self.initialized {
+            return Err(Error::Uninitialized);
+        }
+
+        Ok(Supplicant {
             client: &mut self.client,
             wifi_connection: &mut self.wifi_connection,
-        }
+            active_on_startup: &mut self.wifi_config_active_on_startup,
+        })
     }
-
+    /// Is the module attached to a WiFi and ready to open sockets
     pub fn connected_to_network(&self) -> Result<(), Error> {
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized {
@@ -746,6 +809,24 @@ where
                 Err(Error::WifiState(con.wifi_state))
             } else if self.sockets.is_none() {
                 Err(Error::MissingSocketSet)
+            } else {
+                Ok(())
+            }
+        } else {
+            Err(Error::NoWifiSetup)
+        }
+    }
+
+    /// Is the module attached to a WiFi
+    ///
+    /// WiFi connection can disconnect momentarily, but if the network state does not change
+    /// the current context is safe.
+    pub fn attached_to_wifi(&self) -> Result<(), Error> {
+        if let Some(ref con) = self.wifi_connection {
+            if !self.initialized {
+                Err(Error::Uninitialized)
+            } else if !(con.network_state == NetworkState::Attached) {
+                Err(Error::WifiState(con.wifi_state))
             } else {
                 Ok(())
             }

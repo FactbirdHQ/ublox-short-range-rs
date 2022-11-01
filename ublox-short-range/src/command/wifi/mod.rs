@@ -8,7 +8,7 @@ use heapless::Vec;
 use responses::*;
 use types::*;
 
-use super::NoResponse;
+use super::{NoResponse, OnOff};
 
 /// 7.1 Wi-Fi station configuration +UWSC
 ///
@@ -132,7 +132,7 @@ pub struct GetWatchdogConfig {
     #[at_arg(position = 0)]
     pub watchdog_setting: WatchdogSetting,
     #[at_arg(position = 1)]
-    pub value: bool,
+    pub value: OnOff,
 }
 
 /// 7.8 Wi-Fi Access point configuration +UWAPC
