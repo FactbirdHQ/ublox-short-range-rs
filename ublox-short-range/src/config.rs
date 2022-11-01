@@ -80,6 +80,7 @@ where
     /// Minimum is 512 and maximum is 16K (16384).
     /// DEFAULT_TLS_IN_BUFFER_SIZE (7800)
     pub fn tls_in_buffer_size(self, bytes: u16) -> Self {
+        assert!(bytes > 512);
         Config {
             tls_in_buffer_size: Some(bytes),
             ..self
@@ -92,6 +93,7 @@ where
     /// Minimum is 512 and maximum is 16K (16384).
     /// DEFAULT_TLS_OUT_BUFFER_SIZE (3072)
     pub fn tls_out_buffer_size(self, bytes: u16) -> Self {
+        assert!(bytes > 512);
         Config {
             tls_out_buffer_size: Some(bytes),
             ..self
