@@ -187,7 +187,6 @@ where
 
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
 
-      
         if self.firmware_version()? < FirmwareVersion::new(8, 0, 0) {
             self.config.network_up_bug = true;
         } else {
