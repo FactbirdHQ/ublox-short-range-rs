@@ -5,6 +5,8 @@ use atat::heapless_bytes::Bytes;
 
 use heapless::String;
 
+use crate::command::OnOff;
+
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum NetworkStatus {
     /// 0: The <status_val> is the interface hardware address (displayed only if applicable).
@@ -14,7 +16,7 @@ pub enum NetworkStatus {
     /// - 0: Network down
     /// - 1: Network up
     #[at_arg(value = 1)]
-    Status(bool),
+    Status(OnOff),
     /// 2: The <interface_type> is the interface type.
     /// - 0: Unknown
     /// - 1: Wi-Fi Station
@@ -149,7 +151,7 @@ pub enum BridgeConfig {
     /// - 0 (default): Inactive
     /// - 1: Active
     #[at_arg(value = 0)]
-    ActiveOnStartup(bool),
+    ActiveOnStartup(OnOff),
     /// Link layer list. The list defines the interfaces that shall be bridged.
     /// The factory default value is an empty list.
     /// The following interfaces can be bridged:
@@ -202,13 +204,13 @@ pub enum BridgeConfig {
     /// following formula - "(Static address and subnet mask) + 100". If DHCP Server is
     /// enabled, the IPv4 Mode should be set to static.
     #[at_arg(value = 106)]
-    DHCPServer(bool),
+    DHCPServer(OnOff),
     /// Address conflict detection. The factory default value is 0 (disabled). This tag is
     /// supported by ODIN-W2 from software version 6.0.0 onwards only.
     /// - 0: Disabled
     /// - 1: Enabled
     #[at_arg(value = 107)]
-    AddressConflictDetection(bool),
+    AddressConflictDetection(OnOff),
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
