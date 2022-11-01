@@ -173,40 +173,38 @@ where
             false,
         )?;
 
-        if let Some(size) = self.config.tls_in_buffer_size {
-            assert!(size > 512);
-            self.send_internal(
-                &EdmAtCmdWrapper(SetPeerConfiguration {
-                    parameter: PeerConfigParameter::TlsInBuffer(size),
-                }),
-                false,
-            )?;
-        }
-
-        if let Some(size) = self.config.tls_out_buffer_size {
-            assert!(size > 512);
-            self.send_internal(
-                &EdmAtCmdWrapper(SetPeerConfiguration {
-                    parameter: PeerConfigParameter::TlsOutBuffer(size),
-                }),
-                false,
-            )?;
-        }
-
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
         self.supplicant::<10>().load()?;
 
-        self.initialized = true;
-
         if self.firmware_version()? < FirmwareVersion::new(8, 0, 0) {
             self.config.network_up_bug = true;
+        } else {
+            if let Some(size) = self.config.tls_in_buffer_size {
+                self.send_internal(
+                    &EdmAtCmdWrapper(SetPeerConfiguration {
+                        parameter: PeerConfigParameter::TlsInBuffer(size),
+                    }),
+                    false,
+                )?;
+            }
+
+            if let Some(size) = self.config.tls_out_buffer_size {
+                self.send_internal(
+                    &EdmAtCmdWrapper(SetPeerConfiguration {
+                        parameter: PeerConfigParameter::TlsOutBuffer(size),
+                    }),
+                    false,
+                )?;
+            }
         }
+
+        self.initialized = true;
 
         Ok(())
     }
 
     pub fn firmware_version(&mut self) -> Result<FirmwareVersion, Error> {
-        let response = self.send_at(SoftwareVersion)?;
+        let response = self.send_internal(&EdmAtCmdWrapper(SoftwareVersion), false)?;
         Ok(response.version)
     }
 

@@ -78,6 +78,7 @@ where
 
     /// Experimental use of undocumented setting for TLS buffers
     pub fn tls_in_buffer_size(self, bytes: u16) -> Self {
+        assert!(bytes > 512);
         Config {
             tls_in_buffer_size: Some(bytes),
             ..self
@@ -86,6 +87,7 @@ where
 
     /// Experimental use of undocumented setting for TLS buffers
     pub fn tls_out_buffer_size(self, bytes: u16) -> Self {
+        assert!(bytes > 512);
         Config {
             tls_out_buffer_size: Some(bytes),
             ..self
