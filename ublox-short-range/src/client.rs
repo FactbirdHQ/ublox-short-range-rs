@@ -818,13 +818,15 @@ where
 
     /// Is the module attached to a WiFi
     ///
-    /// WiFi connection can disconnect momentarily, but if the network state does not change
-    /// the current context is safe.
+    // TODO: handle this case fro better stability 
+    // WiFi connection can disconnect momentarily, but if the network state does not change
+    // the current context is safe. 
     pub fn attached_to_wifi(&self) -> Result<(), Error> {
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized {
                 Err(Error::Uninitialized)
-            } else if !(con.network_state == NetworkState::Attached) {
+            // } else if !(con.network_state == NetworkState::Attached) {
+            } else if !con.is_connected() {
                 Err(Error::WifiState(con.wifi_state))
             } else {
                 Ok(())
