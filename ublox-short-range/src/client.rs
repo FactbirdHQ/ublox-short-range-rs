@@ -818,9 +818,9 @@ where
 
     /// Is the module attached to a WiFi
     ///
-    // TODO: handle this case fro better stability 
+    // TODO: handle this case for better stability
     // WiFi connection can disconnect momentarily, but if the network state does not change
-    // the current context is safe. 
+    // the current context is safe.
     pub fn attached_to_wifi(&self) -> Result<(), Error> {
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized {
