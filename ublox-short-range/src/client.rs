@@ -869,11 +869,7 @@ where
                 Err(Error::Uninitialized)
             // } else if !(con.network_state == NetworkState::Attached) {
             } else if !con.is_connected() {
-                if con.wifi_state == WiFiState::Connected {
-                    Err(Error::NetworkState(con.network_state))
-                } else {
-                    Err(Error::WifiState(con.wifi_state))
-                }
+                Err(Error::WifiState(con.wifi_state))
             } else {
                 Ok(())
             }
