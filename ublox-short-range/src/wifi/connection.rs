@@ -10,7 +10,7 @@ pub enum WiFiState {
 
 /// Describes whether device is connected to a network and has an IP or not.
 /// It is possible to be attached to a network but have no Wifi connection.
-#[derive(Debug, PartialEq, defmt::Format)]
+#[derive(Debug, Clone, Copy, PartialEq, defmt::Format)]
 pub enum NetworkState {
     Attached,
     AlmostAttached,
