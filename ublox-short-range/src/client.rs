@@ -12,7 +12,7 @@ use crate::{
         ping::types::PingError,
         system::{
             types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
-            SetRS232Settings, StoreCurrentConfig,
+            RebootDCE, SetRS232Settings, StoreCurrentConfig,
         },
         wifi::{
             types::{DisconnectReason, WifiConfig},
@@ -187,6 +187,15 @@ where
 
         self.send_internal(&EdmAtCmdWrapper(StoreCurrentConfig), false)?;
 
+        self.software_reset()?;
+
+        while self.serial_mode != SerialMode::ExtendedData {
+            self.send_internal(&SwitchToEdmCommand, true).ok();
+            self.timer.start(100.millis()).map_err(|_| Error::Timer)?;
+            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+            while self.handle_urc()? {}
+        }
+
         if self.firmware_version()? < FirmwareVersion::new(8, 0, 0) {
             self.config.network_up_bug = true;
         } else {
@@ -275,6 +284,39 @@ where
                 }
             }
         }
+        Ok(())
+    }
+
+    pub fn software_reset(&mut self) -> Result<(), Error> {
+        self.serial_mode = SerialMode::Cmd;
+        self.initialized = false;
+        self.module_started = false;
+        self.wifi_connection = None;
+        self.wifi_config_active_on_startup = None;
+        self.dns_state = DNSState::NotResolving;
+        self.urc_attempts = 0;
+        self.security_credentials = SecurityCredentials::default();
+        self.socket_map = SocketMap::default();
+        self.udp_listener = UdpListener::new();
+
+        defmt::warn!("Soft resetting Ublox Short Range");
+        self.send_internal(&EdmAtCmdWrapper(RebootDCE), false)?;
+        self.clear_buffers()?;
+
+        self.timer.start(4.secs()).map_err(|_| Error::Timer)?;
+        loop {
+            match self.timer.wait() {
+                Ok(()) => return Err(Error::_Unknown),
+                Err(nb::Error::WouldBlock) => {
+                    self.handle_urc().ok();
+                    if self.module_started {
+                        break;
+                    }
+                }
+                Err(_) => return Err(Error::Timer),
+            }
+        }
+
         Ok(())
     }
 
@@ -818,14 +860,20 @@ where
 
     /// Is the module attached to a WiFi
     ///
-    /// WiFi connection can disconnect momentarily, but if the network state does not change
-    /// the current context is safe.
+    // TODO: handle this case for better stability
+    // WiFi connection can disconnect momentarily, but if the network state does not change
+    // the current context is safe.
     pub fn attached_to_wifi(&self) -> Result<(), Error> {
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized {
                 Err(Error::Uninitialized)
-            } else if !(con.network_state == NetworkState::Attached) {
-                Err(Error::WifiState(con.wifi_state))
+            // } else if !(con.network_state == NetworkState::Attached) {
+            } else if !con.is_connected() {
+                if con.wifi_state == WiFiState::Connected {
+                    Err(Error::NetworkState(con.network_state))
+                } else {
+                    Err(Error::WifiState(con.wifi_state))
+                }
             } else {
                 Ok(())
             }
