@@ -1,4 +1,4 @@
-use embedded_hal::nb;
+use embedded_nal::nb;
 use heapless::Vec;
 
 use crate::{
@@ -284,7 +284,7 @@ where
         // check for active
         if self.is_config_in_use(config_id) {
             defmt::error!("Config id is active!");
-            return Err(WifiConnectionError::Illigal);
+            return Err(WifiConnectionError::Illegal);
         }
 
         self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
@@ -320,7 +320,7 @@ where
         // check for active
         if self.is_config_in_use(config_id) {
             defmt::error!("Config id is active!");
-            return Err(WifiConnectionError::Illigal);
+            return Err(WifiConnectionError::Illegal);
         }
 
         self.send_at(&EdmAtCmdWrapper(ExecWifiStationAction {
@@ -417,7 +417,7 @@ where
         debug!("[SUP] Activate connection: {:?}", config_id);
         if let Some(w) = self.wifi_connection {
             if w.activated {
-                return Err(WifiConnectionError::Illigal);
+                return Err(WifiConnectionError::Illegal);
             }
         }
 
@@ -527,12 +527,12 @@ where
             // check for active connection
             if self.is_config_in_use(active_on_startup) {
                 defmt::error!("Active on startup is active!");
-                return Err(WifiConnectionError::Illigal);
+                return Err(WifiConnectionError::Illegal);
             }
         }
         if self.is_config_in_use(config_id) {
             defmt::error!("Config id is active!");
-            return Err(WifiConnectionError::Illigal);
+            return Err(WifiConnectionError::Illegal);
         }
 
         // disable current active on startup
@@ -575,7 +575,7 @@ where
             // check for active connection
             if self.is_config_in_use(active_on_startup) {
                 defmt::error!("Active on startup is active!");
-                return Err(WifiConnectionError::Illigal);
+                return Err(WifiConnectionError::Illegal);
             }
             // if any active remove this asset.
             self.send_at(&EdmAtCmdWrapper(SetWifiStationConfig {

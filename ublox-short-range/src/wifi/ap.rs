@@ -19,7 +19,7 @@ use crate::{
 };
 use atat::AtatClient;
 use atat::{clock::Clock, heapless_bytes::Bytes};
-use embedded_hal::digital::blocking::OutputPin;
+use embedded_hal::digital::OutputPin;
 
 use super::connection::{WiFiState, WifiConnection};
 
@@ -107,7 +107,7 @@ where
         self.send_internal(
             &EdmAtCmdWrapper(SetWifiAPConfig {
                 ap_config_id,
-                ap_config_param: AccessPointConfig::DHCPServer(true),
+                ap_config_param: AccessPointConfig::DHCPServer(true.into()),
             }),
             true,
         )?;

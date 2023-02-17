@@ -59,9 +59,9 @@ pub enum WifiConnectionError {
     BufferOverflow,
     // SsidNotFound,
     /// Config id above 9.
-    IncompatiableConfigId,
-    /// Trying to enter an illigal state
-    Illigal,
+    IncompatibleConfigId,
+    /// Trying to enter an illegal state
+    Illegal,
     Internal(Error),
 }
 

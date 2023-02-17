@@ -1,11 +1,13 @@
-use embedded_hal::digital::blocking::OutputPin;
+use embedded_hal::digital::{ErrorType, OutputPin};
 use heapless::String;
 
 pub struct NoPin;
 
-impl OutputPin for NoPin {
+impl ErrorType for NoPin {
     type Error = core::convert::Infallible;
+}
 
+impl OutputPin for NoPin {
     fn set_low(&mut self) -> Result<(), Self::Error> {
         Ok(())
     }
@@ -75,7 +77,7 @@ where
     }
 
     /// Experimental use of undocumented setting for TLS buffers
-    /// 
+    ///
     /// For Odin:
     /// Minimum is 512 and maximum is 16K (16384).
     /// DEFAULT_TLS_IN_BUFFER_SIZE (7800)
@@ -88,7 +90,7 @@ where
     }
 
     /// Experimental use of undocumented setting for TLS buffers
-    /// 
+    ///
     /// For Odin:
     /// Minimum is 512 and maximum is 16K (16384).
     /// DEFAULT_TLS_OUT_BUFFER_SIZE (3072)
