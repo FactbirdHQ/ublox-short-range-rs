@@ -29,7 +29,6 @@ use crate::{
         SocketMap,
     },
 };
-use atat::clock::Clock;
 use defmt::{debug, error, trace};
 use embedded_hal::digital::OutputPin;
 use embedded_nal::{nb, IpAddr, Ipv4Addr, SocketAddr};
@@ -77,8 +76,8 @@ pub fn new_socket_num<'a, const TIMER_HZ: u32, const N: usize, const L: usize>(
 
 pub struct UbloxClient<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
 where
-    C: atat::AtatClient,
-    CLK: Clock<TIMER_HZ>,
+    C: atat::blocking::AtatClient,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     pub(crate) module_started: bool,
@@ -100,8 +99,8 @@ where
 impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
     UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
-    C: atat::AtatClient,
-    CLK: Clock<TIMER_HZ>,
+    C: atat::blocking::AtatClient,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     pub fn new(client: C, timer: CLK, config: Config<RST>) -> Self {
@@ -321,7 +320,8 @@ where
     }
 
     pub(crate) fn clear_buffers(&mut self) -> Result<(), Error> {
-        self.client.reset();
+        // self.client.reset(); deprecated
+        
         if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
             sockets.prune();
         }
@@ -364,12 +364,9 @@ where
             }
         }
 
-        self.client.send(req).map_err(|e| match e {
-            nb::Error::Other(ate) => {
-                error!("{:?}: {=[u8]:a}", ate, req.as_bytes());
-                ate.into()
-            }
-            nb::Error::WouldBlock => Error::_Unknown,
+        self.client.send(req).map_err(|e| {
+            error!("{:?}: {=[u8]:a}", e, req.as_bytes());
+            e.into()
         })
     }
 
@@ -385,7 +382,7 @@ where
         let mut a = self.urc_attempts;
         let max = self.config.max_urc_attempts;
 
-        self.client.peek_urc_with::<EdmEvent, _>(|edm_urc| {
+        self.client.try_read_urc_with::<EdmEvent, _>(|edm_urc, _| {
             ran = true;
             let res = match edm_urc {
                 EdmEvent::ATEvent(urc) => {

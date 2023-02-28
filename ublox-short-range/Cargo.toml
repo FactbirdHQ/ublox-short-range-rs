@@ -27,6 +27,10 @@ defmt = { version = "0.3" }
 embedded-hal = "=1.0.0-alpha.9"
 embedded-nal = "0.6.0"
 fugit = { version = "0.3", features = ["defmt"] }
+fugit-timer = "0.1.2"
+
+[dev-dependencies]
+embedded-io = "0.4"
 
 [features]
 default = ["odin_w2xx", "wifi_ap", "wifi_sta", "socket-udp", "socket-tcp"]
