@@ -1,12 +1,12 @@
+use super::client::new_socket_num;
+use super::UbloxClient;
 use crate::{
-    client::new_socket_num,
     command::data_mode::*,
     command::{
         data_mode::types::{IPVersion, ServerType, UDPBehaviour},
         edm::{EdmAtCmdWrapper, EdmDataCommand},
     },
     wifi::peer_builder::PeerUrlBuilder,
-    UbloxClient,
 };
 use embedded_hal::digital::OutputPin;
 use embedded_nal::{nb, SocketAddr, UdpFullStack};
@@ -14,13 +14,11 @@ use embedded_nal::{nb, SocketAddr, UdpFullStack};
 use embedded_nal::UdpClientStack;
 use ublox_sockets::{Error, SocketHandle, UdpSocket, UdpState};
 
-use super::EGRESS_CHUNK_SIZE;
+use crate::wifi::EGRESS_CHUNK_SIZE;
 
-impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> UdpClientStack
-    for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
+impl<C, RST, const N: usize, const L: usize> UdpClientStack for UbloxClient<C, RST, N, L>
 where
     C: atat::blocking::AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     type Error = Error;
@@ -36,7 +34,7 @@ where
             if sockets.len() >= sockets.capacity() {
                 // Check if there are any sockets closed by remote, and close it
                 // if it has exceeded its timeout, in order to recycle it.
-                if sockets.recycle(self.timer.now()) {
+                if sockets.recycle() {
                     return Err(Error::SocketSetFull);
                 }
             }
@@ -77,7 +75,7 @@ where
             .sockets
             .as_mut()
             .unwrap()
-            .get::<UdpSocket<TIMER_HZ, L>>(*socket)?;
+            .get::<UdpSocket<L>>(*socket)?;
         udp.bind(remote)?;
 
         // Then connect modem
@@ -95,7 +93,7 @@ where
                     .sockets
                     .as_mut()
                     .unwrap()
-                    .get::<UdpSocket<TIMER_HZ, L>>(*socket)?;
+                    .get::<UdpSocket<L>>(*socket)?;
                 udp.close();
                 return Err(e);
             }
@@ -104,7 +102,7 @@ where
             .sockets
             .as_mut()
             .unwrap()
-            .get::<UdpSocket<TIMER_HZ, L>>(*socket)?
+            .get::<UdpSocket<L>>(*socket)?
             .state()
             == UdpState::Closed
         {
@@ -123,7 +121,7 @@ where
             }
 
             let udp = sockets
-                .get::<UdpSocket<TIMER_HZ, L>>(*socket)
+                .get::<UdpSocket<L>>(*socket)
                 .map_err(Self::Error::from)?;
 
             if !udp.is_open() {
@@ -175,7 +173,7 @@ where
 
             if let Some(ref mut sockets) = self.sockets {
                 let mut udp = sockets
-                    .get::<UdpSocket<TIMER_HZ, L>>(*connection_handle)
+                    .get::<UdpSocket<L>>(*connection_handle)
                     .map_err(|_| Self::Error::InvalidSocket)?;
 
                 let bytes = udp.recv_slice(buffer).map_err(Self::Error::from)?;
@@ -187,7 +185,7 @@ where
             // Handle reciving for udp normal sockets
         } else if let Some(ref mut sockets) = self.sockets {
             let mut udp = sockets
-                .get::<UdpSocket<TIMER_HZ, L>>(*socket)
+                .get::<UdpSocket<L>>(*socket)
                 .map_err(Self::Error::from)?;
 
             let bytes = udp.recv_slice(buffer).map_err(Self::Error::from)?;
@@ -255,14 +253,14 @@ where
         } else if let Some(ref mut sockets) = self.sockets {
             defmt::debug!("[UDP] Closing socket: {:?}", socket);
             // If no sockets exists, nothing to close.
-            if let Ok(ref mut udp) = sockets.get::<UdpSocket<TIMER_HZ, L>>(socket) {
+            if let Ok(ref mut udp) = sockets.get::<UdpSocket<L>>(socket) {
                 defmt::trace!("[UDP] Closing socket state: {:?}", udp.state());
                 match udp.state() {
                     UdpState::Closed => {
                         sockets.remove(socket).ok();
                     }
                     UdpState::Established => {
-                        udp.close();
+                        // FIXME:udp.close();
                         if let Some(peer_handle) = self.socket_map.socket_to_peer(&udp.handle()) {
                             let peer_handle = *peer_handle;
                             self.send_at(ClosePeerConnection { peer_handle })
@@ -293,11 +291,9 @@ where
 /// - The driver has to call send_to after reciving data, to release the socket bound by remote host,
 /// even if just sending no bytes. Else these sockets will be held open until closure of server socket.
 ///
-impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> UdpFullStack
-    for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
+impl<C, RST, const N: usize, const L: usize> UdpFullStack for UbloxClient<C, RST, N, L>
 where
     C: atat::blocking::AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     fn bind(&mut self, socket: &mut Self::UdpSocket, local_port: u16) -> Result<(), Self::Error> {
@@ -352,7 +348,7 @@ where
                 }
 
                 let udp = sockets
-                    .get::<UdpSocket<TIMER_HZ, L>>(connection_socket)
+                    .get::<UdpSocket<L>>(connection_socket)
                     .map_err(Self::Error::from)?;
 
                 if !udp.is_open() {

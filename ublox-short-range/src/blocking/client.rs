@@ -1,6 +1,7 @@
 use core::str::FromStr;
 
 use crate::{
+    blocking::timer::Timer,
     command::{
         data_mode::{
             types::{IPProtocol, PeerConfigParameter},
@@ -30,9 +31,9 @@ use crate::{
     },
 };
 use defmt::{debug, error, trace};
+use embassy_time::Duration;
 use embedded_hal::digital::OutputPin;
-use embedded_nal::{nb, IpAddr, Ipv4Addr, SocketAddr};
-use fugit::ExtU32;
+use embedded_nal::{IpAddr, Ipv4Addr, SocketAddr};
 use ublox_sockets::{
     udp_listener::UdpListener, AnySocket, SocketHandle, SocketSet, SocketType, TcpSocket, TcpState,
     UdpSocket, UdpState,
@@ -61,8 +62,8 @@ pub struct SecurityCredentials {
 
 /// Creates new socket numbers
 /// Properly not Async safe
-pub fn new_socket_num<'a, const TIMER_HZ: u32, const N: usize, const L: usize>(
-    sockets: &'a SocketSet<TIMER_HZ, N, L>,
+pub fn new_socket_num<'a, const N: usize, const L: usize>(
+    sockets: &'a SocketSet<N, L>,
 ) -> Result<u8, ()> {
     let mut num = 0;
     while sockets.socket_type(SocketHandle(num)).is_some() {
@@ -74,10 +75,9 @@ pub fn new_socket_num<'a, const TIMER_HZ: u32, const N: usize, const L: usize>(
     Ok(num)
 }
 
-pub struct UbloxClient<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
+pub struct UbloxClient<C, RST, const N: usize, const L: usize>
 where
     C: atat::blocking::AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     pub(crate) module_started: bool,
@@ -87,23 +87,20 @@ where
     pub(crate) wifi_config_active_on_startup: Option<u8>,
     pub(crate) client: C,
     pub(crate) config: Config<RST>,
-    pub(crate) sockets: Option<&'static mut SocketSet<TIMER_HZ, N, L>>,
+    pub(crate) sockets: Option<&'static mut SocketSet<N, L>>,
     pub(crate) dns_state: DNSState,
     pub(crate) urc_attempts: u8,
     pub(crate) security_credentials: SecurityCredentials,
-    pub(crate) timer: CLK,
     pub(crate) socket_map: SocketMap,
     pub(crate) udp_listener: UdpListener<4, N>,
 }
 
-impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
-    UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
+impl<C, RST, const N: usize, const L: usize> UbloxClient<C, RST, N, L>
 where
     C: atat::blocking::AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
-    pub fn new(client: C, timer: CLK, config: Config<RST>) -> Self {
+    pub fn new(client: C, config: Config<RST>) -> Self {
         UbloxClient {
             module_started: false,
             initialized: false,
@@ -116,18 +113,17 @@ where
             dns_state: DNSState::NotResolving,
             urc_attempts: 0,
             security_credentials: SecurityCredentials::default(),
-            timer,
             socket_map: SocketMap::default(),
             udp_listener: UdpListener::new(),
         }
     }
 
-    pub fn set_socket_storage(&mut self, socket_set: &'static mut SocketSet<TIMER_HZ, N, L>) {
+    pub fn set_socket_storage(&mut self, socket_set: &'static mut SocketSet<N, L>) {
         socket_set.prune();
         self.sockets.replace(socket_set);
     }
 
-    pub fn take_socket_storage(&mut self) -> Option<&'static mut SocketSet<TIMER_HZ, N, L>> {
+    pub fn take_socket_storage(&mut self) -> Option<&'static mut SocketSet<N, L>> {
         self.sockets.take()
     }
 
@@ -150,8 +146,7 @@ where
 
         while self.serial_mode != SerialMode::ExtendedData {
             self.send_internal(&SwitchToEdmCommand, true).ok();
-            self.timer.start(100.millis()).map_err(|_| Error::Timer)?;
-            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+            Timer::after(Duration::from_millis(100)).wait();
             while self.handle_urc()? {}
         }
 
@@ -190,8 +185,7 @@ where
 
         while self.serial_mode != SerialMode::ExtendedData {
             self.send_internal(&SwitchToEdmCommand, true).ok();
-            self.timer.start(100.millis()).map_err(|_| Error::Timer)?;
-            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+            Timer::after(Duration::from_millis(100)).wait();
             while self.handle_urc()? {}
         }
 
@@ -264,24 +258,18 @@ where
         if let Some(ref mut pin) = self.config.rst_pin {
             defmt::warn!("Hard resetting Ublox Short Range");
             pin.set_low().ok();
-            self.timer.start(50.millis()).map_err(|_| Error::Timer)?;
-            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
-
+            Timer::after(Duration::from_millis(50)).wait();
             pin.set_high().ok();
 
-            self.timer.start(4.secs()).map_err(|_| Error::Timer)?;
-            loop {
-                match self.timer.wait() {
-                    Ok(()) => return Err(Error::_Unknown),
-                    Err(nb::Error::WouldBlock) => {
-                        self.handle_urc().ok();
-                        if self.module_started {
-                            break;
-                        }
-                    }
-                    Err(_) => return Err(Error::Timer),
+            Timer::with_timeout(Duration::from_secs(4), || {
+                self.handle_urc().ok();
+                if self.module_started {
+                    Some(Ok::<(), ()>(()))
+                } else {
+                    None
                 }
-            }
+            })
+            .map_err(|_| Error::Timeout)?;
         }
         Ok(())
     }
@@ -302,33 +290,28 @@ where
         self.send_internal(&EdmAtCmdWrapper(RebootDCE), false)?;
         self.clear_buffers()?;
 
-        self.timer.start(4.secs()).map_err(|_| Error::Timer)?;
-        loop {
-            match self.timer.wait() {
-                Ok(()) => return Err(Error::_Unknown),
-                Err(nb::Error::WouldBlock) => {
-                    self.handle_urc().ok();
-                    if self.module_started {
-                        break;
-                    }
-                }
-                Err(_) => return Err(Error::Timer),
+        Timer::with_timeout(Duration::from_secs(4), || {
+            self.handle_urc().ok();
+            if self.module_started {
+                Some(Ok::<(), ()>(()))
+            } else {
+                None
             }
-        }
+        })
+        .map_err(|_| Error::Timeout)?;
 
         Ok(())
     }
 
     pub(crate) fn clear_buffers(&mut self) -> Result<(), Error> {
         // self.client.reset(); deprecated
-        
+
         if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
             sockets.prune();
         }
 
         // Allow ATAT some time to clear the buffers
-        self.timer.start(300.millis()).map_err(|_| Error::Timer)?;
-        nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+        Timer::after(Duration::from_millis(300)).wait();
 
         Ok(())
     }
@@ -377,7 +360,6 @@ where
         let socket_map = &mut self.socket_map;
         let udp_listener = &mut self.udp_listener;
         let wifi_connection = &mut self.wifi_connection;
-        let ts = self.timer.now();
 
         let mut a = self.urc_attempts;
         let max = self.config.max_urc_attempts;
@@ -422,7 +404,7 @@ where
                                         // Check if there are any sockets closed by remote, and close it
                                         // if it has exceeded its timeout, in order to recycle it.
                                         // TODO Is this correct?
-                                        if !sockets.recycle(self.timer.now()) {
+                                        if !sockets.recycle() {
                                             handled = false;
                                         }
                                     }
@@ -474,7 +456,7 @@ where
                                         }
                                         IPProtocol::UDP => {
                                             // if let Ok(mut udp) =
-                                            //     sockets.get::<UdpSocket<TIMER_HZ, L>>(event.handle)
+                                            //     sockets.get::<UdpSocket<L>>(event.handle)
                                             // {
                                             //     debug!(
                                             //         "Binding remote {=[u8]:a} to UDP socket {:?}",
@@ -500,14 +482,14 @@ where
                                     match sockets.socket_type(*handle) {
                                         Some(SocketType::Tcp) => {
                                             if let Ok(mut tcp) =
-                                                sockets.get::<TcpSocket<TIMER_HZ, L>>(*handle)
+                                                sockets.get::<TcpSocket<L>>(*handle)
                                             {
-                                                tcp.closed_by_remote(ts);
+                                                tcp.closed_by_remote();
                                             }
                                         }
                                         Some(SocketType::Udp) => {
                                             if let Ok(mut udp) =
-                                                sockets.get::<UdpSocket<TIMER_HZ, L>>(*handle)
+                                                sockets.get::<UdpSocket<L>>(*handle)
                                             {
                                                 udp.close();
                                             }
@@ -758,7 +740,7 @@ where
                                     Some(SocketType::Tcp) => {
                                         // Handle tcp socket
                                         let mut tcp = sockets
-                                            .get::<TcpSocket<TIMER_HZ, L>>(*socket_handle)
+                                            .get::<TcpSocket<L>>(*socket_handle)
                                             .unwrap();
                                         if tcp.can_recv() {
                                             tcp.rx_enqueue_slice(&event.data);
@@ -770,7 +752,7 @@ where
                                     Some(SocketType::Udp) => {
                                         // Handle udp socket
                                         let mut udp = sockets
-                                            .get::<UdpSocket<TIMER_HZ, L>>(*socket_handle)
+                                            .get::<UdpSocket<L>>(*socket_handle)
                                             .unwrap();
 
                                         if udp.can_recv() {

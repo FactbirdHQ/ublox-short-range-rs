@@ -4,4 +4,5 @@ members = [ "ublox-short-range" ]
 
 
 [patch.crates-io]
-atat = { path = "../async_atat/atat" }
+atat = { path = "../atat/atat" }
+ublox-sockets = { path = "../ublox-sockets" }

@@ -1,5 +1,5 @@
 use crate::{
-    client::UbloxClient,
+    blocking::UbloxClient,
     command::{
         edm::EdmAtCmdWrapper,
         wifi::{
@@ -23,11 +23,9 @@ use embedded_hal::digital::OutputPin;
 
 use super::connection::{WiFiState, WifiConnection};
 
-impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
-    UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
+impl<C, RST, const N: usize, const L: usize> UbloxClient<C, RST, N, L>
 where
     C: AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     /// Creates wireless hotspot service for host machine.

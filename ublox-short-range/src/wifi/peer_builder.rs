@@ -1,4 +1,4 @@
-use crate::{client::SecurityCredentials, error::Error};
+use crate::{blocking::client::SecurityCredentials, error::Error};
 use core::fmt::Write;
 /// Handles receiving data from sockets
 /// implements TCP and UDP for WiFi client

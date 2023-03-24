@@ -1,8 +1,8 @@
+use super::UbloxClient;
 use crate::{
     command::edm::BigEdmAtCmdWrapper,
     command::security::{types::*, *},
     error::Error,
-    UbloxClient,
 };
 use embedded_hal::digital::OutputPin;
 use heapless::String;
@@ -18,11 +18,9 @@ pub trait TLS {
     ) -> Result<(), Error>;
 }
 
-impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> TLS
-    for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
+impl<C, RST, const N: usize, const L: usize> TLS for UbloxClient<C, RST, N, L>
 where
     C: atat::blocking::AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     /// Importing credentials enabeles their use for all further TCP connections

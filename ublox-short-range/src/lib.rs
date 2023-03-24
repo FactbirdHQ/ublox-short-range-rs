@@ -1,10 +1,15 @@
-#![cfg_attr(not(test), no_std)]
+#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+#![cfg_attr(feature = "async", allow(incomplete_features))]
+#![cfg_attr(feature = "async", feature(generic_const_exprs))]
+#![cfg_attr(feature = "async", feature(async_fn_in_trait))]
 
-mod client;
+#[cfg(feature = "async")]
+mod asynch;
+
+mod blocking;
 mod hex;
 
 pub use atat;
-pub use client::UbloxClient;
 
 pub mod command;
 pub mod config;
@@ -15,4 +20,4 @@ pub mod wifi;
 mod test_helper;
 
 #[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
-pub use wifi::tls::TLS;
+pub use blocking::tls::TLS;

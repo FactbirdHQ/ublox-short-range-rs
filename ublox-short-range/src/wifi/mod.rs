@@ -5,19 +5,11 @@ use crate::command::edm::types::ChannelId;
 
 pub mod ap;
 pub mod connection;
-pub mod dns;
 pub mod network;
 pub mod options;
 pub mod supplicant;
-pub mod tls;
 
 pub mod peer_builder;
-
-#[cfg(feature = "socket-udp")]
-pub mod udp_stack;
-
-#[cfg(feature = "socket-tcp")]
-pub mod tcp_stack;
 
 pub(crate) const EGRESS_CHUNK_SIZE: usize = 512;
 /// The socket map, keeps mappings between `ublox::sockets`s `SocketHandle`,
