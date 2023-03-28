@@ -1,5 +1,4 @@
 use crate::client::DNSState;
-use atat::clock::Clock;
 use embedded_hal::digital::OutputPin;
 use embedded_nal::{nb, AddrType, Dns, IpAddr};
 use fugit::ExtU32;
@@ -11,8 +10,8 @@ use ublox_sockets::Error;
 impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> Dns
     for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
-    C: atat::AtatClient,
-    CLK: Clock<TIMER_HZ>,
+    C: atat::blocking::AtatClient,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     type Error = Error;

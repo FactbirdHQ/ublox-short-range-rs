@@ -17,8 +17,8 @@ use crate::{
         options::{ConnectionOptions, HotspotOptions},
     },
 };
-use atat::AtatClient;
-use atat::{clock::Clock, heapless_bytes::Bytes};
+use atat::blocking::AtatClient;
+use atat::heapless_bytes::Bytes;
 use embedded_hal::digital::OutputPin;
 
 use super::connection::{WiFiState, WifiConnection};
@@ -27,7 +27,7 @@ impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
     UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
     C: AtatClient,
-    CLK: Clock<TIMER_HZ>,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     /// Creates wireless hotspot service for host machine.

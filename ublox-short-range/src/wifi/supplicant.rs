@@ -1,4 +1,3 @@
-use embedded_nal::nb;
 use heapless::Vec;
 
 use crate::{
@@ -59,18 +58,15 @@ pub struct Supplicant<'a, C, const N: usize> {
 
 impl<'a, C, const N: usize> Supplicant<'a, C, N>
 where
-    C: atat::AtatClient,
+    C: atat::blocking::AtatClient,
 {
     fn send_at<A: atat::AtatCmd<LEN>, const LEN: usize>(
         &mut self,
         req: &A,
     ) -> Result<A::Response, Error> {
-        self.client.send(req).map_err(|e| match e {
-            nb::Error::Other(ate) => {
-                defmt::error!("{:?}: {=[u8]:a}", ate, req.as_bytes());
-                ate.into()
-            }
-            nb::Error::WouldBlock => Error::_Unknown,
+        self.client.send(req).map_err(|e| {
+            defmt::error!("{:?}: {=[u8]:a}", e, req.as_bytes());
+            e.into()
         })
     }
 

@@ -1,3 +1,7 @@
 [workspace]
 resolver = "2"
 members = [ "ublox-short-range" ]
+
+
+[patch.crates-io]
+atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "70283be" }

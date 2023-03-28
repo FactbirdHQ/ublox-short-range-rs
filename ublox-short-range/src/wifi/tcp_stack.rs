@@ -5,7 +5,6 @@ use crate::{
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
-use atat::clock::Clock;
 use embedded_hal::digital::OutputPin;
 /// Handles receiving data from sockets
 /// implements TCP and UDP for WiFi client
@@ -18,8 +17,8 @@ use super::EGRESS_CHUNK_SIZE;
 impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> TcpClientStack
     for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
-    C: atat::AtatClient,
-    CLK: Clock<TIMER_HZ>,
+    C: atat::blocking::AtatClient,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     type Error = Error;
@@ -232,8 +231,8 @@ where
 
 // impl<C, CLK, RST, const N: usize, const L: usize> TcpFullStack for UbloxClient<C, CLK, RST, N, L>
 // where
-//     C: atat::AtatClient,
-//     CLK: Clock,
+//     C: atat::blocking::AtatClient,
+//     CLK: fugit_timer::Timer,
 //     RST: OutputPin,
 //     Generic<CLK::T>: TryInto<Milliseconds>,
 // {

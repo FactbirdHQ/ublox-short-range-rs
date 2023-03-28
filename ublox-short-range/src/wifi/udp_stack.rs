@@ -8,7 +8,6 @@ use crate::{
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
-use atat::clock::Clock;
 use embedded_hal::digital::OutputPin;
 use embedded_nal::{nb, SocketAddr, UdpFullStack};
 
@@ -20,8 +19,8 @@ use super::EGRESS_CHUNK_SIZE;
 impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> UdpClientStack
     for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
-    C: atat::AtatClient,
-    CLK: Clock<TIMER_HZ>,
+    C: atat::blocking::AtatClient,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     type Error = Error;
@@ -297,8 +296,8 @@ where
 impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> UdpFullStack
     for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
 where
-    C: atat::AtatClient,
-    CLK: Clock<TIMER_HZ>,
+    C: atat::blocking::AtatClient,
+    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     fn bind(&mut self, socket: &mut Self::UdpSocket, local_port: u16) -> Result<(), Self::Error> {
