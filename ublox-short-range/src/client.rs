@@ -321,7 +321,7 @@ where
 
     pub(crate) fn clear_buffers(&mut self) -> Result<(), Error> {
         // self.client.reset(); deprecated
-        
+
         if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
             sockets.prune();
         }
