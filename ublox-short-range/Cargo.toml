@@ -25,7 +25,7 @@ hash32 = "^0.2.1"
 hash32-derive = "^0.1.0"
 
 defmt = { version = "0.3" }
-embedded-hal = "=1.0.0-alpha.9"
+embedded-hal = "=1.0.0-alpha.10"
 embedded-nal = "0.6.0"
 fugit = { version = "0.3", features = ["defmt"] }
 fugit-timer = "0.1.2"
