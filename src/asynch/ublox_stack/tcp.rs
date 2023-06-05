@@ -3,9 +3,11 @@ use core::future::poll_fn;
 use core::mem;
 use core::task::Poll;
 
-use ublox_sockets::{SocketHandle, tcp};
+use embassy_time::Duration;
+use embedded_nal_async::SocketAddr;
+use ublox_sockets::{tcp, SocketHandle};
 
-use super::{SocketStack, Stack};
+use super::{SocketStack, UbloxStack};
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -66,13 +68,13 @@ impl<'a> TcpWriter<'a> {
 }
 
 impl<'a> TcpSocket<'a> {
-    pub fn new<D: atat::asynch::AtatClient>(stack: &'a Stack<D>, rx_buffer: &'a mut [u8], tx_buffer: &'a mut [u8]) -> Self {
+    pub fn new(stack: &'a UbloxStack, rx_buffer: &'a mut [u8], tx_buffer: &'a mut [u8]) -> Self {
         let s = &mut *stack.socket.borrow_mut();
         let rx_buffer: &'static mut [u8] = unsafe { mem::transmute(rx_buffer) };
         let tx_buffer: &'static mut [u8] = unsafe { mem::transmute(tx_buffer) };
-        let handle = s.sockets.add(tcp::TcpSocket::new(
-            tcp::TcpSocketBuffer::new(rx_buffer),
-            tcp::TcpSocketBuffer::new(tx_buffer),
+        let handle = s.sockets.add(tcp::Socket::new(
+            tcp::SocketBuffer::new(rx_buffer),
+            tcp::SocketBuffer::new(tx_buffer),
         ));
 
         Self {
@@ -89,22 +91,22 @@ impl<'a> TcpSocket<'a> {
 
     pub async fn connect<T>(&mut self, remote_endpoint: T) -> Result<(), ConnectError>
     where
-        T: Into<IpEndpoint>,
+        T: Into<SocketAddr>,
     {
-        let local_port = self.io.stack.borrow_mut().get_local_port();
-
         match {
             self.io
-                .with_mut(|s, i| s.connect(i.context(), remote_endpoint, local_port))
+                .with_mut(|s, i| s.connect(i.context(), remote_endpoint))
         } {
             Ok(()) => {}
-            Err(tcp::ConnectError::InvalidState) => return Err(ConnectError::InvalidState),
-            Err(tcp::ConnectError::Unaddressable) => return Err(ConnectError::NoRoute),
+            Err(_) => return Err(ConnectError::InvalidState),
+            // Err(tcp::ConnectError::Unaddressable) => return Err(ConnectError::NoRoute),
         }
 
         poll_fn(|cx| {
             self.io.with_mut(|s, _| match s.state() {
-                tcp::State::Closed | tcp::State::TimeWait => Poll::Ready(Err(ConnectError::ConnectionReset)),
+                tcp::State::Closed | tcp::State::TimeWait => {
+                    Poll::Ready(Err(ConnectError::ConnectionReset))
+                }
                 tcp::State::Listen => unreachable!(),
                 tcp::State::SynSent | tcp::State::SynReceived => {
                     s.register_send_waker(cx.waker());
@@ -158,13 +160,13 @@ impl<'a> TcpSocket<'a> {
         self.io.with_mut(|s, _| s.set_keep_alive(interval))
     }
 
-    pub fn local_endpoint(&self) -> Option<IpEndpoint> {
-        self.io.with(|s, _| s.local_endpoint())
-    }
+    // pub fn local_endpoint(&self) -> Option<IpEndpoint> {
+    //     self.io.with(|s, _| s.local_endpoint())
+    // }
 
-    pub fn remote_endpoint(&self) -> Option<IpEndpoint> {
-        self.io.with(|s, _| s.remote_endpoint())
-    }
+    // pub fn remote_endpoint(&self) -> Option<IpEndpoint> {
+    //     self.io.with(|s, _| s.remote_endpoint())
+    // }
 
     pub fn state(&self) -> tcp::State {
         self.io.with(|s, _| s.state())
@@ -202,15 +204,15 @@ struct TcpIo<'a> {
 }
 
 impl<'d> TcpIo<'d> {
-    fn with<R>(&self, f: impl FnOnce(&tcp::TcpSocket, &Interface) -> R) -> R {
+    fn with<R>(&self, f: impl FnOnce(&tcp::Socket, &Interface) -> R) -> R {
         let s = &*self.stack.borrow();
-        let socket = s.sockets.get::<tcp::TcpSocket>(self.handle);
+        let socket = s.sockets.get::<tcp::Socket>(self.handle).unwrap();
         f(socket, &s.iface)
     }
 
-    fn with_mut<R>(&mut self, f: impl FnOnce(&mut tcp::TcpSocket, &mut Interface) -> R) -> R {
+    fn with_mut<R>(&mut self, f: impl FnOnce(&mut tcp::Socket, &mut Interface) -> R) -> R {
         let s = &mut *self.stack.borrow_mut();
-        let socket = s.sockets.get_mut::<tcp::TcpSocket>(self.handle);
+        let socket = s.sockets.get_mut::<tcp::Socket>(self.handle);
         let res = f(socket, &mut s.iface);
         s.waker.wake();
         res
@@ -346,13 +348,13 @@ impl<'d> TcpIo<'d> {
 
 //     /// TCP client capable of creating up to N multiple connections with tx and rx buffers according to TX_SZ and RX_SZ.
 //     pub struct TcpClient<'d, D: Driver, const N: usize, const TX_SZ: usize = 1024, const RX_SZ: usize = 1024> {
-//         stack: &'d Stack<D>,
+//         stack: &'d UbloxStack<D>,
 //         state: &'d TcpClientState<N, TX_SZ, RX_SZ>,
 //     }
 
 //     impl<'d, D: Driver, const N: usize, const TX_SZ: usize, const RX_SZ: usize> TcpClient<'d, D, N, TX_SZ, RX_SZ> {
 //         /// Create a new TcpClient
-//         pub fn new(stack: &'d Stack<D>, state: &'d TcpClientState<N, TX_SZ, RX_SZ>) -> Self {
+//         pub fn new(stack: &'d UbloxStack<D>, state: &'d TcpClientState<N, TX_SZ, RX_SZ>) -> Self {
 //             Self { stack, state }
 //         }
 //     }
@@ -395,7 +397,7 @@ impl<'d> TcpIo<'d> {
 //     }
 
 //     impl<'d, const N: usize, const TX_SZ: usize, const RX_SZ: usize> TcpConnection<'d, N, TX_SZ, RX_SZ> {
-//         fn new<D: Driver>(stack: &'d Stack<D>, state: &'d TcpClientState<N, TX_SZ, RX_SZ>) -> Result<Self, Error> {
+//         fn new<D: Driver>(stack: &'d UbloxStack<D>, state: &'d TcpClientState<N, TX_SZ, RX_SZ>) -> Result<Self, Error> {
 //             let mut bufs = state.pool.alloc().ok_or(Error::ConnectionReset)?;
 //             Ok(Self {
 //                 socket: unsafe { TcpSocket::new(stack, &mut bufs.as_mut().1, &mut bufs.as_mut().0) },

@@ -98,7 +98,7 @@ pub struct BluetoothConnectEvent {
     pub frame_size: u16,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IPv4ConnectEvent {
     pub channel_id: ChannelId,
     pub protocol: Protocol,
@@ -107,7 +107,7 @@ pub struct IPv4ConnectEvent {
     pub local_ip: Ipv4Addr,
     pub local_port: u16,
 }
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IPv6ConnectEvent {
     pub channel_id: ChannelId,
     pub protocol: Protocol,
@@ -117,7 +117,7 @@ pub struct IPv6ConnectEvent {
     pub local_port: u16,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DataEvent {
     pub channel_id: ChannelId,
     pub data: Vec<u8, DATA_PACKAGE_SIZE>,
@@ -151,7 +151,7 @@ impl From<u8> for ConnectType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum Protocol {
     TCP = 0x00,

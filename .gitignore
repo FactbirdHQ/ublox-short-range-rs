@@ -4,5 +4,4 @@
 *.fifo
 target/
 *.o
-.vscode
 Cargo.lock

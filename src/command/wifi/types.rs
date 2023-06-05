@@ -444,7 +444,10 @@ pub enum StatusId {
     /// - 0: Disabled,
     /// - 1: Disconnected,
     /// - 2: Connected,
-    Status = 6,
+    Status = 3,
+    /// The <status_val> is the RSSI value of the current connection; will
+    /// return-32768, if not connected.
+    Rssi = 6,
     /// The <status_val> is the mobility domain of the last or current
     /// connection This tag is supported by ODIN-W2 from software version 6.0.0
     /// onwards only.
@@ -489,8 +492,12 @@ pub enum WifiStatus {
     /// - 0: Disabled,
     /// - 1: Disconnected,
     /// - 2: Connected,
-    #[at_arg(value = 6)]
+    #[at_arg(value = 3)]
     Status(WifiStatusVal),
+    /// The <status_val> is the RSSI value of the current connection; will
+    /// return-32768, if not connected.
+    #[at_arg(value = 6)]
+    Rssi(u32),
     /// The <status_val> is the mobility domain of the last or current
     /// connection This tag is supported by ODIN-W2 from software version 6.0.0
     /// onwards only.
@@ -587,17 +594,35 @@ pub enum WifiConfigParameter {
     ///   onwards
     RemainOnChannel = 15,
     /// Station TX rates bit mask where bit masks are defined according to:
-    /// 0x00000001: Rate 1 Mbps 0x00000002: Rate 2 Mbps 0x00000004: Rate 5.5
-    /// Mbps 0x00000008: Rate 11 Mbps 0x00000010: Rate 6 Mbps 0x00000020: Rate 9
-    /// Mbps 0x00000040: Rate 12 Mbps 0x00000080: Rate 18 Mbps 0x00000100: Rate
-    /// 24 Mbps 0x00000200: Rate 36 Mbps 0x00000400: Rate 48 Mbps 0x00000800:
-    /// Rate 54 Mbps 0x00001000: Rate MCS 0 0x00002000: Rate MCS 1 0x00004000:
-    /// Rate MCS 2 0x00008000: Rate MCS 3 0x00010000: Rate MCS 4 0x00020000:
-    /// Rate MCS 5 0x00040000: Rate MCS 6 0x00080000: Rate MCS 7 0x00100000:
-    /// Rate MCS 8 0x00200000: Rate MCS 9 0x00400000: Rate MCS 10 0x00800000:
-    /// Rate MCS 11 0x01000000: Rate MCS 12 0x02000000: Rate MCS 13 0x04000000:
-    /// Rate MCS 14 0x08000000: Rate MCS 15 Default value is 0, which means that
-    /// all rates are enabled. Supported software versions 7.0.0 onwards
+    /// - 0x00000001: Rate 1 Mbps
+    /// - 0x00000002: Rate 2 Mbps
+    /// - 0x00000004: Rate 5.5 Mbps
+    /// - 0x00000008: Rate 11 Mbps
+    /// - 0x00000010: Rate 6 Mbps
+    /// - 0x00000020: Rate 9 Mbps
+    /// - 0x00000040: Rate 12 Mbps
+    /// - 0x00000080: Rate 18 Mbps
+    /// - 0x00000100: Rate 24 Mbps
+    /// - 0x00000200: Rate 36 Mbps
+    /// - 0x00000400: Rate 48 Mbps
+    /// - 0x00000800: Rate 54 Mbps
+    /// - 0x00001000: Rate MCS 0
+    /// - 0x00002000: Rate MCS 1
+    /// - 0x00004000: Rate MCS 2
+    /// - 0x00008000: Rate MCS 3
+    /// - 0x00010000: Rate MCS 4
+    /// - 0x00020000: Rate MCS 5
+    /// - 0x00040000: Rate MCS 6
+    /// - 0x00080000: Rate MCS 7
+    /// - 0x00100000: Rate MCS 8
+    /// - 0x00200000: Rate MCS 9
+    /// - 0x00400000: Rate MCS 10
+    /// - 0x00800000: Rate MCS 11
+    /// - 0x01000000: Rate MCS 12
+    /// - 0x02000000: Rate MCS 13
+    /// - 0x04000000: Rate MCS 14
+    /// - 0x08000000: Rate MCS 15 Default value is 0, which means that all rates
+    /// are enabled. Supported software versions 7.0.0 onwards
     StationTxRates = 16,
     /// Station short packet retry limit. Default value is 0x00141414. The
     /// definition of retry limits are listed below:

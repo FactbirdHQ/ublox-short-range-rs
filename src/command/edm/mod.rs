@@ -6,7 +6,7 @@ use core::convert::TryInto;
 
 use crate::command::{data_mode, data_mode::ChangeMode};
 use crate::command::{NoResponse, Urc};
-use crate::wifi::EGRESS_CHUNK_SIZE;
+// use crate::wifi::EGRESS_CHUNK_SIZE;
 /// Containing EDM structs with custom serialaization and deserilaisation.
 use atat::AtatCmd;
 use heapless::Vec;
@@ -159,12 +159,12 @@ pub struct EdmDataCommand<'a> {
     pub data: &'a [u8],
 }
 // wifi::socket::EGRESS_CHUNK_SIZE + PAYLOAD_OVERHEAD = 512 + 6 + 1 = 519
-impl<'a> atat::AtatCmd<{ EGRESS_CHUNK_SIZE + 7 }> for EdmDataCommand<'a> {
+impl<'a> atat::AtatCmd<{ DATA_PACKAGE_SIZE + 7 }> for EdmDataCommand<'a> {
     type Response = NoResponse;
 
     const EXPECTS_RESPONSE_CODE: bool = false;
 
-    fn as_bytes(&self) -> Vec<u8, { EGRESS_CHUNK_SIZE + 7 }> {
+    fn as_bytes(&self) -> Vec<u8, { DATA_PACKAGE_SIZE + 7 }> {
         let payload_len = (self.data.len() + 3) as u16;
         [
             STARTBYTE,

@@ -4,20 +4,14 @@
 #![cfg_attr(feature = "async", feature(async_fn_in_trait))]
 
 #[cfg(feature = "async")]
-mod asynch;
+pub mod asynch;
 
-mod blocking;
-mod hex;
+// mod blocking;
+// mod hex;
 
 pub use atat;
 
 pub mod command;
 pub mod config;
 pub mod error;
-pub mod wifi;
-
-#[cfg(test)]
-mod test_helper;
-
-#[cfg(any(feature = "socket-udp", feature = "socket-tcp"))]
-pub use blocking::tls::TLS;
+// pub mod wifi;
