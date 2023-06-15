@@ -4,20 +4,26 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
-use defmt::*;
+use core::fmt::Write as _;
 use embassy_executor::Spawner;
-use embassy_rp::gpio::{Level, Output};
+use embassy_futures::select::{select, Either};
+use embassy_rp::gpio::{Input, Level, Output, Pull};
 use embassy_rp::peripherals::{PIN_26, UART1};
-use embassy_rp::{interrupt, uart};
+use embassy_rp::uart::BufferedInterruptHandler;
+use embassy_rp::{bind_interrupts, uart};
 use embassy_time::{Duration, Timer};
+use embedded_io::asynch::Write;
+use no_std_net::{Ipv4Addr, SocketAddr};
 use static_cell::StaticCell;
 use ublox_short_range::asynch::runner::Runner;
+use ublox_short_range::asynch::ublox_stack::dns::DnsSocket;
+use ublox_short_range::asynch::ublox_stack::tcp::TcpSocket;
 use ublox_short_range::asynch::ublox_stack::{StackResources, UbloxStack};
 use ublox_short_range::asynch::{new, State};
 use ublox_short_range::atat::{self, AtatIngress, AtatUrcChannel};
 use ublox_short_range::command::custom_digest::EdmDigester;
 use ublox_short_range::command::edm::urc::EdmEvent;
-use ublox_short_range::command::gpio::types::{GPIOId, GPIOValue};
+use ublox_short_range::embedded_nal_async::AddrType;
 use {defmt_rtt as _, panic_probe as _};
 
 const RX_BUF_LEN: usize = 1024;
@@ -42,6 +48,7 @@ async fn wifi_task(
             RX_BUF_LEN,
         >,
         Output<'static, PIN_26>,
+        8,
     >,
 ) -> ! {
     runner.run().await
@@ -52,6 +59,80 @@ async fn net_task(stack: &'static UbloxStack) -> ! {
     stack.run().await
 }
 
+#[embassy_executor::task(pool_size = 2)]
+async fn echo_task(
+    stack: &'static UbloxStack,
+    hostname: &'static str,
+    port: u16,
+    write_interval: Duration,
+) {
+    let mut rx_buffer = [0; 128];
+    let mut tx_buffer = [0; 128];
+    let mut buf = [0; 128];
+    let mut cnt = 0u32;
+    let mut msg = heapless::String::<64>::new();
+    Timer::after(Duration::from_secs(1)).await;
+
+    let ip_addr = match DnsSocket::new(stack).query(hostname, AddrType::IPv4).await {
+        Ok(ip) => ip,
+        Err(_) => {
+            defmt::error!("[{}] Failed to resolve IP addr", hostname);
+            return;
+        }
+    };
+
+    let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+
+    defmt::info!(
+        "[{}] Connecting... {}",
+        hostname,
+        defmt::Debug2Format(&ip_addr)
+    );
+    if let Err(e) = socket.connect((ip_addr, port)).await {
+        defmt::warn!("[{}] connect error: {:?}", hostname, e);
+        return;
+    }
+    defmt::info!(
+        "[{}] Connected to {:?}",
+        hostname,
+        defmt::Debug2Format(&socket.remote_endpoint())
+    );
+
+    loop {
+        match select(Timer::after(write_interval), socket.read(&mut buf)).await {
+            Either::First(_) => {
+                msg.clear();
+                write!(msg, "Hello {}! {}\n", ip_addr, cnt).unwrap();
+                cnt = cnt.wrapping_add(1);
+                if let Err(e) = socket.write_all(msg.as_bytes()).await {
+                    defmt::warn!("[{}] write error: {:?}", hostname, e);
+                    break;
+                }
+                defmt::info!("[{}] txd: {}", hostname, msg);
+                Timer::after(Duration::from_millis(400)).await;
+            }
+            Either::Second(res) => {
+                let n = match res {
+                    Ok(0) => {
+                        defmt::warn!("[{}] read EOF", hostname);
+                        break;
+                    }
+                    Ok(n) => n,
+                    Err(e) => {
+                        defmt::warn!("[{}] {:?}", hostname, e);
+                        break;
+                    }
+                };
+                defmt::info!(
+                    "[{}] rxd {}",
+                    hostname,
+                    core::str::from_utf8(&buf[..n]).unwrap()
+                );
+            }
+        }
+    }
+}
+
 #[embassy_executor::task]
 async fn ingress_task(
     mut ingress: atat::Ingress<'static, EdmDigester, EdmEvent, RX_BUF_LEN, URC_CAPACITY, 1>,
@@ -60,9 +141,13 @@ async fn ingress_task(
     ingress.read_from(&mut rx).await
 }
 
+bind_interrupts!(struct Irqs {
+    UART1_IRQ => BufferedInterruptHandler<UART1>;
+});
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    info!("Hello World!");
+    defmt::info!("Hello World!");
 
     let p = embassy_rp::init(Default::default());
 
@@ -70,13 +155,13 @@ async fn main(spawner: Spawner) {
 
     let (tx_pin, rx_pin, rts_pin, cts_pin, uart) =
         (p.PIN_24, p.PIN_25, p.PIN_23, p.PIN_22, p.UART1);
+    let mut btn = Input::new(p.PIN_27, Pull::Up);
 
-    let irq = interrupt::take!(UART1_IRQ);
     let tx_buf = &mut singleton!([0u8; 64])[..];
     let rx_buf = &mut singleton!([0u8; 64])[..];
     let uart = uart::BufferedUart::new_with_rtscts(
         uart,
-        irq,
+        Irqs,
         tx_pin,
         rx_pin,
         rts_pin,
@@ -88,83 +173,139 @@ async fn main(spawner: Spawner) {
     let (rx, tx) = uart.split();
 
     let buffers = &*singleton!(atat::Buffers::new());
+    let urc_channel = buffers.urc_channel.subscribe().unwrap();
     let (ingress, client) = buffers.split(tx, EdmDigester::default(), atat::Config::new());
 
-    unwrap!(spawner.spawn(ingress_task(ingress, rx)));
+    defmt::unwrap!(spawner.spawn(ingress_task(ingress, rx)));
 
     let state = singleton!(State::new(client));
-    let (net_device, mut control, runner) =
-        new(state, buffers.urc_channel.subscribe().unwrap(), rst).await;
+    let (net_device, mut control, runner) = new(state, urc_channel, rst).await;
 
-    unwrap!(spawner.spawn(wifi_task(runner)));
+    defmt::unwrap!(spawner.spawn(wifi_task(runner)));
 
-    // control.init(clm).await;
-    // control
-    //     .set_power_management(cyw43::PowerManagementMode::PowerSave)
-    //     .await;
+    control
+        .set_hostname("Factbird-duo-wifi-test")
+        .await
+        .unwrap();
 
     // Init network stack
     let stack = &*singleton!(UbloxStack::new(
         net_device,
-        singleton!(StackResources::<2>::new()),
+        singleton!(StackResources::<4>::new()),
     ));
 
-    unwrap!(spawner.spawn(net_task(stack)));
-
-    loop {
-        match control.join_wpa2("test", "1234abcd").await {
-            Ok(_) => break,
-            Err(err) => {
-                info!("join failed with error={:?}", err);
-            }
-        }
-    }
+    defmt::unwrap!(spawner.spawn(net_task(stack)));
 
     // And now we can use it!
-
-    let mut rx_buffer = [0; 4096];
-    let mut tx_buffer = [0; 4096];
-    let mut buf = [0; 4096];
-
     defmt::info!("Device initialized!");
 
+    // spawner
+    //     .spawn(echo_task(
+    //         &stack,
+    //         "tcpbin.com",
+    //         4242,
+    //         Duration::from_millis(500),
+    //     ))
+    //     .unwrap();
+
+    let mut rx_buffer = [0; 256];
+    let mut tx_buffer = [0; 256];
+    let mut buf = [0; 256];
+    let mut cnt = 0u32;
+    let mut msg = heapless::String::<64>::new();
+
     loop {
-        Timer::after(Duration::from_millis(1000)).await;
-        // let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-        // // socket.set_timeout(Some(embassy_net::SmolDuration::from_secs(10)));
+        loop {
+            match control.join_wpa2("test", "1234abcd").await {
+                Ok(_) => {
+                    defmt::info!("Network connected!");
+                    spawner
+                        .spawn(echo_task(
+                            &stack,
+                            "echo.u-blox.com",
+                            7,
+                            Duration::from_secs(1),
+                        ))
+                        .unwrap();
+                    break;
+                }
+                Err(err) => {
+                    defmt::info!("join failed with error={:?}. Retrying in 1 second", err);
+                    Timer::after(Duration::from_secs(1)).await;
+                }
+            }
+        }
+        'outer: loop {
+            Timer::after(Duration::from_secs(1)).await;
 
-        // control.gpio_set(GPIOId::A10, GPIOValue::Low).await;
-        // // info!("Listening on TCP:1234...");
-        // // if let Err(e) = socket.accept(1234).await {
-        // //     warn!("accept error: {:?}", e);
-        // //     continue;
-        // // }
+            let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+            // // socket.set_timeout(Some(Duration::from_secs(10)));
 
-        // // info!("Received connection from {:?}", socket.remote_endpoint());
-        // control.gpio_set(GPIOId::A10, GPIOValue::High).await;
+            let remote: SocketAddr = (Ipv4Addr::new(192, 168, 73, 183), 4444).into();
+            defmt::info!("Connecting... {}", defmt::Debug2Format(&remote));
+            if let Err(e) = socket.connect(remote).await {
+                defmt::warn!("connect error: {:?}", e);
+                continue;
+            }
+            defmt::info!(
+                "Connected to {:?}",
+                defmt::Debug2Format(&socket.remote_endpoint())
+            );
 
-        // loop {
-        //     let n = match socket.read(&mut buf).await {
-        //         Ok(0) => {
-        //             warn!("read EOF");
-        //             break;
-        //         }
-        //         Ok(n) => n,
-        //         Err(e) => {
-        //             warn!("read error: {:?}", e);
-        //             break;
-        //         }
-        //     };
+            'inner: loop {
+                match select(Timer::after(Duration::from_secs(3)), socket.read(&mut buf)).await {
+                    Either::First(_) => {
+                        msg.clear();
+                        write!(msg, "Hello world! {}\n", cnt).unwrap();
+                        cnt = cnt.wrapping_add(1);
+                        if let Err(e) = socket.write_all(msg.as_bytes()).await {
+                            defmt::warn!("write error: {:?}", e);
+                            break;
+                        }
+                        defmt::info!("txd: {}", msg);
+                        Timer::after(Duration::from_millis(400)).await;
+                    }
+                    Either::Second(res) => {
+                        let n = match res {
+                            Ok(0) => {
+                                defmt::warn!("read EOF");
+                                break;
+                            }
+                            Ok(n) => n,
+                            Err(e) => {
+                                defmt::warn!("{:?}", e);
+                                break;
+                            }
+                        };
+                        defmt::info!("rxd [{}] {}", n, core::str::from_utf8(&buf[..n]).unwrap());
 
-        //     info!("rxd {}", from_utf8(&buf[..n]).unwrap());
-
-        //     match socket.write_all(&buf[..n]).await {
-        //         Ok(()) => {}
-        //         Err(e) => {
-        //             warn!("write error: {:?}", e);
-        //             break;
-        //         }
-        //     };
-        // }
+                        match &buf[..n] {
+                            b"c\n" => {
+                                socket.close();
+                                break 'inner;
+                            }
+                            b"a\n" => {
+                                socket.abort();
+                                break 'inner;
+                            }
+                            b"d\n" => {
+                                drop(socket);
+                                break 'inner;
+                            }
+                            b"f\n" => {
+                                control.disconnect().await.unwrap();
+                                break 'outer;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            defmt::info!("Press USER button to reconnect socket!");
+            btn.wait_for_any_edge().await;
+            continue;
+        }
+        defmt::info!("Press USER button to reconnect to WiFi!");
+        btn.wait_for_any_edge().await;
     }
 }

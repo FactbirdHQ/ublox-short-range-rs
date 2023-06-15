@@ -1,27 +1,10 @@
-use atat::atat_derive::AtatLen;
-use embedded_nal::{Ipv4Addr, Ipv6Addr};
 use heapless::Vec;
+use no_std_net::{Ipv4Addr, Ipv6Addr};
 use serde::{Deserialize, Serialize};
+use ublox_sockets::ChannelId;
 
 /// Start byte, Length: u16, Id+Type: u16, Endbyte
 // type EdmAtCmdOverhead = (u8, u16, u16, u8);
-
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    AtatLen,
-    Ord,
-    Default,
-    Serialize,
-    Deserialize,
-    defmt::Format,
-    hash32_derive::Hash32,
-)]
-pub struct ChannelId(pub u8);
 
 pub const DATA_PACKAGE_SIZE: usize = 4096;
 pub const STARTBYTE: u8 = 0xAA;

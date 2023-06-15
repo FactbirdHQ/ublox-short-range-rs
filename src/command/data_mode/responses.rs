@@ -1,7 +1,7 @@
 //! Responses for Data Mode
-use super::PeerHandle;
 use atat::atat_derive::AtatResp;
 use heapless::String;
+use ublox_sockets::PeerHandle;
 
 /// 5.2 Connect peer +UDCP
 #[derive(Clone, AtatResp)]

@@ -5,6 +5,7 @@ use heapless::String;
 use crate::command::OnOff;
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum Mode {
     /// Command mode
@@ -19,6 +20,7 @@ pub enum Mode {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum ConnectScheme {
     /// Always connected - Keep the peer connected when not in command mode.
@@ -38,11 +40,13 @@ pub enum ConnectScheme {
     Both = 0b110,
 }
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ServerConfig {
     Type(ServerType),
     Url(String<128>),
 }
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum ServerType {
     #[at_arg(value = 0)]
     Disabled,
@@ -63,6 +67,7 @@ pub enum ServerType {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum Interface {
     TCP = 1,
@@ -75,6 +80,7 @@ pub enum Interface {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum UDPBehaviour {
     /// No connect. This will trigger an +UUDPC URC immediately (with
@@ -90,6 +96,7 @@ pub enum UDPBehaviour {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum ImmediateFlush {
     Disable = 0,
@@ -97,6 +104,7 @@ pub enum ImmediateFlush {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum IPVersion {
     /// Default
@@ -105,6 +113,7 @@ pub enum IPVersion {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum RemoteConfiguration {
     Disable = 0,
@@ -112,6 +121,7 @@ pub enum RemoteConfiguration {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum WatchdogSetting {
     /// SPP (and all SPP based protocols like DUN) write timeout: <value>is the time in
@@ -158,6 +168,7 @@ pub enum WatchdogSetting {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum PeerConfigParameter {
     /// Keep remote peer in the command mode
     /// - Off: Disconnect peers when entering the command mode
@@ -218,6 +229,7 @@ pub enum PeerConfigParameter {
 }
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum ConnectionType {
     Bluetooth = 1,
@@ -236,6 +248,7 @@ pub enum ConnectionType {
 // }
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum IPProtocol {
     TCP = 0,

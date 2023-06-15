@@ -7,8 +7,9 @@ use atat::atat_derive::AtatCmd;
 use heapless::String;
 use responses::*;
 use types::*;
+use ublox_sockets::PeerHandle;
 
-use super::{NoResponse, PeerHandle};
+use super::NoResponse;
 
 /// 5.1 Enter data mode O
 ///

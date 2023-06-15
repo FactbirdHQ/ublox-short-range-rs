@@ -3,8 +3,9 @@ use super::types::*;
 use super::Urc;
 use atat::helpers::LossyStr;
 use atat::AtatUrc;
-use embedded_nal::{Ipv4Addr, Ipv6Addr};
 use heapless::Vec;
+use no_std_net::{Ipv4Addr, Ipv6Addr};
+use ublox_sockets::ChannelId;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum EdmEvent {
@@ -166,10 +167,9 @@ impl AtatUrc for EdmEvent {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::command::{
-        data_mode::urc::PeerConnected, edm::types::DATA_PACKAGE_SIZE, PeerHandle, Urc,
-    };
+    use crate::command::{data_mode::urc::PeerConnected, edm::types::DATA_PACKAGE_SIZE, Urc};
     use atat::{heapless::Vec, heapless_bytes::Bytes, AtatUrc};
+    use ublox_sockets::PeerHandle;
 
     #[test]
     fn parse_at_urc() {

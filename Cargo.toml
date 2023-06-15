@@ -18,21 +18,21 @@ doctest = false
 atat = { version = "0.18.0", features = ["derive", "defmt", "bytes"] }
 # atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "70283be", features = ["derive", "defmt", "bytes"] }
 heapless = { version = "^0.7", features = ["serde", "defmt-impl"] }
-no-std-net = { version = "^0.5", features = ["serde"] }
+no-std-net = { version = "0.6", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
-ublox-sockets = { version = "0.5", features = ["defmt"], optional = true }
-hash32 = "^0.2.1"
-hash32-derive = "^0.1.0"
+ublox-sockets = { version = "0.5", features = ["defmt", "edm"], optional = true }
 postcard = "1.0.4"
 smoltcp = { version = "0.9.1", default-features = false, optional = true }
+atomic-polyfill = "1.0.2"
 
 defmt = { version = "0.3" }
 embedded-hal = "=1.0.0-alpha.10"
-embedded-nal = "0.6.0"
+# embedded-nal = "0.6.0"
 embassy-time = "0.1"
 embassy-sync = "0.2"
 embassy-futures = "0.1"
-embassy-net-driver-channel = "0.1.0"
+embassy-hal-common = "0.1"
+embassy-net-driver = "0.1"
 
 embedded-nal-async = { version = "0.4", optional = true }
 futures = { version = "0.3.17", default-features = false, features = [ "async-await" ] }
@@ -40,11 +40,13 @@ futures = { version = "0.3.17", default-features = false, features = [ "async-aw
 embedded-io = "0.4"
 
 [features]
-default = ["async", "odin_w2xx", "ublox-sockets", "socket-udp", "socket-tcp"]
+default = ["async", "odin_w2xx", "ublox-sockets", "socket-tcp"]
 
 async = ["dep:embedded-nal-async", "atat/async", "ublox-sockets?/async"]
 
 std = []
+
+defmt = ["postcard/use-defmt"]
 
 odin_w2xx = []
 nina_w1xx = []
@@ -65,4 +67,6 @@ exclude = ["examples"]
 [patch.crates-io]
 atat = { path = "../atat/atat" }
 ublox-sockets = { path = "../ublox-sockets" }
-embassy-net-driver-channel = { path = "../embassy/embassy-net-driver-channel" }
+no-std-net = { path = "../no-std-net" }
+embassy-net-driver = { path = "../embassy/embassy-net-driver" }
+embassy-hal-common = { path = "../embassy/embassy-hal-common" }

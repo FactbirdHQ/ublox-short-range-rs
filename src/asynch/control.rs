@@ -1,48 +1,51 @@
-use atat::asynch::AtatClient;
-use ch::driver::LinkState;
-use embassy_net_driver_channel as ch;
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
-use embassy_sync::mutex::Mutex;
-use embassy_time::{with_timeout, Duration, Timer};
+use core::future::poll_fn;
+use core::task::Poll;
 
+use atat::asynch::AtatClient;
+use embassy_net_driver::LinkState;
+use embassy_time::{with_timeout, Duration};
+
+use crate::command::network::SetNetworkHostName;
 use crate::command::wifi::types::{
     Authentication, StatusId, WifiStationAction, WifiStationConfig, WifiStatus, WifiStatusVal,
 };
 use crate::command::wifi::{
     ExecWifiStationAction, GetWifiMac, GetWifiStatus, SetWifiStationConfig,
 };
-use crate::command::{
-    edm::EdmAtCmdWrapper,
-    gpio::{
+use crate::command::OnOff;
+use crate::error::Error;
+use crate::{
+    command::gpio::{
         types::{GPIOId, GPIOValue},
         WriteGPIO,
     },
+    hex,
 };
-use crate::error::Error;
+
+use super::{channel, AtHandle};
+
+const CONFIG_ID: u8 = 0;
 
 pub struct Control<'a, AT: AtatClient> {
-    state_ch: ch::StateRunner<'a>,
-    at_client: &'a Mutex<NoopRawMutex, AT>,
+    state_ch: channel::StateRunner<'a>,
+    at: AtHandle<'a, AT>,
 }
 
 impl<'a, AT: AtatClient> Control<'a, AT> {
-    pub(crate) fn new(
-        state_ch: ch::StateRunner<'a>,
-        at_client: &'a Mutex<NoopRawMutex, AT>,
-    ) -> Self {
-        Self {
-            state_ch,
-            at_client,
-        }
+    pub(crate) fn new(state_ch: channel::StateRunner<'a>, at: AtHandle<'a, AT>) -> Self {
+        Self { state_ch, at }
     }
 
     pub(crate) async fn init(&mut self) -> Result<(), Error> {
         defmt::debug!("Initalizing ublox control");
         // read MAC addr.
-        let resp = self.send_edm(GetWifiMac).await?;
-        // FIXME: MAC length here?
-        // self.state_ch
-        //     .set_ethernet_address(resp.mac_addr.as_slice().try_into().unwrap());
+        let mut resp = self.at.send_edm(GetWifiMac).await?;
+        self.state_ch.set_ethernet_address(
+            hex::from_hex(resp.mac_addr.as_mut_slice())
+                .unwrap()
+                .try_into()
+                .unwrap(),
+        );
 
         // let country = countries::WORLD_WIDE_XX;
         // let country_info = CountryInfo {
@@ -83,32 +86,81 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         Ok(())
     }
 
+    pub async fn set_hostname(&mut self, hostname: &str) -> Result<(), Error> {
+        self.at
+            .send_edm(SetNetworkHostName {
+                host_name: hostname,
+            })
+            .await?;
+        Ok(())
+    }
+
+    async fn get_wifi_status(&mut self) -> Result<WifiStatusVal, Error> {
+        match self
+            .at
+            .send_edm(GetWifiStatus {
+                status_id: StatusId::Status,
+            })
+            .await?
+            .status_id
+        {
+            WifiStatus::Status(s) => Ok(s),
+            _ => Err(Error::AT(atat::Error::InvalidResponse)),
+        }
+    }
+
+    async fn get_connected_ssid(&mut self) -> Result<heapless::String<64>, Error> {
+        match self
+            .at
+            .send_edm(GetWifiStatus {
+                status_id: StatusId::SSID,
+            })
+            .await?
+            .status_id
+        {
+            WifiStatus::SSID(s) => Ok(s),
+            _ => Err(Error::AT(atat::Error::InvalidResponse)),
+        }
+    }
+
     pub async fn join_open(&mut self, ssid: &str) -> Result<(), Error> {
-        let config_id = 0;
+        if matches!(self.get_wifi_status().await?, WifiStatusVal::Connected) {
+            // Wifi already connected. Check if the SSID is the same
+            let current_ssid = self.get_connected_ssid().await?;
+            if current_ssid.as_str() == ssid {
+                return Ok(());
+            } else {
+                self.disconnect().await?;
+            };
+        }
 
-        self.send_edm(ExecWifiStationAction {
-            config_id,
-            action: WifiStationAction::Reset,
-        })
-        .await?;
+        self.at
+            .send_edm(SetWifiStationConfig {
+                config_id: CONFIG_ID,
+                config_param: WifiStationConfig::ActiveOnStartup(OnOff::Off),
+            })
+            .await?;
 
-        self.send_edm(SetWifiStationConfig {
-            config_id,
-            config_param: WifiStationConfig::SSID(heapless::String::from(ssid)),
-        })
-        .await?;
+        self.at
+            .send_edm(SetWifiStationConfig {
+                config_id: CONFIG_ID,
+                config_param: WifiStationConfig::SSID(heapless::String::from(ssid)),
+            })
+            .await?;
 
-        self.send_edm(SetWifiStationConfig {
-            config_id,
-            config_param: WifiStationConfig::Authentication(Authentication::Open),
-        })
-        .await?;
+        self.at
+            .send_edm(SetWifiStationConfig {
+                config_id: CONFIG_ID,
+                config_param: WifiStationConfig::Authentication(Authentication::Open),
+            })
+            .await?;
 
-        self.send_edm(ExecWifiStationAction {
-            config_id,
-            action: WifiStationAction::Activate,
-        })
-        .await?;
+        self.at
+            .send_edm(ExecWifiStationAction {
+                config_id: CONFIG_ID,
+                action: WifiStationAction::Activate,
+            })
+            .await?;
 
         with_timeout(Duration::from_secs(10), self.wait_for_join(ssid))
             .await
@@ -118,37 +170,52 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
     }
 
     pub async fn join_wpa2(&mut self, ssid: &str, passphrase: &str) -> Result<(), Error> {
-        let config_id = 0;
+        if matches!(self.get_wifi_status().await?, WifiStatusVal::Connected) {
+            // Wifi already connected. Check if the SSID is the same
+            let current_ssid = self.get_connected_ssid().await?;
+            if current_ssid.as_str() == ssid {
+                return Ok(());
+            } else {
+                self.disconnect().await?;
+            };
+        }
 
-        self.send_edm(ExecWifiStationAction {
-            config_id,
-            action: WifiStationAction::Reset,
-        })
-        .await?;
+        self.at
+            .send_edm(SetWifiStationConfig {
+                config_id: CONFIG_ID,
+                config_param: WifiStationConfig::ActiveOnStartup(OnOff::Off),
+            })
+            .await?;
 
-        self.send_edm(SetWifiStationConfig {
-            config_id,
-            config_param: WifiStationConfig::SSID(heapless::String::from(ssid)),
-        })
-        .await?;
+        self.at
+            .send_edm(SetWifiStationConfig {
+                config_id: CONFIG_ID,
+                config_param: WifiStationConfig::SSID(heapless::String::from(ssid)),
+            })
+            .await?;
 
-        self.send_edm(SetWifiStationConfig {
-            config_id,
-            config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
-        })
-        .await?;
+        self.at
+            .send_edm(SetWifiStationConfig {
+                config_id: CONFIG_ID,
+                config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
+            })
+            .await?;
 
-        self.send_edm(SetWifiStationConfig {
-            config_id,
-            config_param: WifiStationConfig::WpaPskOrPassphrase(heapless::String::from(passphrase)),
-        })
-        .await?;
+        self.at
+            .send_edm(SetWifiStationConfig {
+                config_id: CONFIG_ID,
+                config_param: WifiStationConfig::WpaPskOrPassphrase(heapless::String::from(
+                    passphrase,
+                )),
+            })
+            .await?;
 
-        self.send_edm(ExecWifiStationAction {
-            config_id,
-            action: WifiStationAction::Activate,
-        })
-        .await?;
+        self.at
+            .send_edm(ExecWifiStationAction {
+                config_id: CONFIG_ID,
+                action: WifiStationAction::Activate,
+            })
+            .await?;
 
         with_timeout(Duration::from_secs(10), self.wait_for_join(ssid))
             .await
@@ -157,135 +224,49 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         Ok(())
     }
 
-    async fn wait_for_join(&mut self, ssid: &str) -> Result<(), Error> {
-        loop {
-            let status = self
-                .send_edm(GetWifiStatus {
-                    status_id: StatusId::Status,
-                })
-                .await?;
-
-            if matches!(
-                status.status_id,
-                WifiStatus::Status(WifiStatusVal::Connected)
-            ) {
-                let connected_ssid = self
-                    .send_edm(GetWifiStatus {
-                        status_id: StatusId::SSID,
+    pub async fn disconnect(&mut self) -> Result<(), Error> {
+        match self.get_wifi_status().await? {
+            WifiStatusVal::Disabled => {}
+            WifiStatusVal::Disconnected | WifiStatusVal::Connected => {
+                self.at
+                    .send_edm(ExecWifiStationAction {
+                        config_id: CONFIG_ID,
+                        action: WifiStationAction::Deactivate,
                     })
                     .await?;
-
-                match connected_ssid.status_id {
-                    WifiStatus::SSID(s) if s.as_str() == ssid => {
-                        self.state_ch.set_link_state(LinkState::Up);
-                        defmt::debug!("JOINED");
-                        return Ok(());
-                    }
-                    _ => return Err(Error::Network),
-                }
             }
-
-            Timer::after(Duration::from_millis(500)).await;
         }
-    }
 
-    pub async fn gpio_set(&mut self, id: GPIOId, value: GPIOValue) -> Result<(), Error> {
-        self.send_edm(WriteGPIO { id, value }).await?;
+        let wait_for_disconnect = poll_fn(|cx| match self.state_ch.link_state(cx) {
+            LinkState::Up => Poll::Pending,
+            LinkState::Down => Poll::Ready(()),
+        });
+
+        with_timeout(Duration::from_secs(10), wait_for_disconnect)
+            .await
+            .map_err(|_| Error::Timeout)?;
+
         Ok(())
     }
 
-    // pub async fn start_ap_open(&mut self, ssid: &str, channel: u8) {
-    //     self.start_ap(ssid, "", Security::OPEN, channel).await;
-    // }
+    async fn wait_for_join(&mut self, ssid: &str) -> Result<(), Error> {
+        poll_fn(|cx| match self.state_ch.link_state(cx) {
+            LinkState::Down => Poll::Pending,
+            LinkState::Up => Poll::Ready(()),
+        })
+        .await;
 
-    // pub async fn start_ap_wpa2(&mut self, ssid: &str, passphrase: &str, channel: u8) {
-    //     self.start_ap(ssid, passphrase, Security::WPA2_AES_PSK, channel)
-    //         .await;
-    // }
+        // Check that SSID matches
+        let current_ssid = self.get_connected_ssid().await?;
+        if ssid != current_ssid.as_str() {
+            return Err(Error::Network);
+        }
 
-    // async fn start_ap(&mut self, ssid: &str, passphrase: &str, security: Security, channel: u8) {
-    //     if security != Security::OPEN
-    //         && (passphrase.as_bytes().len() < MIN_PSK_LEN
-    //             || passphrase.as_bytes().len() > MAX_PSK_LEN)
-    //     {
-    //         panic!("Passphrase is too short or too long");
-    //     }
-
-    //     // Temporarily set wifi down
-    //     self.ioctl(ControlType::Set, IOCTL_CMD_DOWN, 0, &mut [])
-    //         .await;
-
-    //     // Turn off APSTA mode
-    //     self.set_iovar_u32("apsta", 0).await;
-
-    //     // Set wifi up again
-    //     self.ioctl(ControlType::Set, IOCTL_CMD_UP, 0, &mut []).await;
-
-    //     // Turn on AP mode
-    //     self.ioctl_set_u32(IOCTL_CMD_SET_AP, 0, 1).await;
-
-    //     // Set SSID
-    //     let mut i = SsidInfoWithIndex {
-    //         index: 0,
-    //         ssid_info: SsidInfo {
-    //             len: ssid.as_bytes().len() as _,
-    //             ssid: [0; 32],
-    //         },
-    //     };
-    //     i.ssid_info.ssid[..ssid.as_bytes().len()].copy_from_slice(ssid.as_bytes());
-    //     self.set_iovar("bsscfg:ssid", &i.to_bytes()).await;
-
-    //     // Set channel number
-    //     self.ioctl_set_u32(IOCTL_CMD_SET_CHANNEL, 0, channel as u32)
-    //         .await;
-
-    //     // Set security
-    //     self.set_iovar_u32x2("bsscfg:wsec", 0, (security as u32) & 0xFF)
-    //         .await;
-
-    //     if security != Security::OPEN {
-    //         self.set_iovar_u32x2("bsscfg:wpa_auth", 0, 0x0084).await; // wpa_auth = WPA2_AUTH_PSK | WPA_AUTH_PSK
-
-    //         Timer::after(Duration::from_millis(100)).await;
-
-    //         // Set passphrase
-    //         let mut pfi = PassphraseInfo {
-    //             len: passphrase.as_bytes().len() as _,
-    //             flags: 1, // WSEC_PASSPHRASE
-    //             passphrase: [0; 64],
-    //         };
-    //         pfi.passphrase[..passphrase.as_bytes().len()].copy_from_slice(passphrase.as_bytes());
-    //         self.ioctl(
-    //             ControlType::Set,
-    //             IOCTL_CMD_SET_PASSPHRASE,
-    //             0,
-    //             &mut pfi.to_bytes(),
-    //         )
-    //         .await;
-    //     }
-
-    //     // Change mutlicast rate from 1 Mbps to 11 Mbps
-    //     self.set_iovar_u32("2g_mrate", 11000000 / 500000).await;
-
-    //     // Start AP
-    //     self.set_iovar_u32x2("bss", 0, 1).await; // bss = BSS_UP
-    // }
-
-    async fn send_edm<Cmd: atat::AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: Cmd,
-    ) -> Result<Cmd::Response, atat::Error> {
-        self.send(EdmAtCmdWrapper(cmd)).await
+        Ok(())
     }
 
-    async fn send<Cmd: atat::AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: Cmd,
-    ) -> Result<Cmd::Response, atat::Error> {
-        self.at_client
-            .lock()
-            .await
-            .send_retry::<Cmd, LEN>(&cmd)
-            .await
+    pub async fn gpio_set(&mut self, id: GPIOId, value: GPIOValue) -> Result<(), Error> {
+        self.at.send_edm(WriteGPIO { id, value }).await?;
+        Ok(())
     }
 }

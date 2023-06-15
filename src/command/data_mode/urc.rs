@@ -1,12 +1,12 @@
 //! Unsolicited responses for Data mode Commands
-use crate::command::PeerHandle;
-
 use super::types::*;
 use atat::atat_derive::AtatResp;
 use atat::heapless_bytes::Bytes;
+use ublox_sockets::PeerHandle;
 
 /// 5.10 Peer connected +UUDPC
 #[derive(Debug, PartialEq, Clone, AtatResp)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct PeerConnected {
     #[at_arg(position = 0)]
     pub handle: PeerHandle,
@@ -17,12 +17,14 @@ pub struct PeerConnected {
     // #[at_arg(position = 3)]
     // pub local_address: IpAddr,
     #[at_arg(position = 3)]
+    #[defmt(Debug2Format)]
     pub local_address: Bytes<40>,
     #[at_arg(position = 4)]
     pub local_port: u16,
     // #[at_arg(position = 5)]
     // pub remote_address: IpAddr,
     #[at_arg(position = 5)]
+    #[defmt(Debug2Format)]
     pub remote_address: Bytes<40>,
     #[at_arg(position = 6)]
     pub remote_port: u16,

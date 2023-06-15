@@ -25,6 +25,22 @@ pub struct WifiNetwork {
     pub mode: WifiMode,
 }
 
+impl WifiNetwork {
+    pub fn new_station(bssid: Bytes<20>, channel: u8) -> Self {
+        Self {
+            bssid,
+            op_mode: OperationMode::Infrastructure,
+            ssid: String::new(),
+            channel,
+            rssi: 1,
+            authentication_suites: 0,
+            unicast_ciphers: 0,
+            group_ciphers: 0,
+            mode: WifiMode::Station,
+        }
+    }
+}
+
 impl TryFrom<ScannedWifiNetwork> for WifiNetwork {
     type Error = WifiError;
 

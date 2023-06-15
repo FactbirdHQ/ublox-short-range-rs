@@ -1,60 +1,71 @@
-use core::{future::poll_fn, task::Poll};
+use core::str::FromStr;
 
+use super::channel::{self, driver::LinkState};
 use crate::{
+    asynch::ublox_stack::Disconnect,
     command::{
-        data_mode::{types::PeerConfigParameter, SetPeerConfiguration},
-        edm::{urc::EdmEvent, EdmAtCmdWrapper, EdmDataCommand, SwitchToEdmCommand},
-        network::SetNetworkHostName,
+        data_mode::{
+            responses::ConnectPeerResponse, urc::PeerDisconnected, ClosePeerConnection, ConnectPeer,
+        },
+        edm::{urc::EdmEvent, EdmDataCommand, SwitchToEdmCommand},
+        network::{
+            responses::NetworkStatusResponse,
+            types::{InterfaceType, NetworkStatus, NetworkStatusParameter},
+            urc::{NetworkDown, NetworkUp},
+            GetNetworkStatus,
+        },
+        ping::Ping,
         system::{
-            types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
-            RebootDCE, SetRS232Settings, StoreCurrentConfig,
+            types::{BaudRate, ChangeAfterConfirm, EchoOn, FlowControl, Parity, StopBits},
+            RebootDCE, SetEcho, SetRS232Settings, StoreCurrentConfig,
         },
         wifi::{
-            types::{StatusId, WifiConfig, WifiStatus, WifiStatusVal},
-            GetWifiStatus, SetWifiConfig,
+            types::DisconnectReason,
+            urc::{WifiLinkConnected, WifiLinkDisconnected},
         },
         Urc,
     },
-    config::Config,
+    connection::{WiFiState, WifiConnection},
     error::Error,
+    network::WifiNetwork,
 };
 use atat::{asynch::AtatClient, UrcSubscription};
-use ch::driver::LinkState;
 use embassy_futures::select::{select, Either};
-use embassy_net_driver_channel as ch;
-use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_hal::digital::OutputPin;
+use no_std_net::{Ipv4Addr, Ipv6Addr};
 
 use super::{
-    ublox_stack::{DataPacket, SocketEvent},
-    MTU,
+    ublox_stack::{Connect, DataPacket, SocketRx, SocketTx},
+    AtHandle, MTU,
 };
 
 /// Background runner for the Ublox Module.
 ///
 /// You must call `.run()` in a background task for the Ublox Module to operate.
-pub struct Runner<'d, AT: AtatClient, RST: OutputPin> {
-    ch: ch::Runner<'d, MTU>,
-    at_handle: &'d Mutex<NoopRawMutex, AT>,
+pub struct Runner<'d, AT: AtatClient, RST: OutputPin, const MAX_CONNS: usize> {
+    ch: channel::Runner<'d, MTU>,
+    at: AtHandle<'d, AT>,
     reset: RST,
-    config: Config,
+    wifi_connection: Option<WifiConnection>,
+    // connections: FnvIndexMap<PeerHandle, ConnectionType, MAX_CONNS>,
     urc_subscription: UrcSubscription<'d, EdmEvent>,
 }
 
-impl<'d, AT: AtatClient, RST: OutputPin> Runner<'d, AT, RST> {
+impl<'d, AT: AtatClient, RST: OutputPin, const MAX_CONNS: usize> Runner<'d, AT, RST, MAX_CONNS> {
     pub(crate) fn new(
-        ch: ch::Runner<'d, MTU>,
-        at_handle: &'d Mutex<NoopRawMutex, AT>,
+        ch: channel::Runner<'d, MTU>,
+        at: AtHandle<'d, AT>,
         reset: RST,
         urc_subscription: UrcSubscription<'d, EdmEvent>,
     ) -> Self {
         Self {
             ch,
-            at_handle,
+            at,
             reset,
-            config: Config::default(),
+            wifi_connection: None,
             urc_subscription,
+            // connections: IndexMap::new(),
         }
     }
 
@@ -64,100 +75,49 @@ impl<'d, AT: AtatClient, RST: OutputPin> Runner<'d, AT, RST> {
         // Hard reset module
         self.reset().await?;
 
-        // Switch to EDM on Init. If in EDM, fail and check with autosense
-        self.send(SwitchToEdmCommand).await.ok();
-
-        loop {
-            let urc = self.urc_subscription.next_message_pure().await;
-            if matches!(urc, EdmEvent::StartUp) {
-                break;
-            }
-            // Ignore AT results until we are successful in EDM mode
-            self.send(SwitchToEdmCommand).await.ok();
-            Timer::after(Duration::from_millis(100)).await;
-        }
-
         // TODO: handle EDM settings quirk see EDM datasheet: 2.2.5.1 AT Request Serial settings
-        self.send_edm(SetRS232Settings {
-            baud_rate: BaudRate::B115200,
-            flow_control: FlowControl::On,
-            data_bits: 8,
-            stop_bits: StopBits::One,
-            parity: Parity::None,
-            change_after_confirm: ChangeAfterConfirm::ChangeAfterOK,
-        })
-        .await?;
-
-        if let Some(hostname) = self.config.hostname.clone() {
-            self.send_edm(SetNetworkHostName {
-                host_name: hostname.as_str(),
+        self.at
+            .send_edm(SetRS232Settings {
+                baud_rate: BaudRate::B115200,
+                flow_control: FlowControl::On,
+                data_bits: 8,
+                stop_bits: StopBits::One,
+                parity: Parity::None,
+                change_after_confirm: ChangeAfterConfirm::ChangeAfterOK,
             })
             .await?;
-        }
 
-        // self.send_edm(SetWifiConfig {
-        //     config_param: WifiConfig::RemainOnChannel(0),
-        // })
-        // .await?;
+        // self.restart(true).await?;
 
-        self.send_edm(StoreCurrentConfig).await?;
-
-        // self.software_reset().await?;
-
-        // // FIXME: Prevent infinite loop
-        // loop {
-        //     let urc = self.urc_subscription.next_message_pure().await;
-        //     if matches!(urc, EdmEvent::StartUp) {
-        //         break;
-        //     }
-        //     self.send(SwitchToEdmCommand).await.ok();
-        //     Timer::after(Duration::from_millis(100)).await;
+        // Move to control
+        // if let Some(size) = self.config.tls_in_buffer_size {
+        //     self.at
+        //         .send_edm(SetPeerConfiguration {
+        //             parameter: PeerConfigParameter::TlsInBuffer(size),
+        //         })
+        //         .await?;
         // }
 
-        if let Some(size) = self.config.tls_in_buffer_size {
-            self.send_edm(SetPeerConfiguration {
-                parameter: PeerConfigParameter::TlsInBuffer(size),
-            })
-            .await?;
-        }
-
-        if let Some(size) = self.config.tls_out_buffer_size {
-            self.send_edm(SetPeerConfiguration {
-                parameter: PeerConfigParameter::TlsOutBuffer(size),
-            })
-            .await?;
-        }
+        // if let Some(size) = self.config.tls_out_buffer_size {
+        //     self.at
+        //         .send_edm(SetPeerConfiguration {
+        //             parameter: PeerConfigParameter::TlsOutBuffer(size),
+        //         })
+        //         .await?;
+        // }
 
         Ok(())
     }
 
-    async fn send_edm<Cmd: atat::AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: Cmd,
-    ) -> Result<Cmd::Response, atat::Error> {
-        self.send(EdmAtCmdWrapper(cmd)).await
-    }
-
-    async fn send<Cmd: atat::AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: Cmd,
-    ) -> Result<Cmd::Response, atat::Error> {
-        self.at_handle
-            .lock()
-            .await
-            .send_retry::<Cmd, LEN>(&cmd)
-            .await
-    }
-
     async fn wait_startup(&mut self, timeout: Duration) -> Result<(), Error> {
-        let fut = poll_fn(|_cx| {
-            if let Some(EdmEvent::ATEvent(Urc::StartUp)) | Some(EdmEvent::StartUp) =
-                self.urc_subscription.try_next_message_pure()
-            {
-                return Poll::Ready(());
+        let fut = async {
+            loop {
+                match self.urc_subscription.next_message_pure().await {
+                    EdmEvent::ATEvent(Urc::StartUp) | EdmEvent::StartUp => return,
+                    _ => {}
+                }
             }
-            Poll::Pending
-        });
+        };
 
         with_timeout(timeout, fut).await.map_err(|_| Error::Timeout)
     }
@@ -170,29 +130,68 @@ impl<'d, AT: AtatClient, RST: OutputPin> Runner<'d, AT, RST> {
 
         self.wait_startup(Duration::from_secs(4)).await?;
 
+        self.enter_edm(Duration::from_secs(4)).await?;
+
         Ok(())
     }
 
-    pub async fn software_reset(&mut self) -> Result<(), Error> {
+    pub async fn restart(&mut self, store: bool) -> Result<(), Error> {
         defmt::warn!("Soft resetting Ublox Short Range");
-        self.send_edm(RebootDCE).await?;
+        if store {
+            self.at.send_edm(StoreCurrentConfig).await?;
+        }
 
-        self.wait_startup(Duration::from_secs(10)).await?;
+        self.at.send_edm(RebootDCE).await?;
+
+        Timer::after(Duration::from_millis(3500)).await;
+
+        self.enter_edm(Duration::from_secs(4)).await?;
+
+        Ok(())
+    }
+
+    pub async fn enter_edm(&mut self, timeout: Duration) -> Result<(), Error> {
+        // Switch to EDM on Init. If in EDM, fail and check with autosense
+        let fut = async {
+            loop {
+                // Ignore AT results until we are successful in EDM mode
+                self.at.send(SwitchToEdmCommand).await.ok();
+
+                match select(
+                    self.urc_subscription.next_message_pure(),
+                    Timer::after(Duration::from_millis(100)),
+                )
+                .await
+                {
+                    Either::First(EdmEvent::StartUp) => break,
+                    _ => {}
+                };
+            }
+        };
+
+        with_timeout(timeout, fut)
+            .await
+            .map_err(|_| Error::Timeout)?;
+
+        self.at.send_edm(SetEcho { on: EchoOn::Off }).await?;
 
         Ok(())
     }
 
     pub async fn is_link_up(&mut self) -> Result<bool, Error> {
-        let status = self
-            .send_edm(GetWifiStatus {
-                status_id: StatusId::Status,
-            })
-            .await?;
+        // Determine link state
+        let link_state = match self.wifi_connection {
+            Some(ref conn)
+                if conn.network_up && matches!(conn.wifi_state, WiFiState::Connected) =>
+            {
+                LinkState::Up
+            }
+            _ => LinkState::Down,
+        };
 
-        Ok(matches!(
-            status.status_id,
-            WifiStatus::Status(WifiStatusVal::Connected)
-        ))
+        self.ch.set_link_state(link_state);
+
+        Ok(link_state == LinkState::Up)
     }
 
     pub async fn run(mut self) -> ! {
@@ -202,65 +201,134 @@ impl<'d, AT: AtatClient, RST: OutputPin> Runner<'d, AT, RST> {
 
             match select(tx, urc).await {
                 Either::First(p) => {
-                    if let Ok(packet) = postcard::from_bytes::<DataPacket>(p) {
-                        self.at_handle
-                            .lock()
-                            .await
-                            .send_retry(&EdmDataCommand {
-                                channel: packet.edm_channel,
-                                data: packet.payload,
-                            })
-                            .await
-                            .ok();
+                    match postcard::from_bytes::<SocketTx>(p) {
+                        Ok(SocketTx::Data(packet)) => {
+                            self.at
+                                .send(EdmDataCommand {
+                                    channel: packet.edm_channel,
+                                    data: packet.payload,
+                                })
+                                .await
+                                .ok();
+                        }
+                        Ok(SocketTx::Connect(Connect { url, socket_handle })) => {
+                            if let Ok(ConnectPeerResponse { peer_handle }) =
+                                self.at.send_edm(ConnectPeer { url }).await
+                            {
+                                self.rx(SocketRx::PeerHandle(socket_handle, peer_handle))
+                                    .await;
+                            }
+                        }
+                        Ok(SocketTx::Disconnect(peer_handle)) => {
+                            self.at
+                                .send_edm(ClosePeerConnection { peer_handle })
+                                .await
+                                .ok();
+                        }
+                        Ok(SocketTx::Dns(hostname)) => {
+                            if self
+                                .at
+                                .send_edm(Ping {
+                                    retry_num: 1,
+                                    hostname,
+                                })
+                                .await
+                                .is_err()
+                            {
+                                self.rx(SocketRx::Ping(Err(()))).await;
+                            }
+                        }
+                        Err(_) => {}
                     }
                     self.ch.tx_done();
                 }
                 Either::Second(p) => match p {
                     EdmEvent::BluetoothConnectEvent(_) => {}
-                    EdmEvent::ATEvent(urc) => self.handle_urc(urc),
-                    EdmEvent::StartUp => todo!(),
+                    EdmEvent::ATEvent(urc) => self.handle_urc(urc).await.unwrap(),
+                    EdmEvent::StartUp => {
+                        defmt::error!("EDM startup event?! Device restarted unintentionally!");
+                    }
 
                     // All below events needs to be conveyed to `self.ch.rx`
-                    EdmEvent::IPv4ConnectEvent(ev) => self.rx(ev),
-                    EdmEvent::IPv6ConnectEvent(ev) => self.rx(ev),
-                    EdmEvent::DisconnectEvent(channel_id) => self.rx(channel_id),
+                    EdmEvent::IPv4ConnectEvent(ev) => self.rx(ev).await,
+                    EdmEvent::IPv6ConnectEvent(ev) => self.rx(ev).await,
+                    EdmEvent::DisconnectEvent(channel_id) => self.rx(channel_id).await,
                     EdmEvent::DataEvent(ev) => {
                         let packet = DataPacket {
                             edm_channel: ev.channel_id,
                             payload: ev.data.as_slice(),
                         };
 
-                        self.rx(packet);
+                        self.rx(packet).await;
                     }
                 },
             }
         }
     }
 
-    fn rx<'a>(&mut self, packet: impl Into<SocketEvent<'a>>) {
-        match self.ch.try_rx_buf() {
-            Some(buf) => {
-                let event: SocketEvent = packet.into();
-                let used = postcard::to_slice(&event, buf).unwrap();
-                let len = used.len();
-                self.ch.rx_done(len);
-            }
-            None => {
-                defmt::warn!("failed to push rxd packet to the channel.")
-            }
-        }
+    async fn rx<'a>(&mut self, packet: impl Into<SocketRx<'a>>) {
+        let pkg = packet.into();
+        let buf = self.ch.rx_buf().await;
+        let used = defmt::unwrap!(postcard::to_slice(&pkg, buf));
+        let len = used.len();
+        self.ch.rx_done(len);
     }
 
-    fn handle_urc(&mut self, urc: Urc) {
+    async fn handle_urc(&mut self, urc: Urc) -> Result<(), Error> {
         match urc {
-            Urc::StartUp => {}
-            Urc::PeerConnected(_) => todo!(),
-            Urc::PeerDisconnected(_) => todo!(),
-            Urc::WifiLinkConnected(_) => {
-                self.ch.set_link_state(LinkState::Up);
+            Urc::StartUp => {
+                defmt::error!("AT startup event?! Device restarted unintentionally!");
             }
-            Urc::WifiLinkDisconnected(_) => {
-                self.ch.set_link_state(LinkState::Down);
+            Urc::PeerConnected(pc) => {
+                defmt::info!("Peer connected! {}", pc);
+                // if self.connections.insert(handle, connection_type).is_err() {
+                //     defmt::warn!("Out of connection entries");
+                // }
+            }
+            Urc::PeerDisconnected(PeerDisconnected { handle }) => {
+                defmt::info!("Peer disconnected!");
+                self.rx(SocketRx::Disconnect(Disconnect::Peer(handle)))
+                    .await;
+                // self.connections.remove(&handle);
+            }
+            Urc::WifiLinkConnected(WifiLinkConnected {
+                connection_id: _,
+                bssid,
+                channel,
+            }) => {
+                if let Some(ref mut con) = self.wifi_connection {
+                    con.wifi_state = WiFiState::Connected;
+                    con.network.bssid = bssid;
+                    con.network.channel = channel;
+                } else {
+                    defmt::debug!("[URC] Active network config discovered");
+                    self.wifi_connection.replace(
+                        WifiConnection::new(
+                            WifiNetwork::new_station(bssid, channel),
+                            WiFiState::Connected,
+                            255,
+                        )
+                        .activate(),
+                    );
+                }
+                self.is_link_up().await?;
+            }
+            Urc::WifiLinkDisconnected(WifiLinkDisconnected { reason, .. }) => {
+                if let Some(ref mut con) = self.wifi_connection {
+                    match reason {
+                        DisconnectReason::NetworkDisabled => {
+                            con.wifi_state = WiFiState::Inactive;
+                        }
+                        DisconnectReason::SecurityProblems => {
+                            defmt::error!("Wifi Security Problems");
+                        }
+                        _ => {
+                            con.wifi_state = WiFiState::NotConnected;
+                        }
+                    }
+                }
+
+                self.is_link_up().await?;
             }
             Urc::WifiAPUp(_) => todo!(),
             Urc::WifiAPDown(_) => todo!(),
@@ -268,11 +336,75 @@ impl<'d, AT: AtatClient, RST: OutputPin> Runner<'d, AT, RST> {
             Urc::WifiAPStationDisconnected(_) => todo!(),
             Urc::EthernetLinkUp(_) => todo!(),
             Urc::EthernetLinkDown(_) => todo!(),
-            Urc::NetworkUp(_) => {}
-            Urc::NetworkDown(_) => {}
+            Urc::NetworkUp(NetworkUp { interface_id }) => {
+                self.network_status_callback(interface_id).await?;
+            }
+            Urc::NetworkDown(NetworkDown { interface_id }) => {
+                self.network_status_callback(interface_id).await?;
+            }
             Urc::NetworkError(_) => todo!(),
-            Urc::PingResponse(_) => todo!(),
-            Urc::PingErrorResponse(_) => todo!(),
+            Urc::PingResponse(resp) => self.rx(SocketRx::Ping(Ok(resp.ip))).await,
+            Urc::PingErrorResponse(_) => self.rx(SocketRx::Ping(Err(()))).await,
         }
+        Ok(())
+    }
+
+    async fn network_status_callback(&mut self, interface_id: u8) -> Result<(), Error> {
+        let NetworkStatusResponse {
+            status: NetworkStatus::InterfaceType(InterfaceType::WifiStation),
+            ..
+        } = self
+            .at.send_edm(GetNetworkStatus {
+                interface_id,
+                status: NetworkStatusParameter::InterfaceType,
+            })
+            .await? else {
+                return Err(Error::Network);
+            };
+
+        let NetworkStatusResponse {
+            status: NetworkStatus::Gateway(ipv4),
+            ..
+        } = self
+            .at.send_edm(GetNetworkStatus {
+                interface_id,
+                status: NetworkStatusParameter::Gateway,
+            })
+            .await? else {
+                return Err(Error::Network);
+            };
+
+        let ipv4_up = core::str::from_utf8(ipv4.as_slice())
+            .ok()
+            .and_then(|s| Ipv4Addr::from_str(s).ok())
+            .map(|ip| !ip.is_unspecified())
+            .unwrap_or_default();
+
+        let NetworkStatusResponse {
+            status: NetworkStatus::IPv6LinkLocalAddress(ipv6),
+            ..
+        } = self
+            .at.send_edm(GetNetworkStatus {
+                interface_id,
+                status: NetworkStatusParameter::IPv6LinkLocalAddress,
+            })
+            .await? else {
+                return Err(Error::Network);
+            };
+
+        let ipv6_up = core::str::from_utf8(ipv6.as_slice())
+            .ok()
+            .and_then(|s| Ipv6Addr::from_str(s).ok())
+            .map(|ip| !ip.is_unspecified())
+            .unwrap_or_default();
+
+        // Use `ipv4_up` & `ipv6_up` to determine link state
+        if let Some(ref mut con) = self.wifi_connection {
+            con.network_up = ipv4_up && ipv6_up;
+        }
+
+        self.is_link_up().await?;
+
+        Ok(())
     }
 }

@@ -1,16 +1,14 @@
-use crate::{blocking::client::SecurityCredentials, error::Error};
+use crate::error::Error;
 use core::fmt::Write;
-/// Handles receiving data from sockets
-/// implements TCP and UDP for WiFi client
-use embedded_nal::{IpAddr, SocketAddr};
 use heapless::String;
+use no_std_net::{IpAddr, SocketAddr};
 
 #[derive(Default)]
 pub(crate) struct PeerUrlBuilder<'a> {
     hostname: Option<&'a str>,
     ip_addr: Option<IpAddr>,
     port: Option<u16>,
-    creds: Option<SecurityCredentials>,
+    // creds: Option<SecurityCredentials>,
     local_port: Option<u16>,
 }
 
@@ -20,7 +18,7 @@ impl<'a> PeerUrlBuilder<'a> {
         Self::default()
     }
 
-    pub fn write_domain(&self, s: &mut String<128>) -> Result<(), Error> {
+    fn write_domain<const N: usize>(&self, s: &mut String<N>) -> Result<(), Error> {
         let port = self.port.ok_or(Error::Network)?;
         let addr = self
             .ip_addr
@@ -32,7 +30,7 @@ impl<'a> PeerUrlBuilder<'a> {
         addr.xor(host).ok_or(Error::Network)
     }
 
-    pub fn udp(&self) -> Result<String<128>, Error> {
+    pub fn udp<const N: usize>(&self) -> Result<String<N>, Error> {
         let mut s = String::new();
         write!(&mut s, "udp://").ok();
         self.write_domain(&mut s)?;
@@ -47,7 +45,7 @@ impl<'a> PeerUrlBuilder<'a> {
         Ok(s)
     }
 
-    pub fn tcp(&mut self) -> Result<String<128>, Error> {
+    pub fn tcp<const N: usize>(&mut self) -> Result<String<N>, Error> {
         let mut s = String::new();
         write!(&mut s, "tcp://").ok();
         self.write_domain(&mut s)?;
@@ -56,20 +54,20 @@ impl<'a> PeerUrlBuilder<'a> {
         write!(&mut s, "?").ok();
         self.local_port
             .map(|v| write!(&mut s, "local_port={}&", v).ok());
-        self.creds.as_ref().map(|creds| {
-            creds
-                .ca_cert_name
-                .as_ref()
-                .map(|v| write!(&mut s, "ca={}&", v).ok());
-            creds
-                .c_cert_name
-                .as_ref()
-                .map(|v| write!(&mut s, "cert={}&", v).ok());
-            creds
-                .c_key_name
-                .as_ref()
-                .map(|v| write!(&mut s, "privKey={}&", v).ok());
-        });
+        // self.creds.as_ref().map(|creds| {
+        //     creds
+        //         .ca_cert_name
+        //         .as_ref()
+        //         .map(|v| write!(&mut s, "ca={}&", v).ok());
+        //     creds
+        //         .c_cert_name
+        //         .as_ref()
+        //         .map(|v| write!(&mut s, "cert={}&", v).ok());
+        //     creds
+        //         .c_key_name
+        //         .as_ref()
+        //         .map(|v| write!(&mut s, "privKey={}&", v).ok());
+        // });
         // Remove trailing '&' or '?' if no query.
         s.pop();
 
@@ -85,9 +83,19 @@ impl<'a> PeerUrlBuilder<'a> {
         self
     }
 
+    pub fn set_hostname(&mut self, hostname: Option<&'a str>) -> &mut Self {
+        self.hostname = hostname;
+        self
+    }
+
     /// maximum length 64
     pub fn ip_addr(&mut self, ip_addr: IpAddr) -> &mut Self {
         self.ip_addr.replace(ip_addr);
+        self
+    }
+
+    pub fn set_ip_addr(&mut self, ip_addr: Option<IpAddr>) -> &mut Self {
+        self.ip_addr = ip_addr;
         self
     }
 
@@ -97,13 +105,23 @@ impl<'a> PeerUrlBuilder<'a> {
         self
     }
 
-    pub fn creds(&mut self, creds: SecurityCredentials) -> &mut Self {
-        self.creds.replace(creds);
+    pub fn set_port(&mut self, port: Option<u16>) -> &mut Self {
+        self.port = port;
         self
     }
 
+    // pub fn creds(&mut self, creds: SecurityCredentials) -> &mut Self {
+    //     self.creds.replace(creds);
+    //     self
+    // }
+
     pub fn local_port(&mut self, local_port: u16) -> &mut Self {
         self.local_port.replace(local_port);
+        self
+    }
+
+    pub fn set_local_port(&mut self, local_port: Option<u16>) -> &mut Self {
+        self.local_port = local_port;
         self
     }
 }
@@ -139,21 +157,21 @@ mod test {
         assert_eq!(url, "udp://example.org:2000/?local_port=2001");
     }
 
-    #[test]
-    fn tcp_certs() {
-        let url = PeerUrlBuilder::new()
-            .hostname("example.org")
-            .port(2000)
-            .creds(SecurityCredentials {
-                c_cert_name: Some(heapless::String::from("client.crt")),
-                ca_cert_name: Some(heapless::String::from("ca.crt")),
-                c_key_name: Some(heapless::String::from("client.key")),
-            })
-            .tcp()
-            .unwrap();
-        assert_eq!(
-            url,
-            "tcp://example.org:2000/?ca=ca.crt&cert=client.crt&privKey=client.key"
-        );
-    }
+    // #[test]
+    // fn tcp_certs() {
+    //     let url = PeerUrlBuilder::new()
+    //         .hostname("example.org")
+    //         .port(2000)
+    //         .creds(SecurityCredentials {
+    //             c_cert_name: Some(heapless::String::from("client.crt")),
+    //             ca_cert_name: Some(heapless::String::from("ca.crt")),
+    //             c_key_name: Some(heapless::String::from("client.key")),
+    //         })
+    //         .tcp()
+    //         .unwrap();
+    //     assert_eq!(
+    //         url,
+    //         "tcp://example.org:2000/?ca=ca.crt&cert=client.crt&privKey=client.key"
+    //     );
+    // }
 }

@@ -29,6 +29,7 @@ pub enum Error {
     Supplicant,
     Timeout,
     ShadowStoreBug,
+    AlreadyConnected,
     _Unknown,
 }
 

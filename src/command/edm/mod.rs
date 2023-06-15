@@ -11,6 +11,7 @@ use crate::command::{NoResponse, Urc};
 use atat::AtatCmd;
 use heapless::Vec;
 use types::*;
+use ublox_sockets::ChannelId;
 
 pub(crate) fn calc_payload_len(resp: &[u8]) -> usize {
     (u16::from_be_bytes(resp[1..3].try_into().unwrap()) & EDM_FULL_SIZE_FILTER) as usize

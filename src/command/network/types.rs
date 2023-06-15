@@ -31,7 +31,7 @@ pub enum NetworkStatus {
     /// 101: The <status_val> is the currently used IPv4_Addr (omitted if no IP address has
     /// been acquired).
     #[at_arg(value = 101)]
-    IPv4Address(#[at_arg(len = 16)] Bytes<40>),
+    IPv4Address(#[at_arg(len = 16)] Bytes<16>),
     /// 102: The <status_val> is the currently used subnet mask (omitted if no IP address
     /// has been acquired).
     #[at_arg(value = 102)]

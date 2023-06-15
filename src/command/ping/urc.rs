@@ -1,8 +1,8 @@
 //! Responses for Ping Commands
 use super::types::*;
 use atat::atat_derive::AtatResp;
-use embedded_nal::IpAddr;
 use heapless::String;
+use no_std_net::IpAddr;
 /// 16.1 Ping command +UPING
 ///
 /// The ping command is the common method to know if a remote host is reachable on the Internet.
@@ -24,7 +24,6 @@ use heapless::String;
 /// in another way.
 #[derive(Debug, PartialEq, Clone, AtatResp)]
 pub struct PingResponse {
-    /// Text string that identifies the serial number.
     #[at_arg(position = 0)]
     pub retrynum: u32,
     #[at_arg(position = 1)]
