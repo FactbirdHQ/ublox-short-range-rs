@@ -444,7 +444,10 @@ pub enum StatusId {
     /// - 0: Disabled,
     /// - 1: Disconnected,
     /// - 2: Connected,
-    Status = 6,
+    Status = 3,
+    /// The <status_val> is the RSSI value of the current connection; will
+    /// return-32768, if not connected.
+    RSSI = 6,
     /// The <status_val> is the mobility domain of the last or current
     /// connection This tag is supported by ODIN-W2 from software version 6.0.0
     /// onwards only.
@@ -489,8 +492,12 @@ pub enum WifiStatus {
     /// - 0: Disabled,
     /// - 1: Disconnected,
     /// - 2: Connected,
-    #[at_arg(value = 6)]
+    #[at_arg(value = 3)]
     Status(WifiStatusVal),
+    /// The <status_val> is the RSSI value of the current connection; will
+    /// return-32768, if not connected.
+    #[at_arg(value = 6)]
+    RSSI(i16),
     /// The <status_val> is the mobility domain of the last or current
     /// connection This tag is supported by ODIN-W2 from software version 6.0.0
     /// onwards only.

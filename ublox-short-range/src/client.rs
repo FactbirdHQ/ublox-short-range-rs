@@ -15,8 +15,9 @@ use crate::{
             RebootDCE, SetRS232Settings, StoreCurrentConfig,
         },
         wifi::{
-            types::{DisconnectReason, WifiConfig},
-            SetWifiConfig,
+            responses::WifiStatusResponse,
+            types::{DisconnectReason, StatusId, WifiConfig, WifiStatus},
+            GetWifiStatus, SetWifiConfig,
         },
         Urc,
     },
@@ -226,6 +227,21 @@ where
     pub fn firmware_version(&mut self) -> Result<FirmwareVersion, Error> {
         let response = self.send_internal(&EdmAtCmdWrapper(SoftwareVersion), false)?;
         Ok(response.version)
+    }
+
+    pub fn signal_strength(&mut self) -> Result<i16, Error> {
+        if let WifiStatusResponse {
+            status_id: WifiStatus::RSSI(rssi),
+        } = self.send_internal(
+            &EdmAtCmdWrapper(GetWifiStatus {
+                status_id: StatusId::RSSI,
+            }),
+            false,
+        )? {
+            Ok(rssi)
+        } else {
+            Err(Error::_Unknown)
+        }
     }
 
     pub fn retry_send<A, const LEN: usize>(
