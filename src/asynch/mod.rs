@@ -3,14 +3,14 @@ pub mod runner;
 #[cfg(feature = "ublox-sockets")]
 pub mod ublox_stack;
 
-pub(crate) mod channel;
+pub(crate) mod state;
 
 use crate::command::edm::{urc::EdmEvent, EdmAtCmdWrapper};
-use atat::{asynch::AtatClient, UrcSubscription};
-use channel::Device;
+use atat::{asynch::AtatClient, AtatUrcChannel};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embedded_hal::digital::OutputPin;
 use runner::Runner;
+use state::Device;
 
 use self::control::Control;
 
@@ -36,38 +36,40 @@ impl<'d, AT: AtatClient> AtHandle<'d, AT> {
 }
 
 pub struct State<AT: AtatClient> {
-    ch: channel::State<MTU, 1, 1>,
+    ch: state::State,
     at_handle: Mutex<NoopRawMutex, AT>,
 }
 
 impl<AT: AtatClient> State<AT> {
     pub fn new(at_handle: AT) -> Self {
         Self {
-            ch: channel::State::new(),
+            ch: state::State::new(),
             at_handle: Mutex::new(at_handle),
         }
     }
 }
 
-pub const MTU: usize = 4096 + 4; // DATA_PACKAGE_SIZE
-
-pub async fn new<'a, AT: AtatClient, RST: OutputPin>(
+pub async fn new<'a, AT: AtatClient, SUB: AtatUrcChannel<EdmEvent>, RST: OutputPin>(
     state: &'a mut State<AT>,
-    urc_subscription: UrcSubscription<'a, EdmEvent>,
+    subscriber: &'a SUB,
     reset: RST,
 ) -> (
-    Device<'a, MTU>,
+    Device<'a, AT>,
     Control<'a, AT>,
     Runner<'a, AT, RST, MAX_CONNS>,
 ) {
-    let (ch_runner, net_device) = channel::new(&mut state.ch, [0; 6]);
+    let (ch_runner, net_device) = state::new(
+        &mut state.ch,
+        AtHandle(&state.at_handle),
+        subscriber.subscribe().unwrap(),
+    );
     let state_ch = ch_runner.state_runner();
 
     let mut runner = Runner::new(
         ch_runner,
         AtHandle(&state.at_handle),
         reset,
-        urc_subscription,
+        subscriber.subscribe().unwrap(),
     );
 
     runner.init().await.unwrap();

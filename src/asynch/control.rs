@@ -2,50 +2,45 @@ use core::future::poll_fn;
 use core::task::Poll;
 
 use atat::asynch::AtatClient;
-use embassy_net_driver::LinkState;
 use embassy_time::{with_timeout, Duration};
 
+use crate::command::gpio::{
+    types::{GPIOId, GPIOValue},
+    WriteGPIO,
+};
 use crate::command::network::SetNetworkHostName;
 use crate::command::wifi::types::{
     Authentication, StatusId, WifiStationAction, WifiStationConfig, WifiStatus, WifiStatusVal,
 };
-use crate::command::wifi::{
-    ExecWifiStationAction, GetWifiMac, GetWifiStatus, SetWifiStationConfig,
-};
+use crate::command::wifi::{ExecWifiStationAction, GetWifiStatus, SetWifiStationConfig};
 use crate::command::OnOff;
 use crate::error::Error;
-use crate::{
-    command::gpio::{
-        types::{GPIOId, GPIOValue},
-        WriteGPIO,
-    },
-    hex,
-};
 
-use super::{channel, AtHandle};
+use super::state::LinkState;
+use super::{state, AtHandle};
 
 const CONFIG_ID: u8 = 0;
 
 pub struct Control<'a, AT: AtatClient> {
-    state_ch: channel::StateRunner<'a>,
+    state_ch: state::StateRunner<'a>,
     at: AtHandle<'a, AT>,
 }
 
 impl<'a, AT: AtatClient> Control<'a, AT> {
-    pub(crate) fn new(state_ch: channel::StateRunner<'a>, at: AtHandle<'a, AT>) -> Self {
+    pub(crate) fn new(state_ch: state::StateRunner<'a>, at: AtHandle<'a, AT>) -> Self {
         Self { state_ch, at }
     }
 
     pub(crate) async fn init(&mut self) -> Result<(), Error> {
         defmt::debug!("Initalizing ublox control");
         // read MAC addr.
-        let mut resp = self.at.send_edm(GetWifiMac).await?;
-        self.state_ch.set_ethernet_address(
-            hex::from_hex(resp.mac_addr.as_mut_slice())
-                .unwrap()
-                .try_into()
-                .unwrap(),
-        );
+        // let mut resp = self.at.send_edm(GetWifiMac).await?;
+        // self.state_ch.set_ethernet_address(
+        //     hex::from_hex(resp.mac_addr.as_mut_slice())
+        //         .unwrap()
+        //         .try_into()
+        //         .unwrap(),
+        // );
 
         // let country = countries::WORLD_WIDE_XX;
         // let country_info = CountryInfo {

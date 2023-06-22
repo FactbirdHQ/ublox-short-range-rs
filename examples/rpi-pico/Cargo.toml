@@ -11,9 +11,9 @@ embassy-time = { version = "0.1.0",  features = ["defmt", "defmt-timestamp-uptim
 embassy-rp = { version = "0.1.0",  features = ["defmt", "unstable-traits", "nightly", "unstable-pac", "time-driver"] }
 embassy-futures = { version = "0.1.0" }
 atomic-polyfill = "1.0.2"
-static_cell = "1.1"
 no-std-net = { version = "0.6", features = ["serde"] }
 
+static_cell = { version = "1.1", features = ["nightly"] }
 defmt = "0.3.4"
 defmt-rtt = "0.3"
 panic-probe = { version = "0.3", features = ["print-defmt"] }

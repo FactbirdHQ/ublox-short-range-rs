@@ -20,7 +20,10 @@ atat = { version = "0.18.0", features = ["derive", "defmt", "bytes"] }
 heapless = { version = "^0.7", features = ["serde", "defmt-impl"] }
 no-std-net = { version = "0.6", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
-ublox-sockets = { version = "0.5", features = ["defmt", "edm"], optional = true }
+ublox-sockets = { version = "0.5", features = [
+    "defmt",
+    "edm",
+], optional = true }
 postcard = "1.0.4"
 smoltcp = { version = "0.9.1", default-features = false, optional = true }
 atomic-polyfill = "1.0.2"
@@ -35,7 +38,9 @@ embassy-hal-common = "0.1"
 embassy-net-driver = "0.1"
 
 embedded-nal-async = { version = "0.4", optional = true }
-futures = { version = "0.3.17", default-features = false, features = [ "async-await" ] }
+futures = { version = "0.3.17", default-features = false, features = [
+    "async-await",
+] }
 
 embedded-io = "0.4"
 

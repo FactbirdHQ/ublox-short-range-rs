@@ -1,20 +1,15 @@
 use core::str::FromStr;
 
-use super::channel::{self, driver::LinkState};
+use super::state::{self, LinkState};
 use crate::{
-    asynch::ublox_stack::Disconnect,
     command::{
-        data_mode::{
-            responses::ConnectPeerResponse, urc::PeerDisconnected, ClosePeerConnection, ConnectPeer,
-        },
-        edm::{urc::EdmEvent, EdmDataCommand, SwitchToEdmCommand},
+        edm::{urc::EdmEvent, SwitchToEdmCommand},
         network::{
             responses::NetworkStatusResponse,
             types::{InterfaceType, NetworkStatus, NetworkStatusParameter},
             urc::{NetworkDown, NetworkUp},
             GetNetworkStatus,
         },
-        ping::Ping,
         system::{
             types::{BaudRate, ChangeAfterConfirm, EchoOn, FlowControl, Parity, StopBits},
             RebootDCE, SetEcho, SetRS232Settings, StoreCurrentConfig,
@@ -30,21 +25,17 @@ use crate::{
     network::WifiNetwork,
 };
 use atat::{asynch::AtatClient, UrcSubscription};
-use embassy_futures::select::{select, Either};
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_hal::digital::OutputPin;
 use no_std_net::{Ipv4Addr, Ipv6Addr};
 
-use super::{
-    ublox_stack::{Connect, DataPacket, SocketRx, SocketTx},
-    AtHandle, MTU,
-};
+use super::AtHandle;
 
 /// Background runner for the Ublox Module.
 ///
 /// You must call `.run()` in a background task for the Ublox Module to operate.
 pub struct Runner<'d, AT: AtatClient, RST: OutputPin, const MAX_CONNS: usize> {
-    ch: channel::Runner<'d, MTU>,
+    ch: state::Runner<'d>,
     at: AtHandle<'d, AT>,
     reset: RST,
     wifi_connection: Option<WifiConnection>,
@@ -54,7 +45,7 @@ pub struct Runner<'d, AT: AtatClient, RST: OutputPin, const MAX_CONNS: usize> {
 
 impl<'d, AT: AtatClient, RST: OutputPin, const MAX_CONNS: usize> Runner<'d, AT, RST, MAX_CONNS> {
     pub(crate) fn new(
-        ch: channel::Runner<'d, MTU>,
+        ch: state::Runner<'d>,
         at: AtHandle<'d, AT>,
         reset: RST,
         urc_subscription: UrcSubscription<'d, EdmEvent>,
@@ -157,15 +148,14 @@ impl<'d, AT: AtatClient, RST: OutputPin, const MAX_CONNS: usize> Runner<'d, AT, 
                 // Ignore AT results until we are successful in EDM mode
                 self.at.send(SwitchToEdmCommand).await.ok();
 
-                match select(
+                if let Ok(EdmEvent::StartUp) = with_timeout(
+                    Duration::from_millis(300),
                     self.urc_subscription.next_message_pure(),
-                    Timer::after(Duration::from_millis(100)),
                 )
                 .await
                 {
-                    Either::First(EdmEvent::StartUp) => break,
-                    _ => {}
-                };
+                    break;
+                }
             }
         };
 
@@ -196,157 +186,72 @@ impl<'d, AT: AtatClient, RST: OutputPin, const MAX_CONNS: usize> Runner<'d, AT, 
 
     pub async fn run(mut self) -> ! {
         loop {
-            let tx = self.ch.tx_buf();
-            let urc = self.urc_subscription.next_message_pure();
-
-            match select(tx, urc).await {
-                Either::First(p) => {
-                    match postcard::from_bytes::<SocketTx>(p) {
-                        Ok(SocketTx::Data(packet)) => {
-                            self.at
-                                .send(EdmDataCommand {
-                                    channel: packet.edm_channel,
-                                    data: packet.payload,
-                                })
-                                .await
-                                .ok();
-                        }
-                        Ok(SocketTx::Connect(Connect { url, socket_handle })) => {
-                            if let Ok(ConnectPeerResponse { peer_handle }) =
-                                self.at.send_edm(ConnectPeer { url }).await
-                            {
-                                self.rx(SocketRx::PeerHandle(socket_handle, peer_handle))
-                                    .await;
+            let event = self.urc_subscription.next_message_pure().await;
+            match event {
+                EdmEvent::ATEvent(Urc::StartUp) => {
+                    defmt::error!("AT startup event?! Device restarted unintentionally!");
+                }
+                EdmEvent::ATEvent(Urc::WifiLinkConnected(WifiLinkConnected {
+                    connection_id: _,
+                    bssid,
+                    channel,
+                })) => {
+                    if let Some(ref mut con) = self.wifi_connection {
+                        con.wifi_state = WiFiState::Connected;
+                        con.network.bssid = bssid;
+                        con.network.channel = channel;
+                    } else {
+                        defmt::debug!("[URC] Active network config discovered");
+                        self.wifi_connection.replace(
+                            WifiConnection::new(
+                                WifiNetwork::new_station(bssid, channel),
+                                WiFiState::Connected,
+                                255,
+                            )
+                            .activate(),
+                        );
+                    }
+                    self.is_link_up().await.unwrap();
+                }
+                EdmEvent::ATEvent(Urc::WifiLinkDisconnected(WifiLinkDisconnected {
+                    reason,
+                    ..
+                })) => {
+                    if let Some(ref mut con) = self.wifi_connection {
+                        match reason {
+                            DisconnectReason::NetworkDisabled => {
+                                con.wifi_state = WiFiState::Inactive;
+                            }
+                            DisconnectReason::SecurityProblems => {
+                                defmt::error!("Wifi Security Problems");
+                            }
+                            _ => {
+                                con.wifi_state = WiFiState::NotConnected;
                             }
                         }
-                        Ok(SocketTx::Disconnect(peer_handle)) => {
-                            self.at
-                                .send_edm(ClosePeerConnection { peer_handle })
-                                .await
-                                .ok();
-                        }
-                        Ok(SocketTx::Dns(hostname)) => {
-                            if self
-                                .at
-                                .send_edm(Ping {
-                                    retry_num: 1,
-                                    hostname,
-                                })
-                                .await
-                                .is_err()
-                            {
-                                self.rx(SocketRx::Ping(Err(()))).await;
-                            }
-                        }
-                        Err(_) => {}
                     }
-                    self.ch.tx_done();
+
+                    self.is_link_up().await.unwrap();
                 }
-                Either::Second(p) => match p {
-                    EdmEvent::BluetoothConnectEvent(_) => {}
-                    EdmEvent::ATEvent(urc) => self.handle_urc(urc).await.unwrap(),
-                    EdmEvent::StartUp => {
-                        defmt::error!("EDM startup event?! Device restarted unintentionally!");
-                    }
-
-                    // All below events needs to be conveyed to `self.ch.rx`
-                    EdmEvent::IPv4ConnectEvent(ev) => self.rx(ev).await,
-                    EdmEvent::IPv6ConnectEvent(ev) => self.rx(ev).await,
-                    EdmEvent::DisconnectEvent(channel_id) => self.rx(channel_id).await,
-                    EdmEvent::DataEvent(ev) => {
-                        let packet = DataPacket {
-                            edm_channel: ev.channel_id,
-                            payload: ev.data.as_slice(),
-                        };
-
-                        self.rx(packet).await;
-                    }
-                },
-            }
+                EdmEvent::ATEvent(Urc::WifiAPUp(_)) => todo!(),
+                EdmEvent::ATEvent(Urc::WifiAPDown(_)) => todo!(),
+                EdmEvent::ATEvent(Urc::WifiAPStationConnected(_)) => todo!(),
+                EdmEvent::ATEvent(Urc::WifiAPStationDisconnected(_)) => todo!(),
+                EdmEvent::ATEvent(Urc::EthernetLinkUp(_)) => todo!(),
+                EdmEvent::ATEvent(Urc::EthernetLinkDown(_)) => todo!(),
+                EdmEvent::ATEvent(Urc::NetworkUp(NetworkUp { interface_id })) => {
+                    self.network_status_callback(interface_id).await.unwrap();
+                }
+                EdmEvent::ATEvent(Urc::NetworkDown(NetworkDown { interface_id })) => {
+                    self.network_status_callback(interface_id).await.unwrap();
+                }
+                EdmEvent::ATEvent(Urc::NetworkError(_)) => todo!(),
+                EdmEvent::StartUp => {
+                    defmt::error!("EDM startup event?! Device restarted unintentionally!");
+                }
+                _ => {}
+            };
         }
-    }
-
-    async fn rx<'a>(&mut self, packet: impl Into<SocketRx<'a>>) {
-        let pkg = packet.into();
-        let buf = self.ch.rx_buf().await;
-        let used = defmt::unwrap!(postcard::to_slice(&pkg, buf));
-        let len = used.len();
-        self.ch.rx_done(len);
-    }
-
-    async fn handle_urc(&mut self, urc: Urc) -> Result<(), Error> {
-        match urc {
-            Urc::StartUp => {
-                defmt::error!("AT startup event?! Device restarted unintentionally!");
-            }
-            Urc::PeerConnected(pc) => {
-                defmt::info!("Peer connected! {}", pc);
-                // if self.connections.insert(handle, connection_type).is_err() {
-                //     defmt::warn!("Out of connection entries");
-                // }
-            }
-            Urc::PeerDisconnected(PeerDisconnected { handle }) => {
-                defmt::info!("Peer disconnected!");
-                self.rx(SocketRx::Disconnect(Disconnect::Peer(handle)))
-                    .await;
-                // self.connections.remove(&handle);
-            }
-            Urc::WifiLinkConnected(WifiLinkConnected {
-                connection_id: _,
-                bssid,
-                channel,
-            }) => {
-                if let Some(ref mut con) = self.wifi_connection {
-                    con.wifi_state = WiFiState::Connected;
-                    con.network.bssid = bssid;
-                    con.network.channel = channel;
-                } else {
-                    defmt::debug!("[URC] Active network config discovered");
-                    self.wifi_connection.replace(
-                        WifiConnection::new(
-                            WifiNetwork::new_station(bssid, channel),
-                            WiFiState::Connected,
-                            255,
-                        )
-                        .activate(),
-                    );
-                }
-                self.is_link_up().await?;
-            }
-            Urc::WifiLinkDisconnected(WifiLinkDisconnected { reason, .. }) => {
-                if let Some(ref mut con) = self.wifi_connection {
-                    match reason {
-                        DisconnectReason::NetworkDisabled => {
-                            con.wifi_state = WiFiState::Inactive;
-                        }
-                        DisconnectReason::SecurityProblems => {
-                            defmt::error!("Wifi Security Problems");
-                        }
-                        _ => {
-                            con.wifi_state = WiFiState::NotConnected;
-                        }
-                    }
-                }
-
-                self.is_link_up().await?;
-            }
-            Urc::WifiAPUp(_) => todo!(),
-            Urc::WifiAPDown(_) => todo!(),
-            Urc::WifiAPStationConnected(_) => todo!(),
-            Urc::WifiAPStationDisconnected(_) => todo!(),
-            Urc::EthernetLinkUp(_) => todo!(),
-            Urc::EthernetLinkDown(_) => todo!(),
-            Urc::NetworkUp(NetworkUp { interface_id }) => {
-                self.network_status_callback(interface_id).await?;
-            }
-            Urc::NetworkDown(NetworkDown { interface_id }) => {
-                self.network_status_callback(interface_id).await?;
-            }
-            Urc::NetworkError(_) => todo!(),
-            Urc::PingResponse(resp) => self.rx(SocketRx::Ping(Ok(resp.ip))).await,
-            Urc::PingErrorResponse(_) => self.rx(SocketRx::Ping(Err(()))).await,
-        }
-        Ok(())
     }
 
     async fn network_status_callback(&mut self, interface_id: u8) -> Result<(), Error> {

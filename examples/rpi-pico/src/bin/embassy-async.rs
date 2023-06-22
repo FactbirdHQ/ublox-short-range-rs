@@ -14,13 +14,13 @@ use embassy_rp::{bind_interrupts, uart};
 use embassy_time::{Duration, Timer};
 use embedded_io::asynch::Write;
 use no_std_net::{Ipv4Addr, SocketAddr};
-use static_cell::StaticCell;
+use static_cell::make_static;
 use ublox_short_range::asynch::runner::Runner;
 use ublox_short_range::asynch::ublox_stack::dns::DnsSocket;
 use ublox_short_range::asynch::ublox_stack::tcp::TcpSocket;
 use ublox_short_range::asynch::ublox_stack::{StackResources, UbloxStack};
 use ublox_short_range::asynch::{new, State};
-use ublox_short_range::atat::{self, AtatIngress, AtatUrcChannel};
+use ublox_short_range::atat::{self, AtatIngress};
 use ublox_short_range::command::custom_digest::EdmDigester;
 use ublox_short_range::command::edm::urc::EdmEvent;
 use ublox_short_range::embedded_nal_async::AddrType;
@@ -29,39 +29,25 @@ use {defmt_rtt as _, panic_probe as _};
 const RX_BUF_LEN: usize = 1024;
 const URC_CAPACITY: usize = 3;
 
-macro_rules! singleton {
-    ($val:expr) => {{
-        type T = impl Sized;
-        static STATIC_CELL: StaticCell<T> = StaticCell::new();
-        let (x,) = STATIC_CELL.init(($val,));
-        x
-    }};
-}
+type AtClient = ublox_short_range::atat::asynch::Client<
+    'static,
+    uart::BufferedUartTx<'static, UART1>,
+    RX_BUF_LEN,
+>;
 
 #[embassy_executor::task]
-async fn wifi_task(
-    runner: Runner<
-        'static,
-        ublox_short_range::atat::asynch::Client<
-            'static,
-            uart::BufferedUartTx<'static, UART1>,
-            RX_BUF_LEN,
-        >,
-        Output<'static, PIN_26>,
-        8,
-    >,
-) -> ! {
+async fn wifi_task(runner: Runner<'static, AtClient, Output<'static, PIN_26>, 8>) -> ! {
     runner.run().await
 }
 
 #[embassy_executor::task]
-async fn net_task(stack: &'static UbloxStack) -> ! {
+async fn net_task(stack: &'static UbloxStack<AtClient>) -> ! {
     stack.run().await
 }
 
 #[embassy_executor::task(pool_size = 2)]
 async fn echo_task(
-    stack: &'static UbloxStack,
+    stack: &'static UbloxStack<AtClient>,
     hostname: &'static str,
     port: u16,
     write_interval: Duration,
@@ -135,7 +121,7 @@ async fn echo_task(
 
 #[embassy_executor::task]
 async fn ingress_task(
-    mut ingress: atat::Ingress<'static, EdmDigester, EdmEvent, RX_BUF_LEN, URC_CAPACITY, 1>,
+    mut ingress: atat::Ingress<'static, EdmDigester, EdmEvent, RX_BUF_LEN, URC_CAPACITY, 2>,
     mut rx: uart::BufferedUartRx<'static, UART1>,
 ) -> ! {
     ingress.read_from(&mut rx).await
@@ -152,13 +138,13 @@ async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
     let rst = Output::new(p.PIN_26, Level::High);
+    let mut btn = Input::new(p.PIN_27, Pull::Up);
 
     let (tx_pin, rx_pin, rts_pin, cts_pin, uart) =
         (p.PIN_24, p.PIN_25, p.PIN_23, p.PIN_22, p.UART1);
-    let mut btn = Input::new(p.PIN_27, Pull::Up);
 
-    let tx_buf = &mut singleton!([0u8; 64])[..];
-    let rx_buf = &mut singleton!([0u8; 64])[..];
+    let tx_buf = &mut make_static!([0u8; 64])[..];
+    let rx_buf = &mut make_static!([0u8; 64])[..];
     let uart = uart::BufferedUart::new_with_rtscts(
         uart,
         Irqs,
@@ -172,14 +158,12 @@ async fn main(spawner: Spawner) {
     );
     let (rx, tx) = uart.split();
 
-    let buffers = &*singleton!(atat::Buffers::new());
-    let urc_channel = buffers.urc_channel.subscribe().unwrap();
+    let buffers = &*make_static!(atat::Buffers::new());
     let (ingress, client) = buffers.split(tx, EdmDigester::default(), atat::Config::new());
-
     defmt::unwrap!(spawner.spawn(ingress_task(ingress, rx)));
 
-    let state = singleton!(State::new(client));
-    let (net_device, mut control, runner) = new(state, urc_channel, rst).await;
+    let state = make_static!(State::new(client));
+    let (net_device, mut control, runner) = new(state, &buffers.urc_channel, rst).await;
 
     defmt::unwrap!(spawner.spawn(wifi_task(runner)));
 
@@ -189,9 +173,9 @@ async fn main(spawner: Spawner) {
         .unwrap();
 
     // Init network stack
-    let stack = &*singleton!(UbloxStack::new(
+    let stack = &*make_static!(UbloxStack::new(
         net_device,
-        singleton!(StackResources::<4>::new()),
+        make_static!(StackResources::<4>::new()),
     ));
 
     defmt::unwrap!(spawner.spawn(net_task(stack)));
@@ -219,14 +203,14 @@ async fn main(spawner: Spawner) {
             match control.join_wpa2("test", "1234abcd").await {
                 Ok(_) => {
                     defmt::info!("Network connected!");
-                    spawner
-                        .spawn(echo_task(
-                            &stack,
-                            "echo.u-blox.com",
-                            7,
-                            Duration::from_secs(1),
-                        ))
-                        .unwrap();
+                    // spawner
+                    //     .spawn(echo_task(
+                    //         &stack,
+                    //         "echo.u-blox.com",
+                    //         7,
+                    //         Duration::from_secs(1),
+                    //     ))
+                    //     .unwrap();
                     break;
                 }
                 Err(err) => {

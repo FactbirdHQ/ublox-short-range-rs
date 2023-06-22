@@ -3,6 +3,7 @@
 #![cfg_attr(feature = "async", feature(generic_const_exprs))]
 #![cfg_attr(feature = "async", feature(async_fn_in_trait))]
 #![cfg_attr(feature = "async", feature(impl_trait_projections))]
+#![cfg_attr(feature = "async", feature(type_alias_impl_trait))]
 
 #[cfg(feature = "async")]
 pub mod asynch;
