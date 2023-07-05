@@ -1,36 +1,12 @@
-use core::task::Poll;
+use core::{cell::RefCell, future::poll_fn, task::Poll};
 
 use atat::asynch::AtatClient;
 use embedded_nal_async::AddrType;
-use futures::Future;
 use no_std_net::IpAddr;
 
-use crate::command::ping::Ping;
+use crate::asynch::ublox_stack::DnsState;
 
-use super::UbloxStack;
-
-struct DnsFuture<'a, AT: AtatClient + 'static> {
-    stack: &'a UbloxStack<AT>,
-}
-
-impl<'a, AT: AtatClient> Future for DnsFuture<'a, AT> {
-    type Output = Result<IpAddr, Error>;
-
-    fn poll(
-        self: core::pin::Pin<&mut Self>,
-        cx: &mut core::task::Context<'_>,
-    ) -> Poll<Self::Output> {
-        // let i = &mut *self.stack.inner.borrow_mut();
-        // match i.dns_result {
-        //     Some(Ok(ip)) => Poll::Ready(Ok(ip)),
-        //     Some(Err(_)) => Poll::Ready(Err(Error::Failed)),
-        //     None => {
-        //         i.dns_waker.register(cx.waker());
-        Poll::Pending
-        //     }
-        // }
-    }
-}
+use super::{DnsQuery, SocketStack, UbloxStack};
 
 /// Errors returned by DnsSocket.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -49,16 +25,16 @@ pub enum Error {
 /// This exists only for compatibility with crates that use `embedded-nal-async`.
 /// Prefer using [`Stack::dns_query`](crate::Stack::dns_query) directly if you're
 /// not using `embedded-nal-async`.
-pub struct DnsSocket<'a, AT: AtatClient + 'static> {
-    stack: &'a UbloxStack<AT>,
+pub struct DnsSocket<'a> {
+    stack: &'a RefCell<SocketStack>,
 }
 
-impl<'a, AT: AtatClient> DnsSocket<'a, AT> {
+impl<'a> DnsSocket<'a> {
     /// Create a new DNS socket using the provided stack.
-    ///
-    /// NOTE: If using DHCP, make sure it has reconfigured the stack to ensure the DNS servers are updated.
-    pub fn new(stack: &'a UbloxStack<AT>) -> Self {
-        Self { stack }
+    pub fn new<AT: AtatClient>(stack: &'a UbloxStack<AT>) -> Self {
+        Self {
+            stack: &stack.socket,
+        }
     }
 
     /// Make a query for a given name and return the corresponding IP addresses.
@@ -77,23 +53,77 @@ impl<'a, AT: AtatClient> DnsSocket<'a, AT> {
             _ => {}
         }
 
-        // let i = &mut *self.stack.inner.borrow_mut();
-        // i.dns_result = None;
-        // i.device
-        //     .at
-        //     .send_edm(Ping {
-        //         hostname: name,
-        //         retry_num: 1,
-        //     })
-        //     .await
-        //     .map_err(|_| Error::Failed)?;
+        {
+            let mut s = self.stack.borrow_mut();
+            if s.dns_queries
+                .insert(heapless::String::from(name), DnsQuery::new())
+                .is_err()
+            {
+                defmt::error!(
+                    "Attempted to start more simultaneous DNS requests than the (4) supported"
+                );
+            }
+            s.waker.wake();
+        }
 
-        DnsFuture { stack: self.stack }.await
+        #[must_use = "to delay the drop handler invocation to the end of the scope"]
+        struct OnDrop<F: FnOnce()> {
+            f: core::mem::MaybeUninit<F>,
+        }
+
+        impl<F: FnOnce()> OnDrop<F> {
+            fn new(f: F) -> Self {
+                Self {
+                    f: core::mem::MaybeUninit::new(f),
+                }
+            }
+
+            fn defuse(self) {
+                core::mem::forget(self)
+            }
+        }
+
+        impl<F: FnOnce()> Drop for OnDrop<F> {
+            fn drop(&mut self) {
+                unsafe { self.f.as_ptr().read()() }
+            }
+        }
+
+        let drop = OnDrop::new(|| {
+            let mut s = self.stack.borrow_mut();
+            s.dns_queries.remove(&heapless::String::from(name));
+        });
+
+        let res = poll_fn(|cx| {
+            let mut s = self.stack.borrow_mut();
+            let query = s
+                .dns_queries
+                .get_mut(&heapless::String::from(name))
+                .unwrap();
+            match query.state {
+                DnsState::Ok(ip) => {
+                    s.dns_queries.remove(&heapless::String::from(name));
+                    return Poll::Ready(Ok(ip));
+                }
+                DnsState::Err => {
+                    s.dns_queries.remove(&heapless::String::from(name));
+                    return Poll::Ready(Err(Error::Failed));
+                }
+                _ => {
+                    query.waker.register(cx.waker());
+                    Poll::Pending
+                }
+            }
+        })
+        .await;
+
+        drop.defuse();
+
+        res
     }
 }
 
-// #[cfg(all(feature = "unstable-traits", feature = "nightly"))]
-impl<'a, AT: AtatClient> embedded_nal_async::Dns for DnsSocket<'a, AT> {
+impl<'a> embedded_nal_async::Dns for DnsSocket<'a> {
     type Error = Error;
 
     async fn get_host_by_name(

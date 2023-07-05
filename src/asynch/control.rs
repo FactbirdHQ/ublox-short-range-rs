@@ -176,6 +176,13 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         }
 
         self.at
+            .send_edm(ExecWifiStationAction {
+                config_id: CONFIG_ID,
+                action: WifiStationAction::Reset,
+            })
+            .await?;
+
+        self.at
             .send_edm(SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::ActiveOnStartup(OnOff::Off),

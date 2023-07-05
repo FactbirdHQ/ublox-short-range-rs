@@ -112,22 +112,28 @@ pub fn new<'d, AT: AtatClient>(
             shared: &state.shared,
         },
         Device {
-            shared: &state.shared,
+            shared: TestShared {
+                inner: &state.shared,
+            },
             urc_subscription,
             at,
         },
     )
 }
 
+pub struct TestShared<'d> {
+    inner: &'d Mutex<NoopRawMutex, RefCell<Shared>>,
+}
+
 pub struct Device<'d, AT: AtatClient> {
-    pub(crate) shared: &'d Mutex<NoopRawMutex, RefCell<Shared>>,
+    pub(crate) shared: TestShared<'d>,
     pub(crate) at: AtHandle<'d, AT>,
     pub(crate) urc_subscription: UrcSubscription<'d, EdmEvent>,
 }
 
-impl<'d, AT: AtatClient> Device<'d, AT> {
-    pub fn link_state(&self, cx: &mut Context) -> LinkState {
-        self.shared.lock(|s| {
+impl<'d> TestShared<'d> {
+    pub fn link_state(&mut self, cx: &mut Context) -> LinkState {
+        self.inner.lock(|s| {
             let s = &mut *s.borrow_mut();
             s.waker.register(cx.waker());
             s.link_state

@@ -183,15 +183,6 @@ async fn main(spawner: Spawner) {
     // And now we can use it!
     defmt::info!("Device initialized!");
 
-    // spawner
-    //     .spawn(echo_task(
-    //         &stack,
-    //         "tcpbin.com",
-    //         4242,
-    //         Duration::from_millis(500),
-    //     ))
-    //     .unwrap();
-
     let mut rx_buffer = [0; 256];
     let mut tx_buffer = [0; 256];
     let mut buf = [0; 256];
@@ -203,14 +194,25 @@ async fn main(spawner: Spawner) {
             match control.join_wpa2("test", "1234abcd").await {
                 Ok(_) => {
                     defmt::info!("Network connected!");
-                    // spawner
-                    //     .spawn(echo_task(
-                    //         &stack,
-                    //         "echo.u-blox.com",
-                    //         7,
-                    //         Duration::from_secs(1),
-                    //     ))
-                    //     .unwrap();
+                    spawner
+                        .spawn(echo_task(
+                            &stack,
+                            // "echo.u-blox.com",
+                            // 7,
+                            "tcpbin.com",
+                            4242,
+                            Duration::from_secs(1),
+                        ))
+                        .unwrap();
+
+                    spawner
+                        .spawn(echo_task(
+                            &stack,
+                            "tcpbin.com",
+                            4242,
+                            Duration::from_millis(500),
+                        ))
+                        .unwrap();
                     break;
                 }
                 Err(err) => {
@@ -225,7 +227,7 @@ async fn main(spawner: Spawner) {
             let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
             // // socket.set_timeout(Some(Duration::from_secs(10)));
 
-            let remote: SocketAddr = (Ipv4Addr::new(192, 168, 73, 183), 4444).into();
+            let remote: SocketAddr = (Ipv4Addr::new(192, 168, 1, 183), 4444).into();
             defmt::info!("Connecting... {}", defmt::Debug2Format(&remote));
             if let Err(e) = socket.connect(remote).await {
                 defmt::warn!("connect error: {:?}", e);

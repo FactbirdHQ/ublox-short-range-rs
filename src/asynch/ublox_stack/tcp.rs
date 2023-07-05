@@ -201,7 +201,9 @@ impl<'a> Drop for TcpSocket<'a> {
                     .ok();
             }
         }
-        self.io.stack.borrow_mut().sockets.remove(self.io.handle);
+        let mut stack = self.io.stack.borrow_mut();
+        stack.sockets.remove(self.io.handle);
+        stack.waker.wake();
     }
 }
 

@@ -29,7 +29,7 @@ pub struct ChangeMode {
 /// service on a remote device, it implicitly registers to receive the "Connection Closed"
 /// event.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 1000)]
+#[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 3000)]
 pub struct ConnectPeer<'a> {
     #[at_arg(position = 0, len = 128)]
     pub url: &'a str,
