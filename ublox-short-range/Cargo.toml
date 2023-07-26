@@ -16,7 +16,7 @@ doctest = false
 
 [dependencies]
 # atat = { version = "0.18.0", features = ["derive", "defmt", "bytes"] }
-atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "70283be", features = ["derive", "defmt", "bytes"] }
+atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "1222a92", features = ["derive", "defmt", "bytes"] }
 heapless = { version = "^0.7", features = ["serde", "defmt-impl"] }
 no-std-net = { version = "^0.5", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
