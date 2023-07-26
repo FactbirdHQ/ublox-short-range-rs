@@ -89,11 +89,11 @@ impl<'d> StateRunner<'d> {
     }
 }
 
-pub fn new<'d, AT: AtatClient>(
+pub fn new<'d, AT: AtatClient, const URC_CAPACITY: usize>(
     state: &'d mut State,
     at: AtHandle<'d, AT>,
-    urc_subscription: UrcSubscription<'d, EdmEvent>,
-) -> (Runner<'d>, Device<'d, AT>) {
+    urc_subscription: UrcSubscription<'d, EdmEvent, URC_CAPACITY, 2>,
+) -> (Runner<'d>, Device<'d, AT, URC_CAPACITY>) {
     // safety: this is a self-referential struct, however:
     // - it can't move while the `'d` borrow is active.
     // - when the borrow ends, the dangling references inside the MaybeUninit will never be used again.
@@ -125,10 +125,10 @@ pub struct TestShared<'d> {
     inner: &'d Mutex<NoopRawMutex, RefCell<Shared>>,
 }
 
-pub struct Device<'d, AT: AtatClient> {
+pub struct Device<'d, AT: AtatClient, const URC_CAPACITY: usize> {
     pub(crate) shared: TestShared<'d>,
     pub(crate) at: AtHandle<'d, AT>,
-    pub(crate) urc_subscription: UrcSubscription<'d, EdmEvent>,
+    pub(crate) urc_subscription: UrcSubscription<'d, EdmEvent, URC_CAPACITY, 2>,
 }
 
 impl<'d> TestShared<'d> {

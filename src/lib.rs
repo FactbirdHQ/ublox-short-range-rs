@@ -23,3 +23,16 @@ pub use atat;
 pub mod command;
 pub mod error;
 // pub mod wifi;
+
+// TODO:
+// - UDP stack
+// - Secure sockets
+// - Network scan
+// - AP Mode (control)
+// - TCP listener stack
+// - (Blocking client?)
+// -
+//
+// FIXME:
+// - PWR/Restart stuff doesn't fully work
+// -

@@ -49,14 +49,20 @@ impl<AT: AtatClient> State<AT> {
     }
 }
 
-pub async fn new<'a, AT: AtatClient, SUB: AtatUrcChannel<EdmEvent>, RST: OutputPin>(
+pub async fn new<
+    'a,
+    AT: AtatClient + atat::UartExt,
+    SUB: AtatUrcChannel<EdmEvent, URC_CAPACITY, 2>,
+    RST: OutputPin,
+    const URC_CAPACITY: usize,
+>(
     state: &'a mut State<AT>,
     subscriber: &'a SUB,
     reset: RST,
 ) -> (
-    Device<'a, AT>,
+    Device<'a, AT, URC_CAPACITY>,
     Control<'a, AT>,
-    Runner<'a, AT, RST, MAX_CONNS>,
+    Runner<'a, AT, RST, MAX_CONNS, URC_CAPACITY>,
 ) {
     let (ch_runner, net_device) = state::new(
         &mut state.ch,

@@ -4,6 +4,9 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
+#[path = "../common.rs"]
+mod common;
+
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_rp::gpio::{Level, Output};
@@ -27,17 +30,19 @@ const URC_CAPACITY: usize = 3;
 
 type AtClient = ublox_short_range::atat::asynch::Client<
     'static,
-    uart::BufferedUartTx<'static, UART1>,
+    common::TxWrap<uart::BufferedUartTx<'static, UART1>>,
     RX_BUF_LEN,
 >;
 
 #[embassy_executor::task]
-async fn wifi_task(runner: Runner<'static, AtClient, Output<'static, PIN_26>, 8>) -> ! {
+async fn wifi_task(
+    runner: Runner<'static, AtClient, Output<'static, PIN_26>, 8, URC_CAPACITY>,
+) -> ! {
     runner.run().await
 }
 
 #[embassy_executor::task]
-async fn net_task(stack: &'static UbloxStack<AtClient>) -> ! {
+async fn net_task(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> ! {
     stack.run().await
 }
 
@@ -74,7 +79,11 @@ async fn main(spawner: Spawner) {
     let (rx, tx) = uart.split();
 
     let buffers = &*make_static!(atat::Buffers::new());
-    let (ingress, client) = buffers.split(tx, EdmDigester::default(), atat::Config::new());
+    let (ingress, client) = buffers.split(
+        common::TxWrap(tx),
+        EdmDigester::default(),
+        atat::Config::new(),
+    );
     defmt::unwrap!(spawner.spawn(ingress_task(ingress, rx)));
 
     let state = make_static!(State::new(client));
@@ -133,7 +142,7 @@ const DOWNLOAD_PORT: u16 = 4321;
 const UPLOAD_PORT: u16 = 4322;
 const UPLOAD_DOWNLOAD_PORT: u16 = 4323;
 
-async fn test_download(stack: &'static UbloxStack<AtClient>) -> usize {
+async fn test_download(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> usize {
     defmt::info!("Testing download...");
 
     let mut rx_buffer = [0; RX_BUFFER_SIZE];
@@ -177,7 +186,7 @@ async fn test_download(stack: &'static UbloxStack<AtClient>) -> usize {
     kbps
 }
 
-async fn test_upload(stack: &'static UbloxStack<AtClient>) -> usize {
+async fn test_upload(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> usize {
     defmt::info!("Testing upload...");
 
     let mut rx_buffer = [0; RX_BUFFER_SIZE];
@@ -221,7 +230,7 @@ async fn test_upload(stack: &'static UbloxStack<AtClient>) -> usize {
     kbps
 }
 
-async fn test_upload_download(stack: &'static UbloxStack<AtClient>) -> usize {
+async fn test_upload_download(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> usize {
     defmt::info!("Testing upload+download...");
 
     let mut rx_buffer = [0; RX_BUFFER_SIZE];

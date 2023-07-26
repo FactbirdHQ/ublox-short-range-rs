@@ -31,7 +31,9 @@ pub struct DnsSocket<'a> {
 
 impl<'a> DnsSocket<'a> {
     /// Create a new DNS socket using the provided stack.
-    pub fn new<AT: AtatClient>(stack: &'a UbloxStack<AT>) -> Self {
+    pub fn new<AT: AtatClient, const URC_CAPACITY: usize>(
+        stack: &'a UbloxStack<AT, URC_CAPACITY>,
+    ) -> Self {
         Self {
             stack: &stack.socket,
         }

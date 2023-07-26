@@ -34,21 +34,34 @@ use super::AtHandle;
 /// Background runner for the Ublox Module.
 ///
 /// You must call `.run()` in a background task for the Ublox Module to operate.
-pub struct Runner<'d, AT: AtatClient, RST: OutputPin, const MAX_CONNS: usize> {
+pub struct Runner<
+    'd,
+    AT: AtatClient,
+    RST: OutputPin,
+    const MAX_CONNS: usize,
+    const URC_CAPACITY: usize,
+> {
     ch: state::Runner<'d>,
     at: AtHandle<'d, AT>,
     reset: RST,
     wifi_connection: Option<WifiConnection>,
     // connections: FnvIndexMap<PeerHandle, ConnectionType, MAX_CONNS>,
-    urc_subscription: UrcSubscription<'d, EdmEvent>,
+    urc_subscription: UrcSubscription<'d, EdmEvent, URC_CAPACITY, 2>,
 }
 
-impl<'d, AT: AtatClient, RST: OutputPin, const MAX_CONNS: usize> Runner<'d, AT, RST, MAX_CONNS> {
+impl<
+        'd,
+        AT: AtatClient + atat::UartExt,
+        RST: OutputPin,
+        const MAX_CONNS: usize,
+        const URC_CAPACITY: usize,
+    > Runner<'d, AT, RST, MAX_CONNS, URC_CAPACITY>
+{
     pub(crate) fn new(
         ch: state::Runner<'d>,
         at: AtHandle<'d, AT>,
         reset: RST,
-        urc_subscription: UrcSubscription<'d, EdmEvent>,
+        urc_subscription: UrcSubscription<'d, EdmEvent, URC_CAPACITY, 2>,
     ) -> Self {
         Self {
             ch,
@@ -66,19 +79,34 @@ impl<'d, AT: AtatClient, RST: OutputPin, const MAX_CONNS: usize> Runner<'d, AT, 
         // Hard reset module
         self.reset().await?;
 
-        // TODO: handle EDM settings quirk see EDM datasheet: 2.2.5.1 AT Request Serial settings
+        // ## 2.2.6.1 AT request serial settings (EDM mode)
+        //
+        // The AT+UMRS command to change serial settings does not work exactly
+        // the same as in command mode. When executed in the extended data mode,
+        // it is not possible to change the settings directly using the
+        // <change_after_confirm> parameter. Instead, the <change_after_confirm>
+        // parameter must be set to 0 and the serial settings will take effect
+        // when the module is reset.
+        let baud_rate = BaudRate::B3000000;
         self.at
             .send_edm(SetRS232Settings {
-                baud_rate: BaudRate::B115200,
+                baud_rate,
                 flow_control: FlowControl::On,
                 data_bits: 8,
                 stop_bits: StopBits::One,
                 parity: Parity::None,
-                change_after_confirm: ChangeAfterConfirm::ChangeAfterOK,
+                change_after_confirm: ChangeAfterConfirm::StoreAndReset,
             })
             .await?;
 
-        // self.restart(true).await?;
+        self.restart(true).await?;
+
+        self.at
+            .0
+            .lock()
+            .await
+            .set_baudrate(baud_rate as u32)
+            .map_err(|_| Error::BaudDetection)?;
 
         // Move to control
         // if let Some(size) = self.config.tls_in_buffer_size {

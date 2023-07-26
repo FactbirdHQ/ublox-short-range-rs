@@ -41,7 +41,7 @@ pub struct ConnectPeer<'a> {
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCPC", NoResponse, timeout_ms = 1000)]
 pub struct ClosePeerConnection {
-    #[at_arg(position = 0)]
+    #[at_arg(position = 0, len = 1)]
     pub peer_handle: PeerHandle,
 }
 

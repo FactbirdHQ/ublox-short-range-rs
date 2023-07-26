@@ -98,7 +98,7 @@ pub enum StatusID {
     SavedStatus = 1,
 }
 
-#[derive(Debug, Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, AtatEnum)]
 #[at_enum(u32)]
 /// ODIN-W2:
 /// 19200 - 5250000. The module will set a baud rate as close as possible to the

@@ -56,9 +56,9 @@ impl<const SOCK: usize> StackResources<SOCK> {
     }
 }
 
-pub struct UbloxStack<AT: AtatClient + 'static> {
+pub struct UbloxStack<AT: AtatClient + 'static, const URC_CAPACITY: usize> {
     socket: RefCell<SocketStack>,
-    device: RefCell<state::Device<'static, AT>>,
+    device: RefCell<state::Device<'static, AT, URC_CAPACITY>>,
     last_tx_socket: AtomicU8,
     should_tx: AtomicBool,
     link_up: AtomicBool,
@@ -92,9 +92,9 @@ struct SocketStack {
     dropped_sockets: heapless::Vec<PeerHandle, 3>,
 }
 
-impl<AT: AtatClient + 'static> UbloxStack<AT> {
+impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAPACITY> {
     pub fn new<const SOCK: usize>(
-        device: state::Device<'static, AT>,
+        device: state::Device<'static, AT, URC_CAPACITY>,
         resources: &'static mut StackResources<SOCK>,
     ) -> Self {
         let sockets = SocketSet::new(&mut resources.sockets[..]);

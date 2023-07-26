@@ -68,8 +68,8 @@ impl<'a> TcpWriter<'a> {
 }
 
 impl<'a> TcpSocket<'a> {
-    pub fn new<AT: AtatClient>(
-        stack: &'a UbloxStack<AT>,
+    pub fn new<AT: AtatClient, const URC_CAPACITY: usize>(
+        stack: &'a UbloxStack<AT, URC_CAPACITY>,
         rx_buffer: &'a mut [u8],
         tx_buffer: &'a mut [u8],
     ) -> Self {
@@ -366,24 +366,40 @@ pub mod client {
         'd,
         AT: AtatClient + 'static,
         const N: usize,
+        const URC_CAPACITY: usize,
         const TX_SZ: usize = 1024,
         const RX_SZ: usize = 1024,
     > {
-        pub(crate) stack: &'d UbloxStack<AT>,
+        pub(crate) stack: &'d UbloxStack<AT, URC_CAPACITY>,
         pub(crate) state: &'d TcpClientState<N, TX_SZ, RX_SZ>,
     }
 
-    impl<'d, AT: AtatClient, const N: usize, const TX_SZ: usize, const RX_SZ: usize>
-        TcpClient<'d, AT, N, TX_SZ, RX_SZ>
+    impl<
+            'd,
+            AT: AtatClient,
+            const N: usize,
+            const URC_CAPACITY: usize,
+            const TX_SZ: usize,
+            const RX_SZ: usize,
+        > TcpClient<'d, AT, N, URC_CAPACITY, TX_SZ, RX_SZ>
     {
         /// Create a new TcpClient
-        pub fn new(stack: &'d UbloxStack<AT>, state: &'d TcpClientState<N, TX_SZ, RX_SZ>) -> Self {
+        pub fn new(
+            stack: &'d UbloxStack<AT, URC_CAPACITY>,
+            state: &'d TcpClientState<N, TX_SZ, RX_SZ>,
+        ) -> Self {
             Self { stack, state }
         }
     }
 
-    impl<'d, AT: AtatClient, const N: usize, const TX_SZ: usize, const RX_SZ: usize>
-        embedded_nal_async::TcpConnect for TcpClient<'d, AT, N, TX_SZ, RX_SZ>
+    impl<
+            'd,
+            AT: AtatClient,
+            const N: usize,
+            const URC_CAPACITY: usize,
+            const TX_SZ: usize,
+            const RX_SZ: usize,
+        > embedded_nal_async::TcpConnect for TcpClient<'d, AT, N, URC_CAPACITY, TX_SZ, RX_SZ>
     {
         type Error = Error;
         type Connection<'m> = TcpConnection<'m, N, TX_SZ, RX_SZ> where Self: 'm;
@@ -415,8 +431,8 @@ pub mod client {
     impl<'d, const N: usize, const TX_SZ: usize, const RX_SZ: usize>
         TcpConnection<'d, N, TX_SZ, RX_SZ>
     {
-        fn new<AT: AtatClient>(
-            stack: &'d UbloxStack<AT>,
+        fn new<AT: AtatClient, const URC_CAPACITY: usize>(
+            stack: &'d UbloxStack<AT, URC_CAPACITY>,
             state: &'d TcpClientState<N, TX_SZ, RX_SZ>,
         ) -> Result<Self, Error> {
             let mut bufs = state.pool.alloc().ok_or(Error::ConnectionReset)?;
