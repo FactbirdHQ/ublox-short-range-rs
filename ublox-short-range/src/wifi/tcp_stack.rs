@@ -35,7 +35,7 @@ where
             if sockets.len() >= sockets.capacity() {
                 // Check if there are any sockets closed by remote, and close it
                 // if it has exceeded its timeout, in order to recycle it.
-                if sockets.recycle(self.timer.now()) {
+                if !sockets.recycle(self.timer.now()) {
                     return Err(Error::SocketSetFull);
                 }
             }
@@ -65,11 +65,19 @@ where
         defmt::debug!("[TCP] Connect socket");
         self.connected_to_network().map_err(|_| Error::Illegal)?;
 
-        let url = PeerUrlBuilder::new()
-            .address(&remote)
-            .creds(self.security_credentials.clone())
+        let mut url = PeerUrlBuilder::new();
+
+        //Connect with hostname if seen before
+        if let Some(hostname) = self.dns_table.get_hostname_by_ip(&remote.ip()){
+            url.hostname(hostname).port(remote.port());
+        }else {
+            url.address(&remote);
+        }
+
+        let url = url.creds(self.security_credentials.clone())
             .tcp()
             .map_err(|_| Error::Unaddressable)?;
+        defmt::debug!("[TCP] Connecting socket: {:?} to url: {=str}", socket, url);
 
         // If no socket is found we stop here
         let mut tcp = self
@@ -101,7 +109,7 @@ where
             }
         }
 
-        defmt::trace!("[TCP] Connecting socket: {:?} to url: {=str}", socket, url);
+        defmt::debug!("[TCP] Connecting socket: {:?} to url: {=str}", socket, url);
 
         // TODO: Timeout?
         // TODO: Fix the fact that it doesen't wait for both connect messages

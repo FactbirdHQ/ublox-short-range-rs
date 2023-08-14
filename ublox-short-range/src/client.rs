@@ -53,6 +53,23 @@ pub enum DNSState {
     Error(PingError),
 }
 
+pub struct DNSTable{
+    pub table: heapless::LinearMap<IpAddr , heapless::String<256>,16>
+}
+
+impl DNSTable {
+    fn new() -> Self{
+        Self { table: heapless::LinearMap::new() }
+    }
+    pub fn insert(&mut self, ip: IpAddr, hostname: heapless::String<256>,) -> Result<(), ()>{
+        self.table.insert(ip, hostname).ok();
+        Ok(())
+    }
+    pub fn get_hostname_by_ip(&self, ip: &IpAddr) -> Option<&heapless::String<256>>{
+        self.table.get(ip)
+    }
+}
+
 #[derive(PartialEq, Clone, Default)]
 pub struct SecurityCredentials {
     pub ca_cert_name: Option<heapless::String<16>>,
@@ -84,6 +101,7 @@ where
     pub(crate) module_started: bool,
     pub(crate) initialized: bool,
     serial_mode: SerialMode,
+    pub dns_table: DNSTable,
     pub(crate) wifi_connection: Option<WifiConnection>,
     pub(crate) wifi_config_active_on_startup: Option<u8>,
     pub(crate) client: C,
@@ -109,6 +127,7 @@ where
             module_started: false,
             initialized: false,
             serial_mode: SerialMode::Cmd,
+            dns_table: DNSTable::new(),
             wifi_connection: None,
             wifi_config_active_on_startup: None,
             client,
