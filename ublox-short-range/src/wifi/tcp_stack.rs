@@ -68,13 +68,14 @@ where
         let mut url = PeerUrlBuilder::new();
 
         //Connect with hostname if seen before
-        if let Some(hostname) = self.dns_table.get_hostname_by_ip(&remote.ip()){
+        if let Some(hostname) = self.dns_table.get_hostname_by_ip(&remote.ip()) {
             url.hostname(hostname).port(remote.port());
-        }else {
+        } else {
             url.address(&remote);
         }
 
-        let url = url.creds(self.security_credentials.clone())
+        let url = url
+            .creds(self.security_credentials.clone())
             .tcp()
             .map_err(|_| Error::Unaddressable)?;
         defmt::debug!("[TCP] Connecting socket: {:?} to url: {=str}", socket, url);

@@ -45,10 +45,12 @@ where
 
         match self.dns_state {
             DNSState::Resolved(ip) => {
-                //Insert hostname and ip into dns table 
-                self.dns_table.insert(ip, heapless::String::from(hostname)).ok(); 
+                //Insert hostname and ip into dns table
+                self.dns_table
+                    .insert(ip, heapless::String::from(hostname))
+                    .ok();
                 Ok(ip)
-            },
+            }
             _ => Err(nb::Error::Other(Error::Illegal)),
         }
     }

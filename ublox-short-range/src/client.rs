@@ -53,19 +53,21 @@ pub enum DNSState {
     Error(PingError),
 }
 
-pub struct DNSTable{
-    pub table: heapless::LinearMap<IpAddr , heapless::String<256>,16>
+pub struct DNSTable {
+    pub table: heapless::LinearMap<IpAddr, heapless::String<256>, 16>,
 }
 
 impl DNSTable {
-    fn new() -> Self{
-        Self { table: heapless::LinearMap::new() }
+    fn new() -> Self {
+        Self {
+            table: heapless::LinearMap::new(),
+        }
     }
-    pub fn insert(&mut self, ip: IpAddr, hostname: heapless::String<256>,) -> Result<(), ()>{
+    pub fn insert(&mut self, ip: IpAddr, hostname: heapless::String<256>) -> Result<(), ()> {
         self.table.insert(ip, hostname).ok();
         Ok(())
     }
-    pub fn get_hostname_by_ip(&self, ip: &IpAddr) -> Option<&heapless::String<256>>{
+    pub fn get_hostname_by_ip(&self, ip: &IpAddr) -> Option<&heapless::String<256>> {
         self.table.get(ip)
     }
 }
