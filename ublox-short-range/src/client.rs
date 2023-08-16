@@ -58,7 +58,6 @@ pub enum DNSState {
 /// length is 64 characters.
 /// Domain name length is 128 for NINA-W13 and NINA-W15 software version 4.0
 /// .0 or later.
-
 #[cfg(not(feature = "nina_w1xx"))]
 pub const MAX_DOMAIN_NAME_LENGTH: usize = 64;
 
@@ -71,7 +70,7 @@ pub struct DNSTableEntry {
 }
 
 impl DNSTableEntry {
-    pub fn new(state: DNSState, domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>) -> Self {
+    pub const fn new(state: DNSState, domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>) -> Self {
         Self { domain_name, state }
     }
 }
