@@ -65,14 +65,14 @@ pub const MAX_DOMAIN_NAME_LENGTH: usize = 64;
 #[cfg(feature = "nina_w1xx")]
 pub const MAX_DOMAIN_NAME_LENGTH: usize = 128;
 
-pub struct DNSTableEntry{
+pub struct DNSTableEntry {
     domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>,
-    state: DNSState
+    state: DNSState,
 }
 
 impl DNSTableEntry {
-    pub fn new(state: DNSState, domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>) -> Self{
-        Self {domain_name, state }
+    pub fn new(state: DNSState, domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>) -> Self {
+        Self { domain_name, state }
     }
 }
 
@@ -86,29 +86,40 @@ impl DNSTable {
             table: heapless::Deque::new(),
         }
     }
-    pub fn upsert(&mut self, new_entry: DNSTableEntry){
-        if let Some(entry) = self.table.iter_mut().find(|e| e.domain_name == new_entry.domain_name){
+    pub fn upsert(&mut self, new_entry: DNSTableEntry) {
+        if let Some(entry) = self
+            .table
+            .iter_mut()
+            .find(|e| e.domain_name == new_entry.domain_name)
+        {
             entry.state = new_entry.state;
             return;
         }
-        
-        if self.table.is_full(){
+
+        if self.table.is_full() {
             self.table.pop_front();
         }
-        unsafe{
+        unsafe {
             self.table.push_back_unchecked(new_entry);
         }
     }
 
-    pub fn get_state(&self, domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>) -> Option<DNSState> {
-        match self.table.iter().find(|e| e.domain_name == domain_name){
+    pub fn get_state(
+        &self,
+        domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>,
+    ) -> Option<DNSState> {
+        match self.table.iter().find(|e| e.domain_name == domain_name) {
             Some(entry) => Some(entry.state),
-            None => None
+            None => None,
         }
     }
-    pub fn reverse_lookup(&self, ip: IpAddr) -> Option<&heapless::String<MAX_DOMAIN_NAME_LENGTH>>{
-        match self.table.iter().find(|e| e.state == DNSState::Resolved(ip)) {
-            Some(entry) => {Some(&entry.domain_name)},
+    pub fn reverse_lookup(&self, ip: IpAddr) -> Option<&heapless::String<MAX_DOMAIN_NAME_LENGTH>> {
+        match self
+            .table
+            .iter()
+            .find(|e| e.state == DNSState::Resolved(ip))
+        {
+            Some(entry) => Some(&entry.domain_name),
             None => None,
         }
     }

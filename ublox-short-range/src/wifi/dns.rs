@@ -32,11 +32,14 @@ where
         })
         .map_err(|_| nb::Error::Other(Error::Unaddressable))?;
 
-        self.dns_table.upsert(DNSTableEntry::new(DNSState::Resolving, String::from(hostname)));
+        self.dns_table.upsert(DNSTableEntry::new(
+            DNSState::Resolving,
+            String::from(hostname),
+        ));
 
         let expiration = self.timer.now() + 8.secs();
 
-        while let Some(DNSState::Resolving) = self.dns_table.get_state(String::from(hostname)){
+        while let Some(DNSState::Resolving) = self.dns_table.get_state(String::from(hostname)) {
             self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
 
             if self.timer.now() >= expiration {
@@ -45,16 +48,15 @@ where
         }
 
         match self.dns_table.get_state(String::from(hostname)) {
-            Some(DNSState::Resolved(ip)) => {
-                Ok(ip)
-            }
+            Some(DNSState::Resolved(ip)) => Ok(ip),
             Some(DNSState::Resolving) => {
-                self.dns_table.upsert(DNSTableEntry::new(DNSState::Error(types::PingError::Timeout), String::from(hostname)));
+                self.dns_table.upsert(DNSTableEntry::new(
+                    DNSState::Error(types::PingError::Timeout),
+                    String::from(hostname),
+                ));
                 Err(nb::Error::Other(Error::Timeout))
             }
-            _ => Err(nb::Error::Other(Error::Illegal))
+            _ => Err(nb::Error::Other(Error::Illegal)),
         }
     }
 }
-
-
