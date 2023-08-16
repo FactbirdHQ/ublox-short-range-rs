@@ -65,19 +65,16 @@ where
         defmt::debug!("[TCP] Connect socket");
         self.connected_to_network().map_err(|_| Error::Illegal)?;
 
-        let mut url = PeerUrlBuilder::new();
-
-        //Connect with hostname if seen before
-        if let Some(hostname) = self.dns_table.get_hostname_by_ip(&remote.ip()) {
-            url.hostname(hostname).port(remote.port());
-        } else {
-            url.address(&remote);
-        }
-
-        let url = url
-            .creds(self.security_credentials.clone())
+        let url = if let Some(hostname) = self.dns_table.reverse_lookup(remote.ip()){
+            PeerUrlBuilder::new().hostname(hostname.as_str()).port(remote.port()).creds(self.security_credentials.clone())
             .tcp()
-            .map_err(|_| Error::Unaddressable)?;
+            .map_err(|_| Error::Unaddressable)?
+        } else {
+            PeerUrlBuilder::new().ip_addr(remote.ip()).port(remote.port()).creds(self.security_credentials.clone())
+            .tcp()
+            .map_err(|_| Error::Unaddressable)?
+        };
+
         defmt::debug!("[TCP] Connecting socket: {:?} to url: {=str}", socket, url);
 
         // If no socket is found we stop here
