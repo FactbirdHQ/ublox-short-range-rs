@@ -96,7 +96,7 @@ where
 
             if parameter == WifiStationConfigR::ActiveOnStartup(true.into()) {
                 debug!("[SUP] Config {:?} is active on startup", config_id);
-                if *self.active_on_startup == None || *self.active_on_startup == Some(config_id) {
+                if self.active_on_startup.is_none() || *self.active_on_startup == Some(config_id) {
                     *self.active_on_startup = Some(config_id);
                     // Update wifi connection
                     if self.wifi_connection.is_none() {
@@ -502,12 +502,12 @@ where
             "[SUP] Get active on startup: {:?}",
             self.active_on_startup.clone()
         );
-        return self.active_on_startup.clone();
+        *self.active_on_startup
     }
 
     /// Returns Active on startup config ID if any
     pub fn has_active_on_startup(&self) -> bool {
-        return self.active_on_startup.is_some();
+        self.active_on_startup.is_some()
     }
 
     /// Sets a config as active on startup, replacing the current.
@@ -567,7 +567,7 @@ where
     pub fn unset_active_on_startup(&mut self) -> Result<(), WifiConnectionError> {
         debug!("[SUP] Unset active on startup connection");
         // check for any of them as active
-        if let Some(active_on_startup) = self.active_on_startup.clone() {
+        if let Some(active_on_startup) = *self.active_on_startup {
             // check for active connection
             if self.is_config_in_use(active_on_startup) {
                 defmt::error!("Active on startup is active!");

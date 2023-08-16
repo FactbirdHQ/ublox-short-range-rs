@@ -1,4 +1,4 @@
-use crate::client::DNSState;
+use crate::client::{DNSState, DNSTableEntry};
 use embedded_hal::digital::OutputPin;
 use embedded_nal::{nb, AddrType, Dns, IpAddr};
 use fugit::ExtU32;
@@ -31,20 +31,31 @@ where
             retry_num: 1,
         })
         .map_err(|_| nb::Error::Other(Error::Unaddressable))?;
-        self.dns_state = DNSState::Resolving;
+
+        self.dns_table.upsert(DNSTableEntry::new(
+            DNSState::Resolving,
+            String::from(hostname),
+        ));
 
         let expiration = self.timer.now() + 8.secs();
 
-        while self.dns_state == DNSState::Resolving {
+        while let Some(DNSState::Resolving) = self.dns_table.get_state(String::from(hostname)) {
             self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
 
             if self.timer.now() >= expiration {
-                return Err(nb::Error::Other(Error::Timeout));
+                break;
             }
         }
 
-        match self.dns_state {
-            DNSState::Resolved(ip) => Ok(ip),
+        match self.dns_table.get_state(String::from(hostname)) {
+            Some(DNSState::Resolved(ip)) => Ok(ip),
+            Some(DNSState::Resolving) => {
+                self.dns_table.upsert(DNSTableEntry::new(
+                    DNSState::Error(types::PingError::Timeout),
+                    String::from(hostname),
+                ));
+                Err(nb::Error::Other(Error::Timeout))
+            }
             _ => Err(nb::Error::Other(Error::Illegal)),
         }
     }

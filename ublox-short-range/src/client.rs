@@ -39,7 +39,7 @@ use ublox_sockets::{
     UdpSocket, UdpState,
 };
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 pub enum SerialMode {
     Cmd,
     ExtendedData,
@@ -53,7 +53,78 @@ pub enum DNSState {
     Error(PingError),
 }
 
-#[derive(PartialEq, Clone, Default)]
+/// From u-connectXpress AT commands manual:
+/// <domain> depends on the <scheme>. For internet domain names, the maximum
+/// length is 64 characters.
+/// Domain name length is 128 for NINA-W13 and NINA-W15 software version 4.0
+/// .0 or later.
+#[cfg(not(feature = "nina_w1xx"))]
+pub const MAX_DOMAIN_NAME_LENGTH: usize = 64;
+
+#[cfg(feature = "nina_w1xx")]
+pub const MAX_DOMAIN_NAME_LENGTH: usize = 128;
+
+pub struct DNSTableEntry {
+    domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>,
+    state: DNSState,
+}
+
+impl DNSTableEntry {
+    pub const fn new(state: DNSState, domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>) -> Self {
+        Self { domain_name, state }
+    }
+}
+
+pub struct DNSTable {
+    pub table: heapless::Deque<DNSTableEntry, 3>,
+}
+
+impl DNSTable {
+    const fn new() -> Self {
+        Self {
+            table: heapless::Deque::new(),
+        }
+    }
+    pub fn upsert(&mut self, new_entry: DNSTableEntry) {
+        if let Some(entry) = self
+            .table
+            .iter_mut()
+            .find(|e| e.domain_name == new_entry.domain_name)
+        {
+            entry.state = new_entry.state;
+            return;
+        }
+
+        if self.table.is_full() {
+            self.table.pop_front();
+        }
+        unsafe {
+            self.table.push_back_unchecked(new_entry);
+        }
+    }
+
+    pub fn get_state(
+        &self,
+        domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>,
+    ) -> Option<DNSState> {
+        self.table
+            .iter()
+            .find(|e| e.domain_name == domain_name)
+            .map(|x| x.state)
+    }
+    pub fn reverse_lookup(&self, ip: IpAddr) -> Option<&heapless::String<MAX_DOMAIN_NAME_LENGTH>> {
+        match self
+            .table
+            .iter()
+            .find(|e| e.state == DNSState::Resolved(ip))
+        {
+            Some(entry) => Some(&entry.domain_name),
+            None => None,
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Default)]
 pub struct SecurityCredentials {
     pub ca_cert_name: Option<heapless::String<16>>,
     pub c_cert_name: Option<heapless::String<16>>, // TODO: Make &str with lifetime
@@ -62,8 +133,8 @@ pub struct SecurityCredentials {
 
 /// Creates new socket numbers
 /// Properly not Async safe
-pub fn new_socket_num<'a, const TIMER_HZ: u32, const N: usize, const L: usize>(
-    sockets: &'a SocketSet<TIMER_HZ, N, L>,
+pub fn new_socket_num<const TIMER_HZ: u32, const N: usize, const L: usize>(
+    sockets: &SocketSet<TIMER_HZ, N, L>,
 ) -> Result<u8, ()> {
     let mut num = 0;
     while sockets.socket_type(SocketHandle(num)).is_some() {
@@ -84,12 +155,12 @@ where
     pub(crate) module_started: bool,
     pub(crate) initialized: bool,
     serial_mode: SerialMode,
+    pub dns_table: DNSTable,
     pub(crate) wifi_connection: Option<WifiConnection>,
     pub(crate) wifi_config_active_on_startup: Option<u8>,
     pub(crate) client: C,
     pub(crate) config: Config<RST>,
     pub(crate) sockets: Option<&'static mut SocketSet<TIMER_HZ, N, L>>,
-    pub(crate) dns_state: DNSState,
     pub(crate) urc_attempts: u8,
     pub(crate) security_credentials: SecurityCredentials,
     pub(crate) timer: CLK,
@@ -109,12 +180,12 @@ where
             module_started: false,
             initialized: false,
             serial_mode: SerialMode::Cmd,
+            dns_table: DNSTable::new(),
             wifi_connection: None,
             wifi_config_active_on_startup: None,
             client,
             config,
             sockets: None,
-            dns_state: DNSState::NotResolving,
             urc_attempts: 0,
             security_credentials: SecurityCredentials::default(),
             timer,
@@ -269,7 +340,6 @@ where
         self.module_started = false;
         self.wifi_connection = None;
         self.wifi_config_active_on_startup = None;
-        self.dns_state = DNSState::NotResolving;
         self.urc_attempts = 0;
         self.security_credentials = SecurityCredentials::default();
         self.socket_map = SocketMap::default();
@@ -308,7 +378,6 @@ where
         self.module_started = false;
         self.wifi_connection = None;
         self.wifi_config_active_on_startup = None;
-        self.dns_state = DNSState::NotResolving;
         self.urc_attempts = 0;
         self.security_credentials = SecurityCredentials::default();
         self.socket_map = SocketMap::default();
@@ -389,7 +458,6 @@ where
     fn handle_urc(&mut self) -> Result<bool, Error> {
         let mut ran = false;
         let socket_set = self.sockets.as_deref_mut();
-        let dns_state = &mut self.dns_state;
         let socket_map = &mut self.socket_map;
         let udp_listener = &mut self.udp_listener;
         let wifi_connection = &mut self.wifi_connection;
@@ -450,17 +518,12 @@ where
                                         error!("[UDP_URC] Binding connecting socket Error");
                                         handled = false
                                     }
-                                    if sockets.add(new_socket).map_err(|_| {
+                                    if sockets.add(new_socket).is_err(){
                                         error!("[UDP_URC] Opening socket Error: Socket set full");
-                                        Error::SocketMemory
-                                    }).is_err(){
                                         handled = false;
                                     }
-
-                                    if socket_map.insert_peer(peer_handle, socket_handle).map_err(|_| {
+                                    if socket_map.insert_peer(peer_handle, socket_handle).is_err(){
                                         error!("[UDP_URC] Opening socket Error: Socket Map full");
-                                        Error::SocketMapMemory
-                                    }).is_err(){
                                         handled = false;
                                     }
                                     debug!(
@@ -531,7 +594,7 @@ where
                                         }
                                         _ => {}
                                     }
-                                    socket_map.remove_peer(&msg.handle).unwrap();
+                                    socket_map.remove_peer(&msg.handle);
                                 }
                             }
                             true
@@ -640,16 +703,11 @@ where
                         }
                         Urc::PingResponse(resp) => {
                             debug!("[URC] PingResponse");
-                            if *dns_state == DNSState::Resolving {
-                                *dns_state = DNSState::Resolved(resp.ip)
-                            }
+                            self.dns_table.upsert(DNSTableEntry { domain_name: resp.hostname, state: DNSState::Resolved(resp.ip) });
                             true
                         }
                         Urc::PingErrorResponse(resp) => {
                             debug!("[URC] PingErrorResponse: {:?}", resp.error);
-                            if *dns_state == DNSState::Resolving {
-                                *dns_state = DNSState::Error(resp.error)
-                            }
                             true
                         }
                     }
@@ -684,7 +742,7 @@ where
                                         Protocol::TCP => {
                                             let mut tcp = TcpSocket::downcast(s).ok()?;
                                             if tcp.endpoint() == Some(endpoint) {
-                                                socket_map.insert_channel(event.channel_id, h).unwrap();
+                                                socket_map.insert_channel(event.channel_id, h).ok();
                                                 tcp.set_state(TcpState::Connected(endpoint));
                                                 return Some(true);
                                             }
@@ -692,7 +750,7 @@ where
                                         Protocol::UDP => {
                                             let mut udp = UdpSocket::downcast(s).ok()?;
                                             if udp.endpoint() == Some(endpoint) {
-                                                socket_map.insert_channel(event.channel_id, h).unwrap();
+                                                socket_map.insert_channel(event.channel_id, h).ok();
                                                 udp.set_state(UdpState::Established);
                                                 return Some(true);
                                             }
@@ -731,7 +789,7 @@ where
                                         Protocol::TCP => {
                                             let mut tcp = TcpSocket::downcast(s).ok()?;
                                             if tcp.endpoint() == Some(endpoint) {
-                                                socket_map.insert_channel(event.channel_id, h).unwrap();
+                                                socket_map.insert_channel(event.channel_id, h).ok();
                                                 tcp.set_state(TcpState::Connected(endpoint));
                                                 return Some(true);
                                             }
@@ -739,7 +797,7 @@ where
                                         Protocol::UDP => {
                                             let mut udp = UdpSocket::downcast(s).ok()?;
                                             if udp.endpoint() == Some(endpoint) {
-                                                socket_map.insert_channel(event.channel_id, h).unwrap();
+                                                socket_map.insert_channel(event.channel_id, h).ok();
                                                 udp.set_state(UdpState::Established);
                                                 return Some(true);
                                             }
@@ -760,7 +818,7 @@ where
                 }
                 EdmEvent::DisconnectEvent(channel_id) => {
                     debug!("[EDM_URC] DisconnectEvent! Channel_id: {:?}", channel_id);
-                    socket_map.remove_channel(&channel_id).ok();
+                    socket_map.remove_channel(&channel_id);
                     true
                 }
                 EdmEvent::DataEvent(event) => {

@@ -105,12 +105,3 @@ impl From<bool> for OnOff {
         }
     }
 }
-
-impl Into<bool> for OnOff {
-    fn into(self) -> bool {
-        match self {
-            Self::On => true,
-            Self::Off => false,
-        }
-    }
-}

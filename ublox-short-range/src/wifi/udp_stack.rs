@@ -87,7 +87,7 @@ where
         {
             Ok(resp) => self
                 .socket_map
-                .insert_peer(resp.peer_handle.into(), *socket)
+                .insert_peer(resp.peer_handle, *socket)
                 .map_err(|_| Error::InvalidSocket)?,
 
             Err(e) => {
@@ -179,7 +179,7 @@ where
                     .map_err(|_| Self::Error::InvalidSocket)?;
 
                 let bytes = udp.recv_slice(buffer).map_err(Self::Error::from)?;
-                Ok((bytes, remote.clone()))
+                Ok((bytes, *remote))
             } else {
                 Err(Error::Illegal.into())
             }
@@ -346,7 +346,7 @@ where
         // Check incomming sockets for the socket address
         if let Some(connection_socket) = self.udp_listener.get_outgoing(socket, remote) {
             if let Some(ref mut sockets) = self.sockets {
-                if buffer.len() == 0 {
+                if buffer.is_empty() {
                     self.close(connection_socket)?;
                     return Ok(());
                 }

@@ -56,7 +56,8 @@ impl<'a> PeerUrlBuilder<'a> {
         write!(&mut s, "?").ok();
         self.local_port
             .map(|v| write!(&mut s, "local_port={}&", v).ok());
-        self.creds.as_ref().map(|creds| {
+
+        if let Some(creds) = self.creds.as_ref() {
             creds
                 .ca_cert_name
                 .as_ref()
@@ -69,7 +70,7 @@ impl<'a> PeerUrlBuilder<'a> {
                 .c_key_name
                 .as_ref()
                 .map(|v| write!(&mut s, "privKey={}&", v).ok());
-        });
+        }
         // Remove trailing '&' or '?' if no query.
         s.pop();
 
