@@ -108,10 +108,10 @@ impl DNSTable {
         &self,
         domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>,
     ) -> Option<DNSState> {
-        match self.table.iter().find(|e| e.domain_name == domain_name) {
-            Some(entry) => Some(entry.state),
-            None => None,
-        }
+        self.table
+            .iter()
+            .find(|e| e.domain_name == domain_name)
+            .map(|x| x.state)
     }
     pub fn reverse_lookup(&self, ip: IpAddr) -> Option<&heapless::String<MAX_DOMAIN_NAME_LENGTH>> {
         match self
@@ -134,8 +134,8 @@ pub struct SecurityCredentials {
 
 /// Creates new socket numbers
 /// Properly not Async safe
-pub fn new_socket_num<'a, const TIMER_HZ: u32, const N: usize, const L: usize>(
-    sockets: &'a SocketSet<TIMER_HZ, N, L>,
+pub fn new_socket_num<const TIMER_HZ: u32, const N: usize, const L: usize>(
+    sockets: &SocketSet<TIMER_HZ, N, L>,
 ) -> Result<u8, ()> {
     let mut num = 0;
     while sockets.socket_type(SocketHandle(num)).is_some() {
@@ -519,17 +519,12 @@ where
                                         error!("[UDP_URC] Binding connecting socket Error");
                                         handled = false
                                     }
-                                    if sockets.add(new_socket).map_err(|_| {
+                                    if sockets.add(new_socket).is_err(){
                                         error!("[UDP_URC] Opening socket Error: Socket set full");
-                                        Error::SocketMemory
-                                    }).is_err(){
                                         handled = false;
                                     }
-
-                                    if socket_map.insert_peer(peer_handle, socket_handle).map_err(|_| {
+                                    if socket_map.insert_peer(peer_handle, socket_handle).is_err(){
                                         error!("[UDP_URC] Opening socket Error: Socket Map full");
-                                        Error::SocketMapMemory
-                                    }).is_err(){
                                         handled = false;
                                     }
                                     debug!(
@@ -600,7 +595,7 @@ where
                                         }
                                         _ => {}
                                     }
-                                    socket_map.remove_peer(&msg.handle).unwrap();
+                                    socket_map.remove_peer(&msg.handle);
                                 }
                             }
                             true
@@ -748,7 +743,7 @@ where
                                         Protocol::TCP => {
                                             let mut tcp = TcpSocket::downcast(s).ok()?;
                                             if tcp.endpoint() == Some(endpoint) {
-                                                socket_map.insert_channel(event.channel_id, h).unwrap();
+                                                socket_map.insert_channel(event.channel_id, h).ok();
                                                 tcp.set_state(TcpState::Connected(endpoint));
                                                 return Some(true);
                                             }
@@ -756,7 +751,7 @@ where
                                         Protocol::UDP => {
                                             let mut udp = UdpSocket::downcast(s).ok()?;
                                             if udp.endpoint() == Some(endpoint) {
-                                                socket_map.insert_channel(event.channel_id, h).unwrap();
+                                                socket_map.insert_channel(event.channel_id, h).ok();
                                                 udp.set_state(UdpState::Established);
                                                 return Some(true);
                                             }
@@ -795,7 +790,7 @@ where
                                         Protocol::TCP => {
                                             let mut tcp = TcpSocket::downcast(s).ok()?;
                                             if tcp.endpoint() == Some(endpoint) {
-                                                socket_map.insert_channel(event.channel_id, h).unwrap();
+                                                socket_map.insert_channel(event.channel_id, h).ok();
                                                 tcp.set_state(TcpState::Connected(endpoint));
                                                 return Some(true);
                                             }
@@ -803,7 +798,7 @@ where
                                         Protocol::UDP => {
                                             let mut udp = UdpSocket::downcast(s).ok()?;
                                             if udp.endpoint() == Some(endpoint) {
-                                                socket_map.insert_channel(event.channel_id, h).unwrap();
+                                                socket_map.insert_channel(event.channel_id, h).ok();
                                                 udp.set_state(UdpState::Established);
                                                 return Some(true);
                                             }
@@ -824,7 +819,7 @@ where
                 }
                 EdmEvent::DisconnectEvent(channel_id) => {
                     debug!("[EDM_URC] DisconnectEvent! Channel_id: {:?}", channel_id);
-                    socket_map.remove_channel(&channel_id).ok();
+                    socket_map.remove_channel(&channel_id);
                     true
                 }
                 EdmEvent::DataEvent(event) => {

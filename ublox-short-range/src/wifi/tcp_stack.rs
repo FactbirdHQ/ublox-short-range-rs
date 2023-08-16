@@ -155,7 +155,7 @@ where
         if let Some(ref mut sockets) = self.sockets {
             let tcp = sockets
                 .get::<TcpSocket<TIMER_HZ, L>>(*socket)
-                .map_err(|e| nb::Error::Other(e.into()))?;
+                .map_err(nb::Error::Other)?;
 
             if !tcp.is_connected() {
                 return Err(Error::SocketClosed.into());
