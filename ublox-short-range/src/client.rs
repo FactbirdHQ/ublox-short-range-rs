@@ -70,7 +70,10 @@ pub struct DNSTableEntry {
 }
 
 impl DNSTableEntry {
-    pub const fn new(state: DNSState, domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>) -> Self {
+    pub const fn new(
+        state: DNSState,
+        domain_name: heapless::String<MAX_DOMAIN_NAME_LENGTH>,
+    ) -> Self {
         Self { domain_name, state }
     }
 }
