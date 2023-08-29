@@ -51,7 +51,8 @@ impl<AT: AtatClient> State<AT> {
 
 pub async fn new<
     'a,
-    AT: AtatClient + atat::UartExt,
+    AT: AtatClient,
+    // AT: AtatClient + atat::UartExt,
     SUB: AtatUrcChannel<EdmEvent, URC_CAPACITY, 2>,
     RST: OutputPin,
     const URC_CAPACITY: usize,
