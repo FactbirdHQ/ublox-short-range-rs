@@ -16,10 +16,11 @@ use ublox_sockets::{Error, SocketHandle, UdpSocket, UdpState};
 
 use super::EGRESS_CHUNK_SIZE;
 
-impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> UdpClientStack
-    for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
+    UdpClientStack for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
 where
-    C: atat::blocking::AtatClient,
+    'buf: 'sub,
+    AtCl: atat::blocking::AtatClient,
     CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
@@ -36,7 +37,7 @@ where
             if sockets.len() >= sockets.capacity() {
                 // Check if there are any sockets closed by remote, and close it
                 // if it has exceeded its timeout, in order to recycle it.
-                if sockets.recycle(self.timer.now()) {
+                if !sockets.recycle() {
                     return Err(Error::SocketSetFull);
                 }
             }
@@ -77,7 +78,7 @@ where
             .sockets
             .as_mut()
             .unwrap()
-            .get::<UdpSocket<TIMER_HZ, L>>(*socket)?;
+            .get::<UdpSocket<L>>(*socket)?;
         udp.bind(remote)?;
 
         // Then connect modem
@@ -95,7 +96,7 @@ where
                     .sockets
                     .as_mut()
                     .unwrap()
-                    .get::<UdpSocket<TIMER_HZ, L>>(*socket)?;
+                    .get::<UdpSocket<L>>(*socket)?;
                 udp.close();
                 return Err(e);
             }
@@ -104,7 +105,7 @@ where
             .sockets
             .as_mut()
             .unwrap()
-            .get::<UdpSocket<TIMER_HZ, L>>(*socket)?
+            .get::<UdpSocket<L>>(*socket)?
             .state()
             == UdpState::Closed
         {
@@ -123,7 +124,7 @@ where
             }
 
             let udp = sockets
-                .get::<UdpSocket<TIMER_HZ, L>>(*socket)
+                .get::<UdpSocket<L>>(*socket)
                 .map_err(Self::Error::from)?;
 
             if !udp.is_open() {
@@ -175,7 +176,7 @@ where
 
             if let Some(ref mut sockets) = self.sockets {
                 let mut udp = sockets
-                    .get::<UdpSocket<TIMER_HZ, L>>(*connection_handle)
+                    .get::<UdpSocket<L>>(*connection_handle)
                     .map_err(|_| Self::Error::InvalidSocket)?;
 
                 let bytes = udp.recv_slice(buffer).map_err(Self::Error::from)?;
@@ -187,7 +188,7 @@ where
             // Handle reciving for udp normal sockets
         } else if let Some(ref mut sockets) = self.sockets {
             let mut udp = sockets
-                .get::<UdpSocket<TIMER_HZ, L>>(*socket)
+                .get::<UdpSocket<L>>(*socket)
                 .map_err(Self::Error::from)?;
 
             let bytes = udp.recv_slice(buffer).map_err(Self::Error::from)?;
@@ -255,7 +256,7 @@ where
         } else if let Some(ref mut sockets) = self.sockets {
             defmt::debug!("[UDP] Closing socket: {:?}", socket);
             // If no sockets exists, nothing to close.
-            if let Ok(ref mut udp) = sockets.get::<UdpSocket<TIMER_HZ, L>>(socket) {
+            if let Ok(ref mut udp) = sockets.get::<UdpSocket<L>>(socket) {
                 defmt::trace!("[UDP] Closing socket state: {:?}", udp.state());
                 match udp.state() {
                     UdpState::Closed => {
@@ -293,10 +294,11 @@ where
 /// - The driver has to call send_to after reciving data, to release the socket bound by remote host,
 /// even if just sending no bytes. Else these sockets will be held open until closure of server socket.
 ///
-impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> UdpFullStack
-    for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
+    UdpFullStack for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
 where
-    C: atat::blocking::AtatClient,
+    'buf: 'sub,
+    AtCl: atat::blocking::AtatClient,
     CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
@@ -352,7 +354,7 @@ where
                 }
 
                 let udp = sockets
-                    .get::<UdpSocket<TIMER_HZ, L>>(connection_socket)
+                    .get::<UdpSocket<L>>(connection_socket)
                     .map_err(Self::Error::from)?;
 
                 if !udp.is_open() {

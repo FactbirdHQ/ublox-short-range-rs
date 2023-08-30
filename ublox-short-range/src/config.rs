@@ -23,7 +23,6 @@ pub struct Config<RST> {
     pub(crate) hostname: Option<String<20>>,
     pub(crate) tls_in_buffer_size: Option<u16>,
     pub(crate) tls_out_buffer_size: Option<u16>,
-    pub(crate) max_urc_attempts: u8,
     pub(crate) network_up_bug: bool,
 }
 
@@ -34,7 +33,6 @@ impl Default for Config<NoPin> {
             hostname: None,
             tls_in_buffer_size: None,
             tls_out_buffer_size: None,
-            max_urc_attempts: 5,
             network_up_bug: true,
         }
     }
@@ -50,7 +48,6 @@ where
             hostname: None,
             tls_in_buffer_size: None,
             tls_out_buffer_size: None,
-            max_urc_attempts: 5,
             network_up_bug: true,
         }
     }
@@ -65,13 +62,6 @@ where
     pub fn with_hostname(self, hostname: &str) -> Self {
         Config {
             hostname: Some(String::from(hostname)),
-            ..self
-        }
-    }
-
-    pub fn max_urc_attempts(self, max_attempts: u8) -> Self {
-        Config {
-            max_urc_attempts: max_attempts,
             ..self
         }
     }
