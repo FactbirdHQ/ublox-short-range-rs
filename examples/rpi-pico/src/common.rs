@@ -1,17 +1,17 @@
 use embassy_rp::uart;
 use ublox_short_range::atat;
 
-pub struct TxWrap<TX: embedded_io::asynch::Write>(pub TX);
+// pub struct TxWrap<TX: embedded_io::asynch::Write>(pub TX);
 
-impl<TX: embedded_io::asynch::Write> embedded_io::Io for TxWrap<TX> {
-    type Error = <TX as embedded_io::Io>::Error;
-}
+// impl<TX: embedded_io::asynch::Write> embedded_io::Io for TxWrap<TX> {
+//     type Error = <TX as embedded_io::Io>::Error;
+// }
 
-impl<TX: embedded_io::asynch::Write> embedded_io::asynch::Write for TxWrap<TX> {
-    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
-        self.0.write(buf).await
-    }
-}
+// impl<TX: embedded_io::asynch::Write> embedded_io::asynch::Write for TxWrap<TX> {
+//     async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+//         self.0.write(buf).await
+//     }
+// }
 
 // impl<T: embassy_rp::uart::Instance> atat::UartExt for TxWrap<uart::BufferedUartTx<'static, T>> {
 //     type Error = ();

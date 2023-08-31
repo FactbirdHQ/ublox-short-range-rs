@@ -15,7 +15,7 @@ use embassy_rp::peripherals::{PIN_26, UART1};
 use embassy_rp::uart::BufferedInterruptHandler;
 use embassy_rp::{bind_interrupts, uart};
 use embassy_time::{Duration, Timer};
-use embedded_io::asynch::Write;
+use embedded_io_async::Write;
 use no_std_net::{Ipv4Addr, SocketAddr};
 use static_cell::make_static;
 use ublox_short_range::asynch::runner::Runner;
@@ -29,12 +29,12 @@ use ublox_short_range::command::edm::urc::EdmEvent;
 use ublox_short_range::embedded_nal_async::AddrType;
 use {defmt_rtt as _, panic_probe as _};
 
-const RX_BUF_LEN: usize = 1024;
+const RX_BUF_LEN: usize = 4096;
 const URC_CAPACITY: usize = 3;
 
 type AtClient = ublox_short_range::atat::asynch::Client<
     'static,
-    common::TxWrap<uart::BufferedUartTx<'static, UART1>>,
+    uart::BufferedUartTx<'static, UART1>,
     RX_BUF_LEN,
 >;
 
@@ -165,7 +165,7 @@ async fn main(spawner: Spawner) {
 
     let buffers = &*make_static!(atat::Buffers::new());
     let (ingress, client) = buffers.split(
-        common::TxWrap(tx),
+        tx,
         EdmDigester::default(),
         atat::Config::new(),
     );
