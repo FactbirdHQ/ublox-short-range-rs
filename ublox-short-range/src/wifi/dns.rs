@@ -31,7 +31,6 @@ where
             hostname,
             retry_num: 1,
         })
-       
         .map_err(|_| nb::Error::Other(Error::Unaddressable))?;
 
         self.dns_table.upsert(DNSTableEntry::new(
