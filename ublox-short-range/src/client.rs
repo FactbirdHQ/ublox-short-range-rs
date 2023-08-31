@@ -1,6 +1,7 @@
 use core::str::FromStr;
 
 use crate::{
+    blocking_timer::BlockingTimer,
     command::{
         custom_digest::EdmDigester,
         data_mode::{
@@ -34,9 +35,9 @@ use crate::{
 };
 use atat::{blocking::AtatClient, AtatUrcChannel, UrcSubscription};
 use defmt::{debug, error, trace};
+use embassy_time::{Duration, Instant};
 use embedded_hal::digital::OutputPin;
-use embedded_nal::{nb, IpAddr, Ipv4Addr, SocketAddr};
-use fugit::ExtU32;
+use embedded_nal::{IpAddr, Ipv4Addr, SocketAddr};
 use ublox_sockets::{
     udp_listener::UdpListener, AnySocket, SocketHandle, SocketSet, SocketType, TcpSocket, TcpState,
     UdpSocket, UdpState,
@@ -50,7 +51,6 @@ pub enum SerialMode {
 
 #[derive(PartialEq, Copy, Clone)]
 pub enum DNSState {
-    NotResolving,
     Resolving,
     Resolved(IpAddr),
     Error(PingError),
@@ -150,66 +150,42 @@ pub fn new_socket_num<const N: usize, const L: usize>(sockets: &SocketSet<N, L>)
     Ok(num)
 }
 
-pub(crate) const URC_CAPACITY: usize = 1 + 3;
+pub(crate) const URC_CAPACITY: usize = 3;
 pub(crate) const URC_SUBSCRIBERS: usize = 1;
 
-pub struct UbloxClient<
-    'buf,
-    'sub,
-    AtCl,
-    AtUrcCh,
-    CLK,
-    RST,
-    const TIMER_HZ: u32,
-    const N: usize,
-    const L: usize,
-> where
-    CLK: fugit_timer::Timer<TIMER_HZ>,
+pub struct UbloxClient<'buf, 'sub, AtCl, AtUrcCh, RST, const N: usize, const L: usize>
+where
     RST: OutputPin,
 {
     pub(crate) module_started: bool,
     pub(crate) initialized: bool,
     serial_mode: SerialMode,
-    pub dns_table: DNSTable,
+    pub(crate) dns_table: DNSTable,
     pub(crate) wifi_connection: Option<WifiConnection>,
     pub(crate) wifi_config_active_on_startup: Option<u8>,
     pub(crate) client: AtCl,
     pub(crate) config: Config<RST>,
     pub(crate) sockets: Option<&'static mut SocketSet<N, L>>,
     pub(crate) security_credentials: SecurityCredentials,
-    pub(crate) timer: CLK,
     pub(crate) socket_map: SocketMap,
-    pub(crate) udp_listener: UdpListener<4, N>,
+    pub(crate) udp_listener: UdpListener<2, N>,
     urc_subscription: UrcSubscription<'sub, EdmEvent, URC_CAPACITY, URC_SUBSCRIBERS>,
     urc_channel: &'buf AtUrcCh,
 }
 
-impl<
-        'buf,
-        'sub,
-        W,
-        CLK,
-        RST,
-        const TIMER_HZ: u32,
-        const INGRESS_BUF_SIZE: usize,
-        const N: usize,
-        const L: usize,
-    >
+impl<'buf, 'sub, W, RST, const INGRESS_BUF_SIZE: usize, const N: usize, const L: usize>
     UbloxClient<
         'buf,
         'sub,
         atat::blocking::Client<'buf, W, INGRESS_BUF_SIZE>,
         UbloxWifiUrcChannel,
-        CLK,
         RST,
-        TIMER_HZ,
         N,
         L,
     >
 where
     'buf: 'sub,
     W: embedded_io::Write,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     /// Create new u-blox device
@@ -219,7 +195,6 @@ where
     pub fn from_buffers(
         buffers: &'buf UbloxWifiBuffers<INGRESS_BUF_SIZE>,
         tx: W,
-        timer: CLK,
         config: Config<RST>,
     ) -> (UbloxWifiIngress<INGRESS_BUF_SIZE>, Self) {
         let (ingress, client) =
@@ -227,21 +202,20 @@ where
 
         (
             ingress,
-            UbloxClient::new(client, &buffers.urc_channel, timer, config),
+            UbloxClient::new(client, &buffers.urc_channel, config),
         )
     }
 }
 
-impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
-    UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, RST, const N: usize, const L: usize>
+    UbloxClient<'buf, 'sub, AtCl, AtUrcCh, RST, N, L>
 where
     'buf: 'sub,
     AtCl: AtatClient,
     AtUrcCh: AtatUrcChannel<EdmEvent, URC_CAPACITY, URC_SUBSCRIBERS>,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
-    pub fn new(client: AtCl, urc_channel: &'buf AtUrcCh, timer: CLK, config: Config<RST>) -> Self {
+    pub fn new(client: AtCl, urc_channel: &'buf AtUrcCh, config: Config<RST>) -> Self {
         let urc_subscription = urc_channel.subscribe().unwrap();
         UbloxClient {
             module_started: false,
@@ -254,7 +228,6 @@ where
             config,
             sockets: None,
             security_credentials: SecurityCredentials::default(),
-            timer,
             socket_map: SocketMap::default(),
             udp_listener: UdpListener::new(),
             urc_subscription,
@@ -263,12 +236,11 @@ where
     }
 }
 
-impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
-    UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, RST, const N: usize, const L: usize>
+    UbloxClient<'buf, 'sub, AtCl, AtUrcCh, RST, N, L>
 where
     'buf: 'sub,
     AtCl: AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     pub fn set_socket_storage(&mut self, socket_set: &'static mut SocketSet<N, L>) {
@@ -299,8 +271,7 @@ where
 
         while self.serial_mode != SerialMode::ExtendedData {
             self.send_internal(&SwitchToEdmCommand, true).ok();
-            self.timer.start(100.millis()).map_err(|_| Error::Timer)?;
-            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+            BlockingTimer::after(Duration::from_millis(100)).wait();
             self.handle_urc()?;
         }
 
@@ -339,8 +310,7 @@ where
 
         while self.serial_mode != SerialMode::ExtendedData {
             self.send_internal(&SwitchToEdmCommand, true).ok();
-            self.timer.start(100.millis()).map_err(|_| Error::Timer)?;
-            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+            BlockingTimer::after(Duration::from_millis(100)).wait();
             self.handle_urc()?;
         }
 
@@ -426,24 +396,19 @@ where
         if let Some(ref mut pin) = self.config.rst_pin {
             defmt::warn!("Hard resetting Ublox Short Range");
             pin.set_low().ok();
-            self.timer.start(50.millis()).map_err(|_| Error::Timer)?;
-            nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
+            BlockingTimer::after(Duration::from_millis(50)).wait();
 
             pin.set_high().ok();
 
-            self.timer.start(4.secs()).map_err(|_| Error::Timer)?;
-            loop {
-                match self.timer.wait() {
-                    Ok(()) => return Err(Error::_Unknown),
-                    Err(nb::Error::WouldBlock) => {
-                        self.handle_urc().ok();
-                        if self.module_started {
-                            break;
-                        }
-                    }
-                    Err(_) => return Err(Error::Timer),
+            let expiration = Instant::now() + Duration::from_secs(4);
+
+            while Instant::now() < expiration {
+                self.handle_urc().ok();
+                if self.module_started {
+                    return Ok(());
                 }
             }
+            return Err(Error::_Unknown);
         }
         Ok(())
     }
@@ -462,33 +427,20 @@ where
         self.send_internal(&EdmAtCmdWrapper(RebootDCE), false)?;
         self.clear_buffers()?;
 
-        self.timer.start(4.secs()).map_err(|_| Error::Timer)?;
-        loop {
-            match self.timer.wait() {
-                Ok(()) => return Err(Error::_Unknown),
-                Err(nb::Error::WouldBlock) => {
-                    self.handle_urc().ok();
-                    if self.module_started {
-                        break;
-                    }
-                }
-                Err(_) => return Err(Error::Timer),
+        let expiration = Instant::now() + Duration::from_secs(4);
+        while Instant::now() < expiration {
+            self.handle_urc().ok();
+            if self.module_started {
+                return Ok(());
             }
         }
-
-        Ok(())
+        Err(Error::_Unknown)
     }
 
     pub(crate) fn clear_buffers(&mut self) -> Result<(), Error> {
-        // self.client.reset(); deprecated
-
         if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
             sockets.prune();
         }
-
-        // Allow ATAT some time to clear the buffers
-        self.timer.start(300.millis()).map_err(|_| Error::Timer)?;
-        nb::block!(self.timer.wait()).map_err(|_| Error::Timer)?;
 
         Ok(())
     }
@@ -501,11 +453,6 @@ where
         self.handle_urc()?;
 
         self.connected_to_network()?;
-
-        // TODO: Is this smart?
-        // if let Some(ref mut sockets) = self.sockets.as_deref_mut() {
-        // sockets.recycle(self.timer.now());
-        // }
 
         Ok(())
     }
@@ -598,7 +545,7 @@ where
                                     match event.protocol {
                                         IPProtocol::TCP => {
                                             // if let Ok(mut tcp) =
-                                            //     sockets.get::<TcpSocket<CLK, L>>(event.handle)
+                                            //     sockets.get::<TcpSocket L>>(event.handle)
                                             // {
                                             //     debug!(
                                             //         "Binding remote {=[u8]:a} to TCP socket {:?}",

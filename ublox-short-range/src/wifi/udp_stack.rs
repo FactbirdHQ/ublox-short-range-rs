@@ -8,6 +8,7 @@ use crate::{
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
+use atat::blocking::AtatClient;
 use embedded_hal::digital::OutputPin;
 use embedded_nal::{nb, SocketAddr, UdpFullStack};
 
@@ -16,12 +17,11 @@ use ublox_sockets::{Error, SocketHandle, UdpSocket, UdpState};
 
 use super::EGRESS_CHUNK_SIZE;
 
-impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
-    UdpClientStack for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, RST, const N: usize, const L: usize> UdpClientStack
+    for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, RST, N, L>
 where
     'buf: 'sub,
-    AtCl: atat::blocking::AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
+    AtCl: AtatClient,
     RST: OutputPin,
 {
     type Error = Error;
@@ -294,12 +294,11 @@ where
 /// - The driver has to call send_to after reciving data, to release the socket bound by remote host,
 /// even if just sending no bytes. Else these sockets will be held open until closure of server socket.
 ///
-impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
-    UdpFullStack for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, RST, const N: usize, const L: usize> UdpFullStack
+    for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, RST, N, L>
 where
     'buf: 'sub,
-    AtCl: atat::blocking::AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
+    AtCl: AtatClient,
     RST: OutputPin,
 {
     fn bind(&mut self, socket: &mut Self::UdpSocket, local_port: u16) -> Result<(), Self::Error> {
@@ -391,7 +390,7 @@ where
         //     .sockets
         //     .as_mut()
         //     .ok_or(Error::Illegal)?
-        //     .get::<TcpSocket<CLK, L>>(data_socket)
+        //     .get::<TcpSocket L>>(data_socket)
         //     .map_err(Self::Error::from)?;
 
         // tcp.update_handle(handle);
