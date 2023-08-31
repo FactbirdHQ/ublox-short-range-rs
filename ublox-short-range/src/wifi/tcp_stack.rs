@@ -66,12 +66,23 @@ where
         defmt::debug!("[TCP] Connect socket");
         self.connected_to_network().map_err(|_| Error::Illegal)?;
 
-        let url = PeerUrlBuilder::new()
-            .address(&remote)
-            .creds(self.security_credentials.clone())
-            .tcp()
-            .map_err(|_| Error::Unaddressable)?;
+        let url = if let Some(hostname) = self.dns_table.reverse_lookup(remote.ip()) {
+            PeerUrlBuilder::new()
+                .hostname(hostname.as_str())
+                .port(remote.port())
+                .creds(self.security_credentials.clone())
+                .tcp()
+                .map_err(|_| Error::Unaddressable)?
+        } else {
+            PeerUrlBuilder::new()
+                .ip_addr(remote.ip())
+                .port(remote.port())
+                .creds(self.security_credentials.clone())
+                .tcp()
+                .map_err(|_| Error::Unaddressable)?
+        };
 
+        defmt::debug!("[TCP] Connecting socket: {:?} to url: {=str}", socket, url);
         // If no socket is found we stop here
         let mut tcp = self
             .sockets
@@ -144,7 +155,7 @@ where
         if let Some(ref mut sockets) = self.sockets {
             let tcp = sockets
                 .get::<TcpSocket<TIMER_HZ, L>>(*socket)
-                .map_err(|e| nb::Error::Other(e.into()))?;
+                .map_err(nb::Error::Other)?;
 
             if !tcp.is_connected() {
                 return Err(Error::SocketClosed.into());
