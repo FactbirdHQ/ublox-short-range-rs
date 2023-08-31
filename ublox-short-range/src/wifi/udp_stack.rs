@@ -37,7 +37,7 @@ where
             if sockets.len() >= sockets.capacity() {
                 // Check if there are any sockets closed by remote, and close it
                 // if it has exceeded its timeout, in order to recycle it.
-                if sockets.recycle(self.timer.now()) {
+                if !sockets.recycle(self.timer.now()) {
                     return Err(Error::SocketSetFull);
                 }
             }
