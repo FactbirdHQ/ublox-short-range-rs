@@ -150,7 +150,7 @@ pub fn new_socket_num<const N: usize, const L: usize>(sockets: &SocketSet<N, L>)
     Ok(num)
 }
 
-pub(crate) const URC_CAPACITY: usize = 3;
+pub(crate) const URC_CAPACITY: usize = 2;
 pub(crate) const URC_SUBSCRIBERS: usize = 1;
 
 pub struct UbloxClient<'buf, 'sub, AtCl, AtUrcCh, RST, const N: usize, const L: usize>
@@ -396,6 +396,7 @@ where
         if let Some(ref mut pin) = self.config.rst_pin {
             defmt::warn!("Hard resetting Ublox Short Range");
             pin.set_low().ok();
+
             BlockingTimer::after(Duration::from_millis(50)).wait();
 
             pin.set_high().ok();
@@ -408,8 +409,9 @@ where
                     return Ok(());
                 }
             }
-            return Err(Error::_Unknown);
+            return Err(Error::Timeout);
         }
+
         Ok(())
     }
 
@@ -434,7 +436,7 @@ where
                 return Ok(());
             }
         }
-        Err(Error::_Unknown)
+        Err(Error::Timeout)
     }
 
     pub(crate) fn clear_buffers(&mut self) -> Result<(), Error> {
