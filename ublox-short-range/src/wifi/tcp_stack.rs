@@ -14,10 +14,11 @@ use ublox_sockets::{Error, SocketHandle, TcpSocket, TcpState};
 
 use super::EGRESS_CHUNK_SIZE;
 
-impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> TcpClientStack
-    for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
+    TcpClientStack for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
 where
-    C: atat::blocking::AtatClient,
+    'buf: 'sub,
+    AtCl: atat::blocking::AtatClient,
     CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
@@ -35,7 +36,7 @@ where
             if sockets.len() >= sockets.capacity() {
                 // Check if there are any sockets closed by remote, and close it
                 // if it has exceeded its timeout, in order to recycle it.
-                if !sockets.recycle(self.timer.now()) {
+                if !sockets.recycle() {
                     return Err(Error::SocketSetFull);
                 }
             }
@@ -88,7 +89,7 @@ where
             .sockets
             .as_mut()
             .unwrap()
-            .get::<TcpSocket<TIMER_HZ, L>>(*socket)
+            .get::<TcpSocket<L>>(*socket)
             .map_err(Self::Error::from)?;
 
         tcp.set_state(TcpState::WaitingForConnect(remote));
@@ -106,7 +107,7 @@ where
                     .sockets
                     .as_mut()
                     .unwrap()
-                    .get::<TcpSocket<TIMER_HZ, L>>(*socket)
+                    .get::<TcpSocket<L>>(*socket)
                     .map_err(Self::Error::from)?;
                 tcp.set_state(TcpState::Created);
                 return Err(nb::Error::Other(e));
@@ -122,7 +123,7 @@ where
                 self.sockets
                     .as_mut()
                     .unwrap()
-                    .get::<TcpSocket<TIMER_HZ, L>>(*socket)
+                    .get::<TcpSocket<L>>(*socket)
                     .map_err(Self::Error::from)?
                     .state(),
                 TcpState::WaitingForConnect(_)
@@ -137,7 +138,7 @@ where
     fn is_connected(&mut self, socket: &Self::TcpSocket) -> Result<bool, Self::Error> {
         self.connected_to_network().map_err(|_| Error::Illegal)?;
         if let Some(ref mut sockets) = self.sockets {
-            let tcp = sockets.get::<TcpSocket<TIMER_HZ, L>>(*socket)?;
+            let tcp = sockets.get::<TcpSocket<L>>(*socket)?;
             Ok(tcp.is_connected())
         } else {
             Err(Error::Illegal)
@@ -154,7 +155,7 @@ where
         self.connected_to_network().map_err(|_| Error::Illegal)?;
         if let Some(ref mut sockets) = self.sockets {
             let tcp = sockets
-                .get::<TcpSocket<TIMER_HZ, L>>(*socket)
+                .get::<TcpSocket<L>>(*socket)
                 .map_err(nb::Error::Other)?;
 
             if !tcp.is_connected() {
@@ -191,10 +192,10 @@ where
         self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
         if let Some(ref mut sockets) = self.sockets {
             // Enable detecting closed socket from receive function
-            sockets.recycle(self.timer.now());
+            sockets.recycle();
 
             let mut tcp = sockets
-                .get::<TcpSocket<TIMER_HZ, L>>(*socket)
+                .get::<TcpSocket<L>>(*socket)
                 .map_err(Self::Error::from)?;
 
             Ok(tcp.recv_slice(buffer).map_err(Self::Error::from)?)
@@ -208,7 +209,7 @@ where
         if let Some(ref mut sockets) = self.sockets {
             defmt::debug!("[TCP] Closing socket: {:?}", socket);
             // If the socket is not found it is already removed
-            if let Ok(ref tcp) = sockets.get::<TcpSocket<TIMER_HZ, L>>(socket) {
+            if let Ok(ref tcp) = sockets.get::<TcpSocket<L>>(socket) {
                 // If socket is not closed that means a connection excists which has to be closed
                 if !matches!(
                     tcp.state(),

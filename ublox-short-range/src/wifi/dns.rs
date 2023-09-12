@@ -7,10 +7,11 @@ use heapless::String;
 use crate::{command::ping::*, UbloxClient};
 use ublox_sockets::Error;
 
-impl<C, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> Dns
-    for UbloxClient<C, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> Dns
+    for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
 where
-    C: atat::blocking::AtatClient,
+    'buf: 'sub,
+    AtCl: atat::blocking::AtatClient,
     CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {

@@ -1,3 +1,4 @@
+use atat::blocking::AtatClient;
 use heapless::Vec;
 
 use crate::{
@@ -50,15 +51,15 @@ use defmt::debug;
 /// supplicant.remove_connection(0)
 ///
 ///
-pub struct Supplicant<'a, C, const N: usize> {
-    pub(crate) client: &'a mut C,
+pub struct Supplicant<'a, AtCl, const N: usize> {
+    pub(crate) client: &'a mut AtCl,
     pub(crate) wifi_connection: &'a mut Option<WifiConnection>,
     pub(crate) active_on_startup: &'a mut Option<u8>,
 }
 
-impl<'a, C, const N: usize> Supplicant<'a, C, N>
+impl<'a, AtCl, const N: usize> Supplicant<'a, AtCl, N>
 where
-    C: atat::blocking::AtatClient,
+    AtCl: AtatClient,
 {
     fn send_at<A: atat::AtatCmd<LEN>, const LEN: usize>(
         &mut self,
