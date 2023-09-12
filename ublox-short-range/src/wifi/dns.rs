@@ -1,18 +1,18 @@
 use crate::client::{DNSState, DNSTableEntry};
+use atat::blocking::AtatClient;
+use embassy_time::{Duration, Instant};
 use embedded_hal::digital::OutputPin;
 use embedded_nal::{nb, AddrType, Dns, IpAddr};
-use fugit::ExtU32;
 use heapless::String;
 
 use crate::{command::ping::*, UbloxClient};
 use ublox_sockets::Error;
 
-impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize> Dns
-    for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, RST, const N: usize, const L: usize> Dns
+    for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, RST, N, L>
 where
     'buf: 'sub,
-    AtCl: atat::blocking::AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
+    AtCl: AtatClient,
     RST: OutputPin,
 {
     type Error = Error;
@@ -38,12 +38,12 @@ where
             String::from(hostname),
         ));
 
-        let expiration = self.timer.now() + 8.secs();
+        let expiration = Instant::now() + Duration::from_secs(8);
 
         while let Some(DNSState::Resolving) = self.dns_table.get_state(String::from(hostname)) {
             self.spin().map_err(|_| nb::Error::Other(Error::Illegal))?;
 
-            if self.timer.now() >= expiration {
+            if Instant::now() >= expiration {
                 break;
             }
         }

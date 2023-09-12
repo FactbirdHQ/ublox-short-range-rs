@@ -27,7 +27,7 @@ pub enum Error {
     SocketMemory,
     SocketMapMemory,
     Supplicant,
-    Timer,
+    Timeout,
     ShadowStoreBug,
     _Unknown,
 }

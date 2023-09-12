@@ -1,5 +1,6 @@
 #![cfg_attr(not(test), no_std)]
 
+mod blocking_timer;
 mod client;
 mod hex;
 

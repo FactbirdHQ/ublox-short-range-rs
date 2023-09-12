@@ -23,12 +23,11 @@ use embedded_hal::digital::OutputPin;
 
 use super::connection::{WiFiState, WifiConnection};
 
-impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
-    UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, RST, const N: usize, const L: usize>
+    UbloxClient<'buf, 'sub, AtCl, AtUrcCh, RST, N, L>
 where
     'buf: 'sub,
     AtCl: AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
     RST: OutputPin,
 {
     /// Creates wireless hotspot service for host machine.

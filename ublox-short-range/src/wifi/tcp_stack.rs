@@ -5,6 +5,7 @@ use crate::{
     wifi::peer_builder::PeerUrlBuilder,
     UbloxClient,
 };
+use atat::blocking::AtatClient;
 use embedded_hal::digital::OutputPin;
 /// Handles receiving data from sockets
 /// implements TCP and UDP for WiFi client
@@ -14,12 +15,11 @@ use ublox_sockets::{Error, SocketHandle, TcpSocket, TcpState};
 
 use super::EGRESS_CHUNK_SIZE;
 
-impl<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, const TIMER_HZ: u32, const N: usize, const L: usize>
-    TcpClientStack for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, CLK, RST, TIMER_HZ, N, L>
+impl<'buf, 'sub, AtCl, AtUrcCh, RST, const N: usize, const L: usize> TcpClientStack
+    for UbloxClient<'buf, 'sub, AtCl, AtUrcCh, RST, N, L>
 where
     'buf: 'sub,
-    AtCl: atat::blocking::AtatClient,
-    CLK: fugit_timer::Timer<TIMER_HZ>,
+    AtCl: AtatClient,
     RST: OutputPin,
 {
     type Error = Error;
@@ -241,26 +241,3 @@ where
         }
     }
 }
-
-// impl<C, CLK, RST, const N: usize, const L: usize> TcpFullStack for UbloxClient<C, CLK, RST, N, L>
-// where
-//     C: atat::blocking::AtatClient,
-//     CLK: fugit_timer::Timer,
-//     RST: OutputPin,
-//     Generic<CLK::T>: TryInto<Milliseconds>,
-// {
-//     fn bind(&mut self, socket: &mut Self::TcpSocket, local_port: u16) -> Result<(), Self::Error> {
-//         todo!()
-//     }
-
-//     fn listen(&mut self, socket: &mut Self::TcpSocket) -> Result<(), Self::Error> {
-//         todo!()
-//     }
-
-//     fn accept(
-// 		&mut self,
-// 		socket: &mut Self::TcpSocket,
-// 	) -> nb::Result<(Self::TcpSocket, SocketAddr), Self::Error> {
-//         todo!()
-//     }
-// }

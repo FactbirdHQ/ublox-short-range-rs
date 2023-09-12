@@ -30,8 +30,8 @@ defmt = { version = "0.3" }
 embedded-hal = "=1.0.0-rc.1"
 embedded-io = "0.5"
 embedded-nal = "0.6.0"
-fugit = { version = "0.3", features = ["defmt"] }
-fugit-timer = "0.1.2"
+
+embassy-time = "0.1"
 
 [dev-dependencies]
 embedded-io = "0.4"
