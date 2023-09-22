@@ -15,14 +15,81 @@ use super::{NoResponse, OnOff};
 /// This command is used to configure up to 10 different Wi-Fi networks. After configuring a network, it must be
 /// activated (Wi-Fi Station Configuration Action +UWSCA) before use.
 /// If more than one configuration has active on start up parameter enabled, the behaviour is undefined.
-#[derive(Clone, AtatCmd)]
-#[at_cmd("+UWSC", NoResponse, timeout_ms = 1000)]
-pub struct SetWifiStationConfig {
+#[derive(Clone)]
+// #[at_cmd("+UWSC", NoResponse, timeout_ms = 1000)]
+pub struct SetWifiStationConfig<'a> {
     /// Wi-Fi configuration id. 0-9
-    #[at_arg(position = 0)]
+    // #[at_arg(position = 0)]
     pub config_id: u8,
-    #[at_arg(position = 1)]
-    pub config_param: WifiStationConfig,
+    // #[at_arg(position = 1)]
+    pub config_param: WifiStationConfig<'a>,
+}
+
+// FIXME:
+#[automatically_derived]
+impl<'a> atat::AtatLen for SetWifiStationConfig<'a> {
+    const LEN: usize =
+        <WifiStationConfig<'a> as atat::AtatLen>::LEN + <u8 as atat::AtatLen>::LEN + 1usize;
+}
+const ATAT_SETWIFISTATIONCONFIG_LEN: usize =
+    <WifiStationConfig<'_> as atat::AtatLen>::LEN + <u8 as atat::AtatLen>::LEN + 1usize;
+#[automatically_derived]
+impl<'a> atat::AtatCmd<{ ATAT_SETWIFISTATIONCONFIG_LEN + 12usize }> for SetWifiStationConfig<'a> {
+    type Response = NoResponse;
+    const MAX_TIMEOUT_MS: u32 = 1000u32;
+    #[inline]
+    fn as_bytes(&self) -> atat::heapless::Vec<u8, { ATAT_SETWIFISTATIONCONFIG_LEN + 12usize }> {
+        match atat::serde_at::to_vec(
+            self,
+            "+UWSC",
+            atat::serde_at::SerializeOptions {
+                value_sep: true,
+                cmd_prefix: "AT",
+                termination: "\r\n",
+                quote_escape_strings: true,
+            },
+        ) {
+            Ok(s) => s,
+            Err(_) => panic!("Failed to serialize command"),
+        }
+    }
+    #[inline]
+    fn parse(
+        &self,
+        res: Result<&[u8], atat::InternalError>,
+    ) -> core::result::Result<Self::Response, atat::Error> {
+        match res {
+            Ok(resp) => {
+                atat::serde_at::from_slice::<NoResponse>(resp).map_err(|e| atat::Error::Parse)
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+}
+#[automatically_derived]
+impl<'a> atat::serde_at::serde::Serialize for SetWifiStationConfig<'a> {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: atat::serde_at::serde::Serializer,
+    {
+        let mut serde_state = atat::serde_at::serde::Serializer::serialize_struct(
+            serializer,
+            "SetWifiStationConfig",
+            2usize,
+        )?;
+        atat::serde_at::serde::ser::SerializeStruct::serialize_field(
+            &mut serde_state,
+            "config_id",
+            &self.config_id,
+        )?;
+        atat::serde_at::serde::ser::SerializeStruct::serialize_field(
+            &mut serde_state,
+            "config_param",
+            &self.config_param,
+        )?;
+        atat::serde_at::serde::ser::SerializeStruct::end(serde_state)
+    }
 }
 
 /// 7.1 Wi-Fi station configuration +UWSC

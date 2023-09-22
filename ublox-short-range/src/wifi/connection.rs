@@ -18,24 +18,22 @@ pub enum NetworkState {
 }
 
 // Fold into wifi connectivity
+#[derive(defmt::Format)]
 pub struct WifiConnection {
     /// Keeps track of connection state on module
     pub wifi_state: WiFiState,
     pub network_state: NetworkState,
     pub network: WifiNetwork,
-    /// Numbre from 0-9. 255 used for unknown
-    pub config_id: u8,
     /// Keeps track of activation of the config by driver
     pub activated: bool,
 }
 
 impl WifiConnection {
-    pub(crate) fn new(network: WifiNetwork, wifi_state: WiFiState, config_id: u8) -> Self {
+    pub(crate) fn new(network: WifiNetwork, wifi_state: WiFiState) -> Self {
         WifiConnection {
             wifi_state,
             network_state: NetworkState::Unattached,
             network,
-            config_id,
             activated: false,
         }
     }

@@ -55,13 +55,16 @@ impl HotspotOptions {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, defmt::Format)]
 pub struct ConnectionOptions {
     pub ssid: String<64>,
     pub password: Option<String<64>>,
 
+    #[defmt(Debug2Format)]
     pub ip: Option<Ipv4Addr>,
+    #[defmt(Debug2Format)]
     pub subnet: Option<Ipv4Addr>,
+    #[defmt(Debug2Format)]
     pub gateway: Option<Ipv4Addr>,
 }
 

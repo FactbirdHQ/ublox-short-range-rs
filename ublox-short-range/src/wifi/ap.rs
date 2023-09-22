@@ -194,7 +194,6 @@ where
                     mode: WifiMode::AccessPoint,
                 },
                 WiFiState::NotConnected,
-                ap_config_id as u8,
             )
             .activate(),
         );
