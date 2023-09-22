@@ -28,7 +28,6 @@ use crate::{
     wifi::{
         connection::{NetworkState, WiFiState, WifiConnection},
         network::{WifiMode, WifiNetwork},
-        supplicant::Supplicant,
         SocketMap,
     },
     UbloxWifiBuffers, UbloxWifiIngress, UbloxWifiUrcChannel,
@@ -170,7 +169,7 @@ where
     pub(crate) socket_map: SocketMap,
     pub(crate) udp_listener: UdpListener<2, N>,
     urc_subscription: UrcSubscription<'sub, EdmEvent, URC_CAPACITY, URC_SUBSCRIBERS>,
-    urc_channel: &'buf AtUrcCh,
+    _urc_channel: &'buf AtUrcCh,
 }
 
 impl<'buf, 'sub, W, RST, const INGRESS_BUF_SIZE: usize, const N: usize, const L: usize>
@@ -215,8 +214,8 @@ where
     AtUrcCh: AtatUrcChannel<EdmEvent, URC_CAPACITY, URC_SUBSCRIBERS>,
     RST: OutputPin,
 {
-    pub fn new(client: AtCl, urc_channel: &'buf AtUrcCh, config: Config<RST>) -> Self {
-        let urc_subscription = urc_channel.subscribe().unwrap();
+    pub fn new(client: AtCl, _urc_channel: &'buf AtUrcCh, config: Config<RST>) -> Self {
+        let urc_subscription = _urc_channel.subscribe().unwrap();
         UbloxClient {
             module_started: false,
             initialized: false,
@@ -231,7 +230,7 @@ where
             socket_map: SocketMap::default(),
             udp_listener: UdpListener::new(),
             urc_subscription,
-            urc_channel,
+            _urc_channel,
         }
     }
 }
@@ -337,7 +336,6 @@ where
         }
 
         self.initialized = true;
-        self.supplicant::<10>()?.init()?;
 
         Ok(())
     }
@@ -624,7 +622,6 @@ where
                                             mode: WifiMode::Station,
                                         },
                                         WiFiState::Connected,
-                                        255,
                                     ).activate()
                                 );
                             }
@@ -860,20 +857,8 @@ where
         }
     }
 
-    pub fn supplicant<const M: usize>(&mut self) -> Result<Supplicant<AtCl, M>, Error> {
-        // TODO: better solution
-        if !self.initialized {
-            return Err(Error::Uninitialized);
-        }
-
-        Ok(Supplicant {
-            client: &mut self.client,
-            wifi_connection: &mut self.wifi_connection,
-            active_on_startup: &mut self.wifi_config_active_on_startup,
-        })
-    }
     /// Is the module attached to a WiFi and ready to open sockets
-    pub fn connected_to_network(&self) -> Result<(), Error> {
+    pub(crate) fn connected_to_network(&self) -> Result<(), Error> {
         if let Some(ref con) = self.wifi_connection {
             if !self.initialized {
                 Err(Error::Uninitialized)

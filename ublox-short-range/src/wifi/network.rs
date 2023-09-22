@@ -6,14 +6,15 @@ use heapless::String;
 
 use core::convert::TryFrom;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, defmt::Format)]
 pub enum WifiMode {
     Station,
     AccessPoint,
 }
 
-#[derive(Debug)]
+#[derive(Debug, defmt::Format)]
 pub struct WifiNetwork {
+    #[defmt(Debug2Format)]
     pub bssid: Bytes<20>,
     pub op_mode: OperationMode,
     pub ssid: String<64>,

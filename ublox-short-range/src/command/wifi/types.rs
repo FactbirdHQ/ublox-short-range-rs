@@ -118,7 +118,7 @@ pub enum WifiStationConfigParameter {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
-pub enum WifiStationConfig {
+pub enum WifiStationConfig<'a> {
     /// <param_val1> decides if the station is active on start up.
     /// - Off (default): Inactive
     /// - On: active
@@ -127,7 +127,7 @@ pub enum WifiStationConfig {
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default
     /// value is an empty string ("").
     #[at_arg(value = 2)]
-    SSID(String<64>),
+    SSID(#[at_arg(len = 64)] &'a str),
     /// Authentication - <param_val> is the authentication type.
     /// - 1 (default): Open
     /// - 2: WPA/WPA2 PSK
@@ -146,11 +146,11 @@ pub enum WifiStationConfig {
     /// Authentication " is supported.
     #[at_arg(value = 6)]
     WEPKeys(
-        String<13>,
-        Option<String<13>>,
-        Option<String<13>>,
-        Option<String<13>>,
-        Option<String<13>>,
+        #[at_arg(len = 13)] &'a str,
+        #[at_arg(len = 13)] Option<&'a str>,
+        #[at_arg(len = 13)] Option<&'a str>,
+        #[at_arg(len = 13)] Option<&'a str>,
+        #[at_arg(len = 13)] Option<&'a str>,
     ),
     ///  Active Key - <param_val1> is the WEP active TX key (factory default 0
     /// means that Open authentication with WEP encryption is disabled). Range
@@ -160,38 +160,38 @@ pub enum WifiStationConfig {
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase
     /// (8-63 ASCII characters as a string) for WPA/WPA2 PSK.
     #[at_arg(value = 8)]
-    WpaPskOrPassphrase(String<64>),
+    WpaPskOrPassphrase(#[at_arg(len = 64)] &'a str),
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     #[at_arg(value = 9)]
-    EAPPassword(String<31>),
+    EAPPassword(#[at_arg(len = 31)] &'a str),
     /// User name - <param_val1> is the public user name for LEAP and PEAP;
     /// string with a maximum length of 31.
     #[at_arg(value = 10)]
-    UserName(String<31>),
+    UserName(#[at_arg(len = 31)] &'a str),
     /// Domain name - <param_val1> is the public domain name for LEAP and PEAP;
     /// string with a maximum length of 63. The domain name is an optional
     /// parameter.
     #[at_arg(value = 11)]
-    DomainName(String<63>),
+    DomainName(#[at_arg(len = 63)] &'a str),
     /// Client certificate name - <param_val1> is the internal client
     /// certificate name for EAP-TLS as defined in the SSL/TLS certificates and
     /// private keys manager +USECMNG command; string with a maximum length of
     /// 32. Supported software versions 4.0.0 onwards
     #[at_arg(value = 12)]
-    ClientCertificateName(String<32>),
+    ClientCertificateName(#[at_arg(len = 32)] &'a str),
     /// Client private key - <param_val1> is the internal client private key
     /// name for EAP- TLS as defined in the SSL/TLS certificates and private
     /// keys manager +USECMNG command; string with a maximum length of 32.
     /// Supported software versions 4.0.0 onwards
     #[at_arg(value = 13)]
-    ClientPrivateKey(String<32>),
+    ClientPrivateKey(#[at_arg(len = 32)] &'a str),
     /// CA certificate name - <param_val1> is the internal CA certificate name
     /// for EAP- TLS as defined in the SSL/TLS certificates and private keys
     /// manager +USECMNG command; string with a maximum length of 32. Supported
     /// software versions 5.0.0 onwards
     #[at_arg(value = 14)]
-    CACertificateName(String<32>),
+    CACertificateName(#[at_arg(len = 32)] &'a str),
     /// Validate CA certificate. The default value is On; Setting this value to
     /// Off means no CA Certificate validation has been done. For example
     /// at+uwsc=0,15,0 would mean that the server CA Certificate is not
@@ -426,7 +426,7 @@ pub enum WifiStationAction {
     Deactivate = 4,
 }
 
-#[derive(Debug, Clone, PartialEq, AtatEnum)]
+#[derive(Debug, Clone, PartialEq, AtatEnum, defmt::Format)]
 #[repr(u8)]
 pub enum OperationMode {
     Infrastructure = 1,
