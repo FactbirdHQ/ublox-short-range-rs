@@ -136,7 +136,9 @@ where
 
     /// Check if this socket is still connected
     fn is_connected(&mut self, socket: &Self::TcpSocket) -> Result<bool, Self::Error> {
-        self.connected_to_network().map_err(|_| Error::Illegal)?;
+        if self.connected_to_network().is_err() {
+            return Ok(false);
+        }
         if let Some(ref mut sockets) = self.sockets {
             let tcp = sockets.get::<TcpSocket<L>>(*socket)?;
             Ok(tcp.is_connected())
