@@ -35,6 +35,19 @@ pub struct SocketMap {
     peer_map: heapless::FnvIndexMap<PeerHandle, SocketHandle, 4>,
 }
 
+impl defmt::Format for SocketMap {
+    fn format(&self, fmt: defmt::Formatter) {
+        defmt::write!(fmt, "ChannelMap:\n");
+        for (channel, socket) in self.channel_map.iter() {
+            defmt::write!(fmt, "channelId: {}, Handle: {}\n", channel.0, socket.0)
+        }
+        defmt::write!(fmt, "PeerMap:\n");
+        for (peer, socket) in self.peer_map.iter() {
+            defmt::write!(fmt, "PeerId: {}, Handle: {}\n", peer.0, socket.0)
+        }
+    }
+}
+
 impl Default for SocketMap {
     fn default() -> Self {
         Self::new()
@@ -57,7 +70,10 @@ impl SocketMap {
         defmt::trace!("[SOCK_MAP] {:?} tied to {:?}", socket_handle, channel_id);
         match self.channel_map.insert(channel_id, socket_handle) {
             Ok(_) => Ok(()),
-            Err(_) => Err(SocketMapError::Full),
+            Err(_) => {
+                defmt::error!("Failed inserting channel SocketMap full");
+                Err(SocketMapError::Full)
+            }
         }
     }
 
@@ -83,6 +99,7 @@ impl SocketMap {
     ) -> Result<(), SocketMapError> {
         defmt::trace!("[SOCK_MAP] {:?} tied to {:?}", socket_handle, peer);
         if self.peer_map.insert(peer, socket_handle).is_err() {
+            defmt::error!("Insert peer failed SocketMap is FULL");
             return Err(SocketMapError::Full);
         };
         Ok(())
