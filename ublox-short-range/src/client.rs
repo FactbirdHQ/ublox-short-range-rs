@@ -727,8 +727,8 @@ where
                             }
                         } else {
                             for (h, s) in sockets.iter_mut() {
-                                match event.protocol {
-                                    Protocol::TCP => {
+                                match (&event.protocol, s.get_type()) {
+                                    (Protocol::TCP, SocketType::Tcp) => {
                                         let mut tcp = TcpSocket::downcast(s)?;
                                         if tcp.endpoint() == Some(endpoint) {
                                             self.socket_map
@@ -737,7 +737,7 @@ where
                                             tcp.set_state(TcpState::Connected(endpoint));
                                         }
                                     }
-                                    Protocol::UDP => {
+                                    (Protocol::UDP, SocketType::Udp) => {
                                         let mut udp = UdpSocket::downcast(s)?;
                                         if udp.endpoint() == Some(endpoint) {
                                             self.socket_map
@@ -772,8 +772,8 @@ where
                             }
                         } else {
                             for (h, s) in sockets.iter_mut() {
-                                match event.protocol {
-                                    Protocol::TCP => {
+                                match (&event.protocol, s.get_type()) {
+                                    (Protocol::TCP, SocketType::Tcp) => {
                                         let mut tcp = TcpSocket::downcast(s)?;
                                         if tcp.endpoint() == Some(endpoint) {
                                             self.socket_map
@@ -782,7 +782,7 @@ where
                                             tcp.set_state(TcpState::Connected(endpoint));
                                         }
                                     }
-                                    Protocol::UDP => {
+                                    (Protocol::UDP, SocketType::Udp) => {
                                         let mut udp = UdpSocket::downcast(s)?;
                                         if udp.endpoint() == Some(endpoint) {
                                             self.socket_map

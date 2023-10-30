@@ -61,6 +61,8 @@ where
         socket: &mut Self::UdpSocket,
         remote: SocketAddr,
     ) -> Result<(), Self::Error> {
+        let mut peer_handle = crate::command::PeerHandle(0);
+
         if self.sockets.is_none() {
             defmt::error!("[UDP] Connecting socket Error: Missing socket set");
             return Err(Error::Illegal);
@@ -86,10 +88,13 @@ where
             .send_internal(&EdmAtCmdWrapper(ConnectPeer { url: &url }), true)
             .map_err(|_| Error::Unaddressable)
         {
-            Ok(resp) => self
-                .socket_map
-                .insert_peer(resp.peer_handle, *socket)
-                .map_err(|_| Error::InvalidSocket)?,
+            Ok(resp) => {
+                peer_handle = resp.peer_handle;
+
+                self.socket_map
+                    .insert_peer(resp.peer_handle, *socket)
+                    .map_err(|_| Error::InvalidSocket)?
+            }
 
             Err(e) => {
                 let mut udp = self
@@ -109,7 +114,14 @@ where
             .state()
             == UdpState::Closed
         {
-            self.spin().map_err(|_| Error::Illegal)?;
+            match self.spin() {
+                Ok(_) => {}
+                Err(_) => {
+                    defmt::error!("ERROR connection UDP removing peer");
+                    self.socket_map.remove_peer(&peer_handle);
+                    return Err(Error::Illegal);
+                }
+            };
         }
         Ok(())
     }
