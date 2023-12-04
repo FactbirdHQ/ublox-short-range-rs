@@ -213,24 +213,14 @@ where
     }
 
     pub fn disconnect(&mut self) -> Result<(), WifiConnectionError> {
-        if let Some(con) = self.wifi_connection.take() {
-            match con.wifi_state {
-                WiFiState::Connected | WiFiState::NotConnected => {
-                    defmt::debug!("Disconnecting from {:?}", con.network.ssid);
-                    // con.wifi_state = WiFiState::Inactive;
-                    self.send_internal(
-                        &EdmAtCmdWrapper(ExecWifiStationAction {
-                            config_id: CONFIG_ID,
-                            action: WifiStationAction::Deactivate,
-                        }),
-                        true,
-                    )?;
-                }
-                WiFiState::Inactive => {}
-            }
-        } else {
-            return Err(WifiConnectionError::FailedToDisconnect);
-        }
+        defmt::debug!("Disconnecting");
+        self.send_internal(
+            &EdmAtCmdWrapper(ExecWifiStationAction {
+                config_id: CONFIG_ID,
+                action: WifiStationAction::Deactivate,
+            }),
+            true,
+        )?;
         Ok(())
     }
 }
