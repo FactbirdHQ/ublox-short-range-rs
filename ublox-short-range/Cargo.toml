@@ -21,7 +21,7 @@ heapless = { version = "^0.7", features = ["serde", "defmt-impl"] }
 no-std-net = { version = "^0.5", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
 # ublox-sockets = { version = "0.5", features = ["defmt"] }
-ublox-sockets = { git = "https://github.com/BlackbirdHQ/ublox-sockets", rev = "b1ff942", features = ["defmt"] }
+ublox-sockets = { git = "https://github.com/BlackbirdHQ/ublox-sockets", rev = "0bc0dc1", features = ["defmt"] }
 
 hash32 = "^0.2.1"
 hash32-derive = "^0.1.0"
