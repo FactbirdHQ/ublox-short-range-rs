@@ -138,6 +138,17 @@ where
         Ok(())
     }
 
+    pub fn activate(&mut self) -> Result<(), WifiConnectionError> {
+        self.send_internal(
+            &EdmAtCmdWrapper(ExecWifiStationAction {
+                config_id: CONFIG_ID,
+                action: WifiStationAction::Activate,
+            }),
+            true,
+        )?;
+        return Ok(());
+    }
+
     pub fn scan(&mut self) -> Result<Vec<WifiNetwork, 32>, WifiError> {
         match self.send_internal(&EdmAtCmdWrapper(WifiScan { ssid: None }), true) {
             Ok(resp) => resp
@@ -158,6 +169,47 @@ where
             .as_ref()
             .map(|c| c.is_connected())
             .unwrap_or_default()
+    }
+
+    pub fn is_active_on_startup(&mut self) -> Result<bool, WifiConnectionError> {
+        if let Ok(resp) = self.send_internal(
+            &EdmAtCmdWrapper(GetWifiStationConfig {
+                config_id: CONFIG_ID,
+                parameter: Some(WifiStationConfigParameter::ActiveOnStartup),
+            }),
+            false,
+        ) {
+            if let WifiStationConfigR::ActiveOnStartup(active) = resp.parameter {
+                return Ok(active == OnOff::On);
+            }
+        }
+        Err(WifiConnectionError::Illegal)
+    }
+
+    pub fn get_ssid(&mut self) -> Result<heapless::String<64>, WifiConnectionError> {
+        if let Ok(resp) = self.send_internal(
+            &EdmAtCmdWrapper(GetWifiStationConfig {
+                config_id: CONFIG_ID,
+                parameter: Some(WifiStationConfigParameter::SSID),
+            }),
+            false,
+        ) {
+            if let WifiStationConfigR::SSID(ssid) = resp.parameter {
+                return Ok(ssid);
+            }
+        };
+        return Err(WifiConnectionError::Illegal);
+    }
+
+    pub fn reset_config_profile(&mut self) -> Result<(), WifiConnectionError> {
+        self.send_internal(
+            &EdmAtCmdWrapper(ExecWifiStationAction {
+                config_id: CONFIG_ID,
+                action: WifiStationAction::Reset,
+            }),
+            false,
+        )?;
+        Ok(())
     }
 
     pub fn disconnect(&mut self) -> Result<(), WifiConnectionError> {
