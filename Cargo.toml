@@ -4,4 +4,4 @@ members = [ "ublox-short-range" ]
 
 
 [patch.crates-io]
-atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "c5caaf7" }
+atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "31a45fc" }
