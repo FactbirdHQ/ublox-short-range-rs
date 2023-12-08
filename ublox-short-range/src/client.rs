@@ -32,7 +32,7 @@ use crate::{
     },
     UbloxWifiBuffers, UbloxWifiIngress, UbloxWifiUrcChannel,
 };
-use atat::{blocking::AtatClient, AtatUrcChannel, UrcSubscription};
+use atat::{blocking::AtatClient, heapless_bytes::Bytes, AtatUrcChannel, UrcSubscription};
 use defmt::{debug, error, trace};
 use embassy_time::{Duration, Instant};
 use embedded_hal::digital::OutputPin;
@@ -335,6 +335,8 @@ where
             }
         }
 
+        self.load_wifi_config();
+
         self.initialized = true;
 
         Ok(())
@@ -357,6 +359,31 @@ where
             Ok(rssi)
         } else {
             Err(Error::_Unknown)
+        }
+    }
+
+    fn load_wifi_config(&mut self) {
+        //Check if we have active network config if so then update wifi_connection
+        if let Ok(active) = self.is_active_on_startup() {
+            if active {
+                if let Ok(ssid) = self.get_ssid() {
+                    defmt::info!("Found network in module configuring as active network");
+                    self.wifi_connection.replace(WifiConnection::new(
+                        WifiNetwork {
+                            bssid: Bytes::new(),
+                            op_mode: crate::command::wifi::types::OperationMode::Infrastructure,
+                            ssid: ssid,
+                            channel: 0,
+                            rssi: 1,
+                            authentication_suites: 0,
+                            unicast_ciphers: 0,
+                            group_ciphers: 0,
+                            mode: WifiMode::Station,
+                        },
+                        WiFiState::NotConnected,
+                    ));
+                }
+            }
         }
     }
 
