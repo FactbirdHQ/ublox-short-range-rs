@@ -6,7 +6,7 @@ pub mod ublox_stack;
 pub(crate) mod state;
 
 use crate::command::edm::{urc::EdmEvent, EdmAtCmdWrapper};
-use atat::{asynch::AtatClient, AtatUrcChannel};
+use atat::asynch::AtatClient;
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, mutex::Mutex};
 use embedded_hal::digital::OutputPin;
 use runner::Runner;
@@ -20,18 +20,15 @@ const MAX_CONNS: usize = 8;
 pub struct AtHandle<'d, AT: AtatClient>(&'d Mutex<NoopRawMutex, AT>);
 
 impl<'d, AT: AtatClient> AtHandle<'d, AT> {
-    async fn send_edm<Cmd: atat::AtatCmd<LEN>, const LEN: usize>(
+    async fn send_edm<Cmd: atat::AtatCmd>(
         &mut self,
         cmd: Cmd,
     ) -> Result<Cmd::Response, atat::Error> {
         self.send(EdmAtCmdWrapper(cmd)).await
     }
 
-    async fn send<Cmd: atat::AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        cmd: Cmd,
-    ) -> Result<Cmd::Response, atat::Error> {
-        self.0.lock().await.send_retry::<Cmd, LEN>(&cmd).await
+    async fn send<Cmd: atat::AtatCmd>(&mut self, cmd: Cmd) -> Result<Cmd::Response, atat::Error> {
+        self.0.lock().await.send_retry::<Cmd>(&cmd).await
     }
 }
 
@@ -53,12 +50,11 @@ pub async fn new<
     'a,
     AT: AtatClient,
     // AT: AtatClient + atat::UartExt,
-    SUB: AtatUrcChannel<EdmEvent, URC_CAPACITY, 2>,
     RST: OutputPin,
     const URC_CAPACITY: usize,
 >(
     state: &'a mut State<AT>,
-    subscriber: &'a SUB,
+    subscriber: &'a atat::UrcChannel<EdmEvent, URC_CAPACITY, 2>,
     reset: RST,
 ) -> (
     Device<'a, AT, URC_CAPACITY>,

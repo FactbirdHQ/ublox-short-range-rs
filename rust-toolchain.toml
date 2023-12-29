@@ -1,6 +1,6 @@
 [toolchain]
-channel = "nightly-2023-02-07"
-components = [ "rust-src", "rustfmt", "llvm-tools-preview", "clippy" ]
+channel = "nightly-2023-12-24"
+components = [ "rust-src", "rustfmt", "llvm-tools" ]
 targets = [
     "thumbv6m-none-eabi",
     "thumbv7em-none-eabihf"

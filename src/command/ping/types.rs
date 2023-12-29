@@ -25,7 +25,8 @@ use atat::atat_derive::AtatEnum;
 /// - Default value: 1000
 // pub type Inteval = u16;
 
-#[derive(Debug, PartialEq, Clone, Copy, AtatEnum, defmt::Format)]
+#[derive(Debug, PartialEq, Clone, Copy, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum PingError {
     /// 1 - 6: Internal error (ping level)

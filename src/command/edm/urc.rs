@@ -26,7 +26,7 @@ impl AtatUrc for EdmEvent {
 
     /// Parse the response into a `Self::Response` instance.
     fn parse(resp: &[u8]) -> Option<Self::Response> {
-        defmt::trace!("[Parse URC] {:?}", LossyStr(resp));
+        trace!("[Parse URC] {:?}", LossyStr(resp));
         // Startup message?
         // TODO: simplify mayby no packet check.
         if resp.len() >= STARTUPMESSAGE.len()
@@ -59,12 +59,12 @@ impl AtatUrc for EdmEvent {
             || !resp.starts_with(&[STARTBYTE])
             || !resp.ends_with(&[ENDBYTE])
         {
-            defmt::error!("[Parse URC Start/End byte Error] {:?}", LossyStr(&resp));
+            error!("[Parse URC Start/End byte Error] {:?}", LossyStr(&resp));
             return None;
         };
         let payload_len = calc_payload_len(resp);
         if resp.len() != payload_len + EDM_OVERHEAD {
-            defmt::error!("[Parse URC lenght Error] {:?}", LossyStr(resp));
+            error!("[Parse URC lenght Error] {:?}", LossyStr(resp));
             return None;
         }
 
@@ -157,7 +157,7 @@ impl AtatUrc for EdmEvent {
             PayloadType::StartEvent => EdmEvent::StartUp.into(),
 
             _ => {
-                defmt::error!("[Parse URC Error] {:?}", LossyStr(resp));
+                error!("[Parse URC Error] {:?}", LossyStr(resp));
                 None
             }
         }

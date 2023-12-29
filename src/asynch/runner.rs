@@ -76,7 +76,7 @@ impl<
 
     pub(crate) async fn init(&mut self) -> Result<(), Error> {
         // Initilize a new ublox device to a known state (set RS232 settings)
-        defmt::debug!("Initializing module");
+        debug!("Initializing module");
         // Hard reset module
         self.reset().await?;
 
@@ -143,7 +143,7 @@ impl<
     }
 
     pub async fn reset(&mut self) -> Result<(), Error> {
-        defmt::warn!("Hard resetting Ublox Short Range");
+        warn!("Hard resetting Ublox Short Range");
         self.reset.set_low().ok();
         Timer::after(Duration::from_millis(100)).await;
         self.reset.set_high().ok();
@@ -156,7 +156,7 @@ impl<
     }
 
     pub async fn restart(&mut self, store: bool) -> Result<(), Error> {
-        defmt::warn!("Soft resetting Ublox Short Range");
+        warn!("Soft resetting Ublox Short Range");
         if store {
             self.at.send_edm(StoreCurrentConfig).await?;
         }
@@ -218,7 +218,7 @@ impl<
             let event = self.urc_subscription.next_message_pure().await;
             match event {
                 EdmEvent::ATEvent(Urc::StartUp) => {
-                    defmt::error!("AT startup event?! Device restarted unintentionally!");
+                    error!("AT startup event?! Device restarted unintentionally!");
                 }
                 EdmEvent::ATEvent(Urc::WifiLinkConnected(WifiLinkConnected {
                     connection_id: _,
@@ -230,7 +230,7 @@ impl<
                         con.network.bssid = bssid;
                         con.network.channel = channel;
                     } else {
-                        defmt::debug!("[URC] Active network config discovered");
+                        debug!("[URC] Active network config discovered");
                         self.wifi_connection.replace(
                             WifiConnection::new(
                                 WifiNetwork::new_station(bssid, channel),
@@ -252,7 +252,7 @@ impl<
                                 con.wifi_state = WiFiState::Inactive;
                             }
                             DisconnectReason::SecurityProblems => {
-                                defmt::error!("Wifi Security Problems");
+                                error!("Wifi Security Problems");
                             }
                             _ => {
                                 con.wifi_state = WiFiState::NotConnected;
@@ -276,7 +276,7 @@ impl<
                 }
                 EdmEvent::ATEvent(Urc::NetworkError(_)) => todo!(),
                 EdmEvent::StartUp => {
-                    defmt::error!("EDM startup event?! Device restarted unintentionally!");
+                    error!("EDM startup event?! Device restarted unintentionally!");
                 }
                 _ => {}
             };
@@ -288,25 +288,29 @@ impl<
             status: NetworkStatus::InterfaceType(InterfaceType::WifiStation),
             ..
         } = self
-            .at.send_edm(GetNetworkStatus {
+            .at
+            .send_edm(GetNetworkStatus {
                 interface_id,
                 status: NetworkStatusParameter::InterfaceType,
             })
-            .await? else {
-                return Err(Error::Network);
-            };
+            .await?
+        else {
+            return Err(Error::Network);
+        };
 
         let NetworkStatusResponse {
             status: NetworkStatus::Gateway(ipv4),
             ..
         } = self
-            .at.send_edm(GetNetworkStatus {
+            .at
+            .send_edm(GetNetworkStatus {
                 interface_id,
                 status: NetworkStatusParameter::Gateway,
             })
-            .await? else {
-                return Err(Error::Network);
-            };
+            .await?
+        else {
+            return Err(Error::Network);
+        };
 
         let ipv4_up = core::str::from_utf8(ipv4.as_slice())
             .ok()
@@ -318,13 +322,15 @@ impl<
             status: NetworkStatus::IPv6LinkLocalAddress(ipv6),
             ..
         } = self
-            .at.send_edm(GetNetworkStatus {
+            .at
+            .send_edm(GetNetworkStatus {
                 interface_id,
                 status: NetworkStatusParameter::IPv6LinkLocalAddress,
             })
-            .await? else {
-                return Err(Error::Network);
-            };
+            .await?
+        else {
+            return Err(Error::Network);
+        };
 
         let ipv6_up = core::str::from_utf8(ipv6.as_slice())
             .ok()

@@ -1,6 +1,7 @@
 use crate::network::{WifiMode, WifiNetwork};
 
-#[derive(Debug, Clone, Copy, PartialEq, defmt::Format)]
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum WiFiState {
     Inactive,
     /// Searching for Wifi

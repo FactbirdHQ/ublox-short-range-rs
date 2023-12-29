@@ -55,15 +55,15 @@ impl<'a> DnsSocket<'a> {
             _ => {}
         }
 
+        let name_string = heapless::String::try_from(name).map_err(|_| Error::NameTooLong)?;
+
         {
             let mut s = self.stack.borrow_mut();
             if s.dns_queries
-                .insert(heapless::String::from(name), DnsQuery::new())
+                .insert(name_string.clone(), DnsQuery::new())
                 .is_err()
             {
-                defmt::error!(
-                    "Attempted to start more simultaneous DNS requests than the (4) supported"
-                );
+                error!("Attempted to start more simultaneous DNS requests than the (4) supported");
             }
             s.waker.wake();
         }
@@ -93,22 +93,19 @@ impl<'a> DnsSocket<'a> {
 
         let drop = OnDrop::new(|| {
             let mut s = self.stack.borrow_mut();
-            s.dns_queries.remove(&heapless::String::from(name));
+            s.dns_queries.remove(&name_string);
         });
 
         let res = poll_fn(|cx| {
             let mut s = self.stack.borrow_mut();
-            let query = s
-                .dns_queries
-                .get_mut(&heapless::String::from(name))
-                .unwrap();
+            let query = s.dns_queries.get_mut(&name_string).unwrap();
             match query.state {
                 DnsState::Ok(ip) => {
-                    s.dns_queries.remove(&heapless::String::from(name));
+                    s.dns_queries.remove(&name_string);
                     return Poll::Ready(Ok(ip));
                 }
                 DnsState::Err => {
-                    s.dns_queries.remove(&heapless::String::from(name));
+                    s.dns_queries.remove(&name_string);
                     return Poll::Ready(Err(Error::Failed));
                 }
                 _ => {
@@ -138,8 +135,9 @@ impl<'a> embedded_nal_async::Dns for DnsSocket<'a> {
 
     async fn get_host_by_address(
         &self,
-        _addr: embedded_nal_async::IpAddr,
-    ) -> Result<heapless::String<256>, Self::Error> {
+        addr: IpAddr,
+        result: &mut [u8],
+    ) -> Result<usize, Self::Error> {
         unimplemented!()
     }
 }

@@ -18,12 +18,12 @@ impl Digester for EdmDigester {
             return (DigestResult::None, 0);
         }
 
-        defmt::trace!("Digest {:?}", LossyStr(&buf));
+        trace!("Digest {:?}", LossyStr(&buf));
         if buf.len() >= STARTUPMESSAGE.len() && buf[..2] == *b"\r\n" {
             if let Some(i) = buf[2..].windows(2).position(|x| x == *b"\r\n") {
                 // Two for starting position, one for index -> len and one for the window size.
                 let len = i + 4;
-                defmt::trace!("Digest common at {:?}; i: {:?}", LossyStr(&buf[..len]), i);
+                trace!("Digest common at {:?}; i: {:?}", LossyStr(&buf[..len]), i);
                 if buf[..len] == *STARTUPMESSAGE {
                     return (
                         DigestResult::Urc(&buf[..STARTUPMESSAGE.len()]),
@@ -67,7 +67,7 @@ impl Digester for EdmDigester {
 
         // Debug statement for trace properly
         if !buf.is_empty() {
-            defmt::trace!("Digest {:?}", LossyStr(&buf));
+            trace!("Digest {:?}", LossyStr(&buf));
         }
 
         // Filter message by payload

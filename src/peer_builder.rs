@@ -133,7 +133,10 @@ mod test {
     #[test]
     fn udp_ipv4_url() {
         let address = "192.168.0.1:8080".parse().unwrap();
-        let url = PeerUrlBuilder::new().address(&address).udp().unwrap();
+        let url = PeerUrlBuilder::new()
+            .address(&address)
+            .udp::<128>()
+            .unwrap();
         assert_eq!(url, "udp://192.168.0.1:8080/");
     }
 
@@ -142,7 +145,10 @@ mod test {
         let address = "[FE80:0000:0000:0000:0202:B3FF:FE1E:8329]:8080"
             .parse()
             .unwrap();
-        let url = PeerUrlBuilder::new().address(&address).udp().unwrap();
+        let url = PeerUrlBuilder::new()
+            .address(&address)
+            .udp::<128>()
+            .unwrap();
         assert_eq!(url, "udp://[fe80::202:b3ff:fe1e:8329]:8080/");
     }
 
@@ -152,7 +158,7 @@ mod test {
             .hostname("example.org")
             .port(2000)
             .local_port(2001)
-            .udp()
+            .udp::<128>()
             .unwrap();
         assert_eq!(url, "udp://example.org:2000/?local_port=2001");
     }

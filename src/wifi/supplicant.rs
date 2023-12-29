@@ -22,7 +22,7 @@ use super::{
     options::ConnectionOptions,
 };
 
-use defmt::debug;
+use debug;
 
 /// Supplicant is used to
 ///
@@ -60,12 +60,9 @@ impl<'a, C, const N: usize> Supplicant<'a, C, N>
 where
     C: atat::blocking::AtatClient,
 {
-    fn send_at<A: atat::AtatCmd<LEN>, const LEN: usize>(
-        &mut self,
-        req: &A,
-    ) -> Result<A::Response, Error> {
+    fn send_at<A: atat::AtatCmd>(&mut self, req: &A) -> Result<A::Response, Error> {
         self.client.send(req).map_err(|e| {
-            defmt::error!("{:?}: {=[u8]:a}", e, req.as_bytes());
+            error!("{:?}: {=[u8]:a}", e, req.as_bytes());
             e.into()
         })
     }
@@ -130,7 +127,7 @@ where
                     // but should this be the case, the module is already having unexpected behaviour
                 } else {
                     // This causes unexpected behaviour
-                    defmt::error!("Two configs are active on startup!");
+                    error!("Two configs are active on startup!");
                     return Err(Error::Supplicant);
                 }
             } else if load.is_err() {
@@ -145,7 +142,7 @@ where
 
                 if let WifiStationConfigR::SSID(ssid) = parameter {
                     if !ssid.is_empty() {
-                        defmt::error!("Shadow store bug!");
+                        error!("Shadow store bug!");
                         // This should fix the issue
                         self.remove_connection(config_id)
                             .map_err(|_| Error::Supplicant)?;
@@ -279,7 +276,7 @@ where
         debug!("[SUP] Remove connection: {:?}", config_id);
         // check for active
         if self.is_config_in_use(config_id) {
-            defmt::error!("Config id is active!");
+            error!("Config id is active!");
             return Err(WifiConnectionError::Illegal);
         }
 
@@ -315,7 +312,7 @@ where
 
         // check for active
         if self.is_config_in_use(config_id) {
-            defmt::error!("Config id is active!");
+            error!("Config id is active!");
             return Err(WifiConnectionError::Illegal);
         }
 
@@ -522,12 +519,12 @@ where
             }
             // check for active connection
             if self.is_config_in_use(active_on_startup) {
-                defmt::error!("Active on startup is active!");
+                error!("Active on startup is active!");
                 return Err(WifiConnectionError::Illegal);
             }
         }
         if self.is_config_in_use(config_id) {
-            defmt::error!("Config id is active!");
+            error!("Config id is active!");
             return Err(WifiConnectionError::Illegal);
         }
 
@@ -570,7 +567,7 @@ where
         if let Some(active_on_startup) = self.active_on_startup.clone() {
             // check for active connection
             if self.is_config_in_use(active_on_startup) {
-                defmt::error!("Active on startup is active!");
+                error!("Active on startup is active!");
                 return Err(WifiConnectionError::Illegal);
             }
             // if any active remove this asset.
@@ -597,7 +594,7 @@ where
             }
         } else if let Some(ref con) = self.wifi_connection {
             if con.activated && con.config_id == config_id {
-                defmt::error!("One of the IDs being changed is activated!");
+                error!("One of the IDs being changed is activated!");
                 return true;
             }
         }

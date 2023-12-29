@@ -23,31 +23,30 @@ pub(crate) fn calc_payload_len(resp: &[u8]) -> usize {
 // using the <change_after_confirm> parameter. Instead the <change_after_confirm> parameter must
 // be set to 0 and the serial settings will take effect when the module is reset.
 #[derive(Debug, Clone)]
-pub(crate) struct EdmAtCmdWrapper<T: AtatCmd<LEN>, const LEN: usize>(pub T);
+pub(crate) struct EdmAtCmdWrapper<T: AtatCmd>(pub T);
 
-impl<T, const LEN: usize> atat::AtatCmd<1024> for EdmAtCmdWrapper<T, LEN>
-where
-    T: AtatCmd<LEN>,
-{
+impl<T: AtatCmd> atat::AtatCmd for EdmAtCmdWrapper<T> {
     type Response = T::Response;
+
+    const MAX_LEN: usize = T::MAX_LEN + 6;
 
     const MAX_TIMEOUT_MS: u32 = T::MAX_TIMEOUT_MS;
 
-    fn as_bytes(&self) -> Vec<u8, 1024> {
-        let at_vec = self.0.as_bytes();
-        let payload_len = (at_vec.len() + 2) as u16;
-        [
+    fn write(&self, buf: &mut [u8]) -> usize {
+        let at_len = self.0.write(&mut buf[5..]);
+        let payload_len = (at_len + 2) as u16;
+
+        buf[0..5].copy_from_slice(&[
             STARTBYTE,
             (payload_len >> 8) as u8 & EDM_SIZE_FILTER,
             (payload_len & 0xffu16) as u8,
             0x00,
             PayloadType::ATRequest as u8,
-        ]
-        .iter()
-        .cloned()
-        .chain(at_vec)
-        .chain(core::iter::once(ENDBYTE))
-        .collect()
+        ]);
+
+        buf[5 + at_len] = ENDBYTE;
+
+        5 + at_len + 1
     }
 
     fn parse(
@@ -86,73 +85,6 @@ where
         self.0.parse(resp)
     }
 }
-
-/////////////////////// Temp Solution for fixed size ///////////////////////
-#[derive(Debug, Clone)]
-pub(crate) struct BigEdmAtCmdWrapper<T: AtatCmd<LEN>, const LEN: usize>(pub T);
-
-impl<T, const LEN: usize> atat::AtatCmd<2054> for BigEdmAtCmdWrapper<T, LEN>
-where
-    T: AtatCmd<LEN>,
-{
-    type Response = T::Response;
-
-    const MAX_TIMEOUT_MS: u32 = T::MAX_TIMEOUT_MS;
-
-    fn as_bytes(&self) -> Vec<u8, 2054> {
-        let at_vec = self.0.as_bytes();
-        let payload_len = (at_vec.len() + 2) as u16;
-        [
-            STARTBYTE,
-            (payload_len >> 8) as u8 & EDM_SIZE_FILTER,
-            (payload_len & 0xffu16) as u8,
-            0x00,
-            PayloadType::ATRequest as u8,
-        ]
-        .iter()
-        .cloned()
-        .chain(at_vec)
-        .chain(core::iter::once(ENDBYTE))
-        .collect()
-    }
-
-    fn parse(
-        &self,
-        resp: Result<&[u8], atat::InternalError>,
-    ) -> core::result::Result<Self::Response, atat::Error> {
-        let resp = resp.and_then(|resp| {
-            if resp.len() < PAYLOAD_OVERHEAD
-                || !resp.starts_with(&[STARTBYTE])
-                || !resp.ends_with(&[ENDBYTE])
-            {
-                return Err(atat::InternalError::InvalidResponse);
-            };
-
-            let payload_len = calc_payload_len(resp);
-
-            if resp.len() != payload_len + EDM_OVERHEAD
-                || resp[4] != PayloadType::ATConfirmation as u8
-            {
-                return Err(atat::InternalError::InvalidResponse);
-            }
-
-            // Recieved OK response code in EDM response?
-            match resp
-                .windows(b"\r\nOK".len())
-                .position(|window| window == b"\r\nOK")
-            {
-                // Cutting OK out leaves an empth string for NoResponse, for
-                // other responses just removes "\r\nOK\r\n"
-                Some(pos) => Ok(&resp[AT_COMMAND_POSITION..pos]),
-                // Isolate the AT_response
-                None => Ok(&resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len]),
-            }
-        });
-
-        self.0.parse(resp)
-    }
-}
-//////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Clone)]
 pub struct EdmDataCommand<'a> {
@@ -160,27 +92,12 @@ pub struct EdmDataCommand<'a> {
     pub data: &'a [u8],
 }
 // wifi::socket::EGRESS_CHUNK_SIZE + PAYLOAD_OVERHEAD = 512 + 6 + 1 = 519
-impl<'a> atat::AtatCmd<{ DATA_PACKAGE_SIZE + 7 }> for EdmDataCommand<'a> {
+impl<'a> atat::AtatCmd for EdmDataCommand<'a> {
     type Response = NoResponse;
 
-    const EXPECTS_RESPONSE_CODE: bool = false;
+    const MAX_LEN: usize = DATA_PACKAGE_SIZE + 7;
 
-    fn as_bytes(&self) -> Vec<u8, { DATA_PACKAGE_SIZE + 7 }> {
-        let payload_len = (self.data.len() + 3) as u16;
-        [
-            STARTBYTE,
-            (payload_len >> 8) as u8 & EDM_SIZE_FILTER,
-            (payload_len & 0xffu16) as u8,
-            0x00,
-            PayloadType::DataCommand as u8,
-            self.channel.0,
-        ]
-        .iter()
-        .cloned()
-        .chain(self.data.iter().cloned())
-        .chain(core::iter::once(ENDBYTE))
-        .collect()
-    }
+    const EXPECTS_RESPONSE_CODE: bool = false;
 
     fn parse(
         &self,
@@ -188,26 +105,44 @@ impl<'a> atat::AtatCmd<{ DATA_PACKAGE_SIZE + 7 }> for EdmDataCommand<'a> {
     ) -> core::result::Result<Self::Response, atat::Error> {
         Ok(NoResponse)
     }
+
+    fn write(&self, buf: &mut [u8]) -> usize {
+        let payload_len = (self.data.len() + 3) as u16;
+        buf[0..6].copy_from_slice(&[
+            STARTBYTE,
+            (payload_len >> 8) as u8 & EDM_SIZE_FILTER,
+            (payload_len & 0xffu16) as u8,
+            0x00,
+            PayloadType::DataCommand as u8,
+            self.channel.0,
+        ]);
+
+        buf[6..6 + self.data.len()].copy_from_slice(self.data);
+        buf[6 + self.data.len()] = ENDBYTE;
+
+        6 + self.data.len() + 1
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct EdmResendConnectEventsCommand;
 
-impl atat::AtatCmd<6> for EdmResendConnectEventsCommand {
+impl atat::AtatCmd for EdmResendConnectEventsCommand {
     type Response = NoResponse;
 
-    fn as_bytes(&self) -> Vec<u8, 6> {
-        [
+    const MAX_LEN: usize = 6;
+
+    fn write(&self, buf: &mut [u8]) -> usize {
+        buf[0..6].copy_from_slice(&[
             STARTBYTE,
             0x00,
             0x02,
             0x00,
             PayloadType::ResendConnectEventsCommand as u8,
             ENDBYTE,
-        ]
-        .iter()
-        .cloned()
-        .collect()
+        ]);
+
+        6
     }
 
     fn parse(
@@ -221,18 +156,18 @@ impl atat::AtatCmd<6> for EdmResendConnectEventsCommand {
 #[derive(Debug, Clone)]
 pub struct SwitchToEdmCommand;
 
-impl atat::AtatCmd<6> for SwitchToEdmCommand {
+impl atat::AtatCmd for SwitchToEdmCommand {
     type Response = NoResponse;
+
+    const MAX_LEN: usize = 6;
 
     const MAX_TIMEOUT_MS: u32 = 2000;
 
-    fn as_bytes(&self) -> Vec<u8, 6> {
+    fn write(&self, buf: &mut [u8]) -> usize {
         ChangeMode {
             mode: data_mode::types::Mode::ExtendedDataMode,
         }
-        .as_bytes()
-        .into_iter()
-        .collect()
+        .write(buf)
     }
 
     fn parse(
@@ -279,7 +214,11 @@ mod test {
             PayloadType::ATConfirmation as u8,
             0x55,
         ];
-        assert_eq!(parse.as_bytes(), correct_cmd);
+
+        let mut buf = [0u8; <EdmAtCmdWrapper<AT> as AtatCmd>::MAX_LEN];
+        let len = parse.write(&mut buf);
+
+        assert_eq!(buf[..len], correct_cmd);
         assert_eq!(parse.parse(Ok(response)), Ok(correct_response));
 
         let parse = EdmAtCmdWrapper(SystemStatus {
@@ -319,7 +258,10 @@ mod test {
             0x0A,
             0x55,
         ];
-        assert_eq!(parse.as_bytes(), correct);
+        let mut buf = [0u8; <EdmAtCmdWrapper<SystemStatus> as AtatCmd>::MAX_LEN];
+        let len = parse.write(&mut buf);
+
+        assert_eq!(buf[..len], correct);
         assert_eq!(parse.parse(Ok(response)), Ok(correct_response));
     }
 
@@ -451,7 +393,11 @@ mod test {
     fn change_to_edm_cmd() {
         let resp = &[0xAA, 0x00, 0x02, 0x00, 0x71, 0x55];
         let correct = Vec::<_, 6>::from_slice(b"ATO2\r\n").unwrap();
-        assert_eq!(SwitchToEdmCommand.as_bytes(), correct);
+
+        let mut buf = [0u8; SwitchToEdmCommand::MAX_LEN];
+        let len = SwitchToEdmCommand.write(&mut buf);
+
+        assert_eq!(buf[..len], correct);
         assert_eq!(SwitchToEdmCommand.parse(Ok(resp)).unwrap(), NoResponse);
     }
 }

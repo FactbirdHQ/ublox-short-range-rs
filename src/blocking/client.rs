@@ -222,13 +222,9 @@ where
         Ok(response.version)
     }
 
-    pub fn retry_send<A, const LEN: usize>(
-        &mut self,
-        cmd: &A,
-        attempts: usize,
-    ) -> Result<A::Response, Error>
+    pub fn retry_send<A>(&mut self, cmd: &A, attempts: usize) -> Result<A::Response, Error>
     where
-        A: atat::AtatCmd<LEN>,
+        A: atat::AtatCmd,
     {
         for _ in 0..attempts {
             match self.send_internal(cmd, true) {
@@ -256,7 +252,7 @@ where
         self.clear_buffers()?;
 
         if let Some(ref mut pin) = self.config.rst_pin {
-            defmt::warn!("Hard resetting Ublox Short Range");
+            warn!("Hard resetting Ublox Short Range");
             pin.set_low().ok();
             Timer::after(Duration::from_millis(50)).wait();
             pin.set_high().ok();
@@ -286,7 +282,7 @@ where
         self.socket_map = SocketMap::default();
         self.udp_listener = UdpListener::new();
 
-        defmt::warn!("Soft resetting Ublox Short Range");
+        warn!("Soft resetting Ublox Short Range");
         self.send_internal(&EdmAtCmdWrapper(RebootDCE), false)?;
         self.clear_buffers()?;
 
@@ -333,13 +329,13 @@ where
         Ok(())
     }
 
-    pub(crate) fn send_internal<A, const LEN: usize>(
+    pub(crate) fn send_internal<A>(
         &mut self,
         req: &A,
         check_urc: bool,
     ) -> Result<A::Response, Error>
     where
-        A: atat::AtatCmd<LEN>,
+        A: atat::AtatCmd,
     {
         if check_urc {
             if let Err(e) = self.handle_urc() {
@@ -795,9 +791,9 @@ where
 
     /// Send AT command
     /// Automaticaly waraps commands in EDM context
-    pub fn send_at<A, const LEN: usize>(&mut self, cmd: A) -> Result<A::Response, Error>
+    pub fn send_at<A>(&mut self, cmd: A) -> Result<A::Response, Error>
     where
-        A: atat::AtatCmd<LEN>,
+        A: atat::AtatCmd,
     {
         if !self.initialized {
             self.init()?;

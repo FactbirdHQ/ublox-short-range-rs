@@ -28,13 +28,13 @@ use super::state::{self, LinkState};
 use super::AtHandle;
 
 use atat::asynch::AtatClient;
-use atomic_polyfill::{AtomicBool, AtomicU8, Ordering};
 use embassy_futures::select::{select4, Either4};
 use embassy_sync::waitqueue::WakerRegistration;
 use embassy_time::{Duration, Ticker};
 use embedded_nal_async::SocketAddr;
 use futures::pin_mut;
 use no_std_net::IpAddr;
+use portable_atomic::{AtomicBool, AtomicU8, Ordering};
 use ublox_sockets::{
     AnySocket, ChannelId, PeerHandle, Socket, SocketHandle, SocketSet, SocketStorage,
 };
@@ -170,7 +170,7 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
 
                     // Print when changed
                     if old_link_up != new_link_up {
-                        defmt::info!("link_up = {:?}", new_link_up);
+                        info!("link_up = {:?}", new_link_up);
                     }
                 }
             }
@@ -225,7 +225,7 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                         {
                             let n = udp.rx_enqueue_slice(&data);
                             if n < data.len() {
-                                defmt::error!(
+                                error!(
                                     "[{}] UDP RX data overflow! Discarding {} bytes",
                                     udp.peer_handle,
                                     data.len() - n
@@ -239,7 +239,7 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                         {
                             let n = tcp.rx_enqueue_slice(&data);
                             if n < data.len() {
-                                defmt::error!(
+                                error!(
                                     "[{}] TCP RX data overflow! Discarding {} bytes",
                                     tcp.peer_handle,
                                     data.len() - n
@@ -319,7 +319,7 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
 
         // Handle delayed close-by-drop here
         if let Some(dropped_peer_handle) = s.dropped_sockets.pop() {
-            defmt::warn!("Handling dropped socket {}", dropped_peer_handle);
+            warn!("Handling dropped socket {}", dropped_peer_handle);
             return Some(TxEvent::Close {
                 peer_handle: dropped_peer_handle,
             });
@@ -361,7 +361,7 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                         // or the transmit half of the connection is still open.
                         TcpState::Established | TcpState::CloseWait | TcpState::LastAck => {
                             if let Some(edm_channel) = tcp.edm_channel {
-                                defmt::warn!("{}", tcp);
+                                warn!("{}", tcp);
                                 return tcp.tx_dequeue(|payload| {
                                     let len = core::cmp::min(payload.len(), DATA_PACKAGE_SIZE);
                                     let res = if len != 0 {
@@ -407,12 +407,12 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                         tcp.set_state(TcpState::SynSent);
                     }
                     Err(e) => {
-                        defmt::error!("Failed to connect?! {}", e)
+                        error!("Failed to connect?! {}", e)
                     }
                 }
             }
             TxEvent::Send { edm_channel, data } => {
-                defmt::warn!("Sending {} bytes on {}", data.len(), edm_channel);
+                warn!("Sending {} bytes on {}", data.len(), edm_channel);
                 at.send(EdmDataCommand {
                     channel: edm_channel,
                     data: &data,
@@ -501,6 +501,7 @@ enum TxEvent {
     },
 }
 
+#[cfg(feature = "defmt")]
 impl defmt::Format for TxEvent {
     fn format(&self, fmt: defmt::Formatter) {
         match self {

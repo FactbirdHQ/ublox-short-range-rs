@@ -357,7 +357,7 @@ pub mod client {
     use core::mem::MaybeUninit;
     use core::ptr::NonNull;
 
-    use atomic_polyfill::{AtomicBool, Ordering};
+    use portable_atomic::{AtomicBool, Ordering};
 
     use super::*;
 
@@ -406,11 +406,8 @@ pub mod client {
 
         async fn connect<'a>(
             &'a self,
-            remote: embedded_nal_async::SocketAddr,
-        ) -> Result<Self::Connection<'a>, Self::Error>
-        where
-            Self: 'a,
-        {
+            remote: SocketAddr,
+        ) -> Result<Self::Connection<'a>, Self::Error> {
             let remote_endpoint = (remote.ip(), remote.port());
             let mut socket = TcpConnection::new(&self.stack, self.state)?;
             socket

@@ -1,6 +1,7 @@
 pub use ublox_sockets::Error as SocketError;
 
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum Error {
     Overflow,
     SetState,
@@ -46,7 +47,8 @@ impl From<ublox_sockets::Error> for Error {
 }
 
 /// Error that occurs when attempting to connect to a wireless network.
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum WifiConnectionError {
     /// Failed to connect to wireless network.
     FailedToConnect,
@@ -72,7 +74,8 @@ impl From<Error> for WifiConnectionError {
     }
 }
 
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum WifiError {
     // The specified wifi  is currently disabled. Try switching it on.
     WifiDisabled,
@@ -88,7 +91,8 @@ pub enum WifiError {
     // Other,
 }
 
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum WifiHotspotError {
     /// Failed to ceate wireless hotspot.
     CreationFailed,

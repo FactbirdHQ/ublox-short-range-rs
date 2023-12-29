@@ -17,14 +17,14 @@ pub struct PeerConnected {
     // #[at_arg(position = 3)]
     // pub local_address: IpAddr,
     #[at_arg(position = 3)]
-    #[defmt(Debug2Format)]
+    #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
     pub local_address: Bytes<40>,
     #[at_arg(position = 4)]
     pub local_port: u16,
     // #[at_arg(position = 5)]
     // pub remote_address: IpAddr,
     #[at_arg(position = 5)]
-    #[defmt(Debug2Format)]
+    #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
     pub remote_address: Bytes<40>,
     #[at_arg(position = 6)]
     pub remote_port: u16,

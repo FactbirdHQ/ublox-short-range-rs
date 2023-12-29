@@ -60,7 +60,7 @@ bind_interrupts!(struct Irqs {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    defmt::info!("Hello World!");
+    info!("Hello World!");
 
     let p = embassy_rp::init(Default::default());
 
@@ -109,7 +109,7 @@ async fn main(spawner: Spawner) {
     }
 
     // And now we can use it!
-    defmt::info!("Device initialized!");
+    info!("Device initialized!");
 
     let down = test_download(stack).await;
     Timer::after(Duration::from_secs(SETTLE_TIME as _)).await;
@@ -122,7 +122,7 @@ async fn main(spawner: Spawner) {
     // assert!(up > TEST_EXPECTED_UPLOAD_KBPS);
     // assert!(updown > TEST_EXPECTED_UPLOAD_DOWNLOAD_KBPS);
 
-    defmt::info!("Test OK");
+    info!("Test OK");
     cortex_m::asm::bkpt();
 }
 
@@ -143,23 +143,23 @@ const UPLOAD_PORT: u16 = 4322;
 const UPLOAD_DOWNLOAD_PORT: u16 = 4323;
 
 async fn test_download(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> usize {
-    defmt::info!("Testing download...");
+    info!("Testing download...");
 
     let mut rx_buffer = [0; RX_BUFFER_SIZE];
     let mut tx_buffer = [0; TX_BUFFER_SIZE];
     let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
     // socket.set_timeout(Some(Duration::from_secs(10)));
 
-    defmt::info!(
+    info!(
         "connecting to {:?}:{}...",
-        defmt::Debug2Format(&SERVER_ADDRESS),
+        debug2Format(&SERVER_ADDRESS),
         DOWNLOAD_PORT
     );
     if let Err(e) = socket.connect((SERVER_ADDRESS, DOWNLOAD_PORT)).await {
-        defmt::error!("connect error: {:?}", e);
+        error!("connect error: {:?}", e);
         return 0;
     }
-    defmt::info!("connected, testing...");
+    info!("connected, testing...");
 
     let mut rx_buf = [0; 4096];
     let mut total: usize = 0;
@@ -167,12 +167,12 @@ async fn test_download(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> us
         loop {
             match socket.read(&mut rx_buf).await {
                 Ok(0) => {
-                    defmt::error!("read EOF");
+                    error!("read EOF");
                     return 0;
                 }
                 Ok(n) => total += n,
                 Err(e) => {
-                    defmt::error!("read error: {:?}", e);
+                    error!("read error: {:?}", e);
                     return 0;
                 }
             }
@@ -182,28 +182,28 @@ async fn test_download(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> us
     .ok();
 
     let kbps = (total + 512) / 1024 / TEST_DURATION;
-    defmt::info!("download: {} kB/s", kbps);
+    info!("download: {} kB/s", kbps);
     kbps
 }
 
 async fn test_upload(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> usize {
-    defmt::info!("Testing upload...");
+    info!("Testing upload...");
 
     let mut rx_buffer = [0; RX_BUFFER_SIZE];
     let mut tx_buffer = [0; TX_BUFFER_SIZE];
     let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
     // socket.set_timeout(Some(Duration::from_secs(10)));
 
-    defmt::info!(
+    info!(
         "connecting to {:?}:{}...",
-        defmt::Debug2Format(&SERVER_ADDRESS),
+        debug2Format(&SERVER_ADDRESS),
         UPLOAD_PORT
     );
     if let Err(e) = socket.connect((SERVER_ADDRESS, UPLOAD_PORT)).await {
-        defmt::error!("connect error: {:?}", e);
+        error!("connect error: {:?}", e);
         return 0;
     }
-    defmt::info!("connected, testing...");
+    info!("connected, testing...");
 
     let buf = [0; 4096];
     let mut total: usize = 0;
@@ -211,12 +211,12 @@ async fn test_upload(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> usiz
         loop {
             match socket.write(&buf).await {
                 Ok(0) => {
-                    defmt::error!("write zero?!??!?!");
+                    error!("write zero?!??!?!");
                     return 0;
                 }
                 Ok(n) => total += n,
                 Err(e) => {
-                    defmt::error!("write error: {:?}", e);
+                    error!("write error: {:?}", e);
                     return 0;
                 }
             }
@@ -226,28 +226,28 @@ async fn test_upload(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> usiz
     .ok();
 
     let kbps = (total + 512) / 1024 / TEST_DURATION;
-    defmt::info!("upload: {} kB/s", kbps);
+    info!("upload: {} kB/s", kbps);
     kbps
 }
 
 async fn test_upload_download(stack: &'static UbloxStack<AtClient, URC_CAPACITY>) -> usize {
-    defmt::info!("Testing upload+download...");
+    info!("Testing upload+download...");
 
     let mut rx_buffer = [0; RX_BUFFER_SIZE];
     let mut tx_buffer = [0; TX_BUFFER_SIZE];
     let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
     // socket.set_timeout(Some(Duration::from_secs(10)));
 
-    defmt::info!(
+    info!(
         "connecting to {:?}:{}...",
-        defmt::Debug2Format(&SERVER_ADDRESS),
+        debug2Format(&SERVER_ADDRESS),
         UPLOAD_DOWNLOAD_PORT
     );
     if let Err(e) = socket.connect((SERVER_ADDRESS, UPLOAD_DOWNLOAD_PORT)).await {
-        defmt::error!("connect error: {:?}", e);
+        error!("connect error: {:?}", e);
         return 0;
     }
-    defmt::info!("connected, testing...");
+    info!("connected, testing...");
 
     let (mut reader, mut writer) = socket.split();
 
@@ -258,12 +258,12 @@ async fn test_upload_download(stack: &'static UbloxStack<AtClient, URC_CAPACITY>
         loop {
             match writer.write(&tx_buf).await {
                 Ok(0) => {
-                    defmt::error!("write zero?!??!?!");
+                    error!("write zero?!??!?!");
                     return 0;
                 }
                 Ok(_) => {}
                 Err(e) => {
-                    defmt::error!("write error: {:?}", e);
+                    error!("write error: {:?}", e);
                     return 0;
                 }
             }
@@ -274,12 +274,12 @@ async fn test_upload_download(stack: &'static UbloxStack<AtClient, URC_CAPACITY>
         loop {
             match reader.read(&mut rx_buf).await {
                 Ok(0) => {
-                    defmt::error!("read EOF");
+                    error!("read EOF");
                     return 0;
                 }
                 Ok(n) => total += n,
                 Err(e) => {
-                    defmt::error!("read error: {:?}", e);
+                    error!("read error: {:?}", e);
                     return 0;
                 }
             }
@@ -293,10 +293,10 @@ async fn test_upload_download(stack: &'static UbloxStack<AtClient, URC_CAPACITY>
     .await
     .is_err()
     {
-        defmt::error!("Test timed out");
+        error!("Test timed out");
     }
 
     let kbps = (total + 512) / 1024 / TEST_DURATION;
-    defmt::info!("upload+download: {} kB/s", kbps);
+    info!("upload+download: {} kB/s", kbps);
     kbps
 }

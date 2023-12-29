@@ -5,6 +5,8 @@
 #![cfg_attr(feature = "async", feature(impl_trait_projections))]
 #![cfg_attr(feature = "async", feature(type_alias_impl_trait))]
 
+mod fmt;
+
 #[cfg(feature = "async")]
 pub mod asynch;
 

@@ -55,7 +55,8 @@ impl HotspotOptions {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, defmt::Format)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct ConnectionOptions {
     pub ssid: String<64>,
     pub password: Option<String<64>>,

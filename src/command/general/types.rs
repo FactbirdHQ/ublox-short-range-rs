@@ -89,7 +89,7 @@ impl core::str::FromStr for FirmwareVersion {
         let (patch, meta) = match patch_meta.split_once('-') {
             Some((patch_str, meta)) => (
                 patch_str.parse().map_err(|_| DeserializeError)?,
-                Some(heapless::String::from(meta)),
+                heapless::String::try_from(meta).ok(),
             ),
             None => (patch_meta.parse().map_err(|_| DeserializeError)?, None),
         };
@@ -103,6 +103,7 @@ impl core::str::FromStr for FirmwareVersion {
     }
 }
 
+#[cfg(feature = "defmt")]
 impl defmt::Format for FirmwareVersion {
     fn format(&self, fmt: defmt::Formatter) {
         if let Some(meta) = &self.meta {

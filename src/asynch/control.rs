@@ -32,7 +32,7 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
     }
 
     pub(crate) async fn init(&mut self) -> Result<(), Error> {
-        defmt::debug!("Initalizing ublox control");
+        debug!("Initalizing ublox control");
         // read MAC addr.
         // let mut resp = self.at.send_edm(GetWifiMac).await?;
         // self.state_ch.set_ethernet_address(
@@ -139,7 +139,9 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         self.at
             .send_edm(SetWifiStationConfig {
                 config_id: CONFIG_ID,
-                config_param: WifiStationConfig::SSID(heapless::String::from(ssid)),
+                config_param: WifiStationConfig::SSID(
+                    heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
+                ),
             })
             .await?;
 
@@ -192,7 +194,9 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         self.at
             .send_edm(SetWifiStationConfig {
                 config_id: CONFIG_ID,
-                config_param: WifiStationConfig::SSID(heapless::String::from(ssid)),
+                config_param: WifiStationConfig::SSID(
+                    heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
+                ),
             })
             .await?;
 
@@ -206,9 +210,9 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         self.at
             .send_edm(SetWifiStationConfig {
                 config_id: CONFIG_ID,
-                config_param: WifiStationConfig::WpaPskOrPassphrase(heapless::String::from(
-                    passphrase,
-                )),
+                config_param: WifiStationConfig::WpaPskOrPassphrase(
+                    heapless::String::try_from(passphrase).map_err(|_| Error::Overflow)?,
+                ),
             })
             .await?;
 

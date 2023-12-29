@@ -40,13 +40,13 @@ where
             }
 
             let socket_id = new_socket_num(sockets).unwrap();
-            defmt::debug!("[UDP] Opening socket");
+            debug!("[UDP] Opening socket");
             sockets.add(UdpSocket::new(socket_id)).map_err(|_| {
-                defmt::error!("[UDP] Opening socket Error: Socket set full");
+                error!("[UDP] Opening socket Error: Socket set full");
                 Error::SocketSetFull
             })
         } else {
-            defmt::error!("[UDP] Opening socket Error: Missing socket set");
+            error!("[UDP] Opening socket Error: Missing socket set");
             Err(Error::Illegal)
         }
     }
@@ -59,14 +59,14 @@ where
         remote: SocketAddr,
     ) -> Result<(), Self::Error> {
         if self.sockets.is_none() {
-            defmt::error!("[UDP] Connecting socket Error: Missing socket set");
+            error!("[UDP] Connecting socket Error: Missing socket set");
             return Err(Error::Illegal);
         }
         let url = PeerUrlBuilder::new()
             .address(&remote)
             .udp()
             .map_err(|_| Error::Unaddressable)?;
-        defmt::debug!("[UDP] Connecting Socket: {:?} to URL: {=str}", socket, url);
+        debug!("[UDP] Connecting Socket: {:?} to URL: {=str}", socket, url);
 
         self.connected_to_network().map_err(|_| Error::Illegal)?;
 
@@ -202,7 +202,7 @@ where
         self.spin().ok();
         // Close server socket
         if self.udp_listener.is_bound(socket) {
-            defmt::debug!("[UDP] Closing Server socket: {:?}", socket);
+            debug!("[UDP] Closing Server socket: {:?}", socket);
 
             // ID 2 used by UDP server
             self.send_internal(
@@ -218,7 +218,7 @@ where
             if let Some(ref mut sockets) = self.sockets {
                 // If socket in socket set close
                 if sockets.remove(socket).is_err() {
-                    defmt::error!(
+                    error!(
                         "[UDP] Closing server socket error: No socket matching: {:?}",
                         socket
                     );
@@ -231,19 +231,19 @@ where
             // Close incomming connections
             while self.udp_listener.available(socket).unwrap_or(false) {
                 if let Ok((connection_handle, _)) = self.udp_listener.get_remote(socket) {
-                    defmt::debug!(
+                    debug!(
                         "[UDP] Closing incomming socket for Server: {:?}",
                         connection_handle
                     );
                     self.close(connection_handle)?;
                 } else {
-                    defmt::error!("[UDP] Incomming socket for server error - Listener says available, while nothing present");
+                    error!("[UDP] Incomming socket for server error - Listener says available, while nothing present");
                 }
             }
 
             // Unbind server socket in listener
             self.udp_listener.unbind(socket).map_err(|_| {
-                defmt::error!(
+                error!(
                     "[UDP] Closing socket error: No server socket matching: {:?}",
                     socket
                 );
@@ -251,10 +251,10 @@ where
             })
         // Handle normal sockets
         } else if let Some(ref mut sockets) = self.sockets {
-            defmt::debug!("[UDP] Closing socket: {:?}", socket);
+            debug!("[UDP] Closing socket: {:?}", socket);
             // If no sockets exists, nothing to close.
             if let Ok(ref mut udp) = sockets.get::<UdpSocket<L>>(socket) {
-                defmt::trace!("[UDP] Closing socket state: {:?}", udp.state());
+                trace!("[UDP] Closing socket state: {:?}", udp.state());
                 match udp.state() {
                     UdpState::Closed => {
                         sockets.remove(socket).ok();
@@ -269,7 +269,7 @@ where
                     }
                 }
             } else {
-                defmt::error!(
+                error!(
                     "[UDP] Closing socket error: No socket matching: {:?}",
                     socket
                 );
@@ -301,10 +301,9 @@ where
             return Err(Error::Illegal);
         }
 
-        defmt::debug!(
+        debug!(
             "[UDP] binding socket: {:?} to port: {:?}",
-            socket,
-            local_port
+            socket, local_port
         );
 
         // ID 2 used by UDP server

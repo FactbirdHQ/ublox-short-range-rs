@@ -37,11 +37,11 @@ where
                 }
             }
 
-            defmt::debug!("[TCP] Opening socket");
+            debug!("[TCP] Opening socket");
 
             let socket_id = new_socket_num(sockets).unwrap();
             sockets.add(TcpSocket::new(socket_id)).map_err(|e| {
-                defmt::error!("[TCP] Opening socket Error: {:?}", e);
+                error!("[TCP] Opening socket Error: {:?}", e);
                 e
             })
         } else {
@@ -59,7 +59,7 @@ where
             return Err(Error::Illegal.into());
         }
 
-        defmt::debug!("[TCP] Connect socket");
+        debug!("[TCP] Connect socket");
         self.connected_to_network().map_err(|_| Error::Illegal)?;
 
         let url = PeerUrlBuilder::new()
@@ -98,7 +98,7 @@ where
             }
         }
 
-        defmt::trace!("[TCP] Connecting socket: {:?} to url: {=str}", socket, url);
+        trace!("[TCP] Connecting socket: {:?} to url: {=str}", socket, url);
 
         // TODO: Timeout?
         // TODO: Fix the fact that it doesen't wait for both connect messages
@@ -191,7 +191,7 @@ where
     /// Close an existing TCP socket.
     fn close(&mut self, socket: Self::TcpSocket) -> Result<(), Self::Error> {
         if let Some(ref mut sockets) = self.sockets {
-            defmt::debug!("[TCP] Closing socket: {:?}", socket);
+            debug!("[TCP] Closing socket: {:?}", socket);
             // If the socket is not found it is already removed
             if let Ok(ref tcp) = sockets.get::<TcpSocket<L>>(socket) {
                 // If socket is not closed that means a connection excists which has to be closed
@@ -208,7 +208,7 @@ where
                             Err(_) => return Err(Error::Unaddressable),
                         }
                     } else {
-                        defmt::error!(
+                        error!(
                             "Illigal state! Socket connected but not in socket map: {:?}",
                             tcp.handle()
                         );

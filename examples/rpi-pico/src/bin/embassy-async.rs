@@ -67,26 +67,22 @@ async fn echo_task(
     let ip_addr = match DnsSocket::new(stack).query(hostname, AddrType::IPv4).await {
         Ok(ip) => ip,
         Err(_) => {
-            defmt::error!("[{}] Failed to resolve IP addr", hostname);
+            error!("[{}] Failed to resolve IP addr", hostname);
             return;
         }
     };
 
     let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
 
-    defmt::info!(
-        "[{}] Connecting... {}",
-        hostname,
-        defmt::Debug2Format(&ip_addr)
-    );
+    info!("[{}] Connecting... {}", hostname, debug2Format(&ip_addr));
     if let Err(e) = socket.connect((ip_addr, port)).await {
-        defmt::warn!("[{}] connect error: {:?}", hostname, e);
+        warn!("[{}] connect error: {:?}", hostname, e);
         return;
     }
-    defmt::info!(
+    info!(
         "[{}] Connected to {:?}",
         hostname,
-        defmt::Debug2Format(&socket.remote_endpoint())
+        debug2Format(&socket.remote_endpoint())
     );
 
     loop {
@@ -96,25 +92,25 @@ async fn echo_task(
                 write!(msg, "Hello {}! {}\n", ip_addr, cnt).unwrap();
                 cnt = cnt.wrapping_add(1);
                 if let Err(e) = socket.write_all(msg.as_bytes()).await {
-                    defmt::warn!("[{}] write error: {:?}", hostname, e);
+                    warn!("[{}] write error: {:?}", hostname, e);
                     break;
                 }
-                defmt::info!("[{}] txd: {}", hostname, msg);
+                info!("[{}] txd: {}", hostname, msg);
                 Timer::after(Duration::from_millis(400)).await;
             }
             Either::Second(res) => {
                 let n = match res {
                     Ok(0) => {
-                        defmt::warn!("[{}] read EOF", hostname);
+                        warn!("[{}] read EOF", hostname);
                         break;
                     }
                     Ok(n) => n,
                     Err(e) => {
-                        defmt::warn!("[{}] {:?}", hostname, e);
+                        warn!("[{}] {:?}", hostname, e);
                         break;
                     }
                 };
-                defmt::info!(
+                info!(
                     "[{}] rxd {}",
                     hostname,
                     core::str::from_utf8(&buf[..n]).unwrap()
@@ -138,7 +134,7 @@ bind_interrupts!(struct Irqs {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    defmt::info!("Hello World!");
+    info!("Hello World!");
 
     let p = embassy_rp::init(Default::default());
 
@@ -164,11 +160,7 @@ async fn main(spawner: Spawner) {
     let (rx, tx) = uart.split();
 
     let buffers = &*make_static!(atat::Buffers::new());
-    let (ingress, client) = buffers.split(
-        tx,
-        EdmDigester::default(),
-        atat::Config::new(),
-    );
+    let (ingress, client) = buffers.split(tx, EdmDigester::default(), atat::Config::new());
     defmt::unwrap!(spawner.spawn(ingress_task(ingress, rx)));
 
     let state = make_static!(State::new(client));
@@ -190,7 +182,7 @@ async fn main(spawner: Spawner) {
     defmt::unwrap!(spawner.spawn(net_task(stack)));
 
     // And now we can use it!
-    defmt::info!("Device initialized!");
+    info!("Device initialized!");
 
     let mut rx_buffer = [0; 256];
     let mut tx_buffer = [0; 256];
@@ -202,7 +194,7 @@ async fn main(spawner: Spawner) {
         loop {
             match control.join_wpa2("test", "1234abcd").await {
                 Ok(_) => {
-                    defmt::info!("Network connected!");
+                    info!("Network connected!");
                     spawner
                         .spawn(echo_task(
                             &stack,
@@ -225,7 +217,7 @@ async fn main(spawner: Spawner) {
                     break;
                 }
                 Err(err) => {
-                    defmt::info!("join failed with error={:?}. Retrying in 1 second", err);
+                    info!("join failed with error={:?}. Retrying in 1 second", err);
                     Timer::after(Duration::from_secs(1)).await;
                 }
             }
@@ -237,15 +229,12 @@ async fn main(spawner: Spawner) {
             // // socket.set_timeout(Some(Duration::from_secs(10)));
 
             let remote: SocketAddr = (Ipv4Addr::new(192, 168, 1, 183), 4444).into();
-            defmt::info!("Connecting... {}", defmt::Debug2Format(&remote));
+            info!("Connecting... {}", debug2Format(&remote));
             if let Err(e) = socket.connect(remote).await {
-                defmt::warn!("connect error: {:?}", e);
+                warn!("connect error: {:?}", e);
                 continue;
             }
-            defmt::info!(
-                "Connected to {:?}",
-                defmt::Debug2Format(&socket.remote_endpoint())
-            );
+            info!("Connected to {:?}", debug2Format(&socket.remote_endpoint()));
 
             'inner: loop {
                 match select(Timer::after(Duration::from_secs(3)), socket.read(&mut buf)).await {
@@ -254,25 +243,25 @@ async fn main(spawner: Spawner) {
                         write!(msg, "Hello world! {}\n", cnt).unwrap();
                         cnt = cnt.wrapping_add(1);
                         if let Err(e) = socket.write_all(msg.as_bytes()).await {
-                            defmt::warn!("write error: {:?}", e);
+                            warn!("write error: {:?}", e);
                             break;
                         }
-                        defmt::info!("txd: {}", msg);
+                        info!("txd: {}", msg);
                         Timer::after(Duration::from_millis(400)).await;
                     }
                     Either::Second(res) => {
                         let n = match res {
                             Ok(0) => {
-                                defmt::warn!("read EOF");
+                                warn!("read EOF");
                                 break;
                             }
                             Ok(n) => n,
                             Err(e) => {
-                                defmt::warn!("{:?}", e);
+                                warn!("{:?}", e);
                                 break;
                             }
                         };
-                        defmt::info!("rxd [{}] {}", n, core::str::from_utf8(&buf[..n]).unwrap());
+                        info!("rxd [{}] {}", n, core::str::from_utf8(&buf[..n]).unwrap());
 
                         match &buf[..n] {
                             b"c\n" => {
@@ -296,11 +285,11 @@ async fn main(spawner: Spawner) {
                     }
                 }
             }
-            defmt::info!("Press USER button to reconnect socket!");
+            info!("Press USER button to reconnect socket!");
             btn.wait_for_any_edge().await;
             continue;
         }
-        defmt::info!("Press USER button to reconnect to WiFi!");
+        info!("Press USER button to reconnect to WiFi!");
         btn.wait_for_any_edge().await;
     }
 }

@@ -39,7 +39,7 @@ impl SocketMap {
         channel_id: ChannelId,
         socket_handle: SocketHandle,
     ) -> Result<(), ()> {
-        defmt::trace!("[SOCK_MAP] {:?} tied to {:?}", socket_handle, channel_id);
+        trace!("[SOCK_MAP] {:?} tied to {:?}", socket_handle, channel_id);
         self.channel_map
             .insert(channel_id, socket_handle)
             .map_err(drop)?;
@@ -47,7 +47,7 @@ impl SocketMap {
     }
 
     pub fn remove_channel(&mut self, channel_id: &ChannelId) -> Result<(), ()> {
-        defmt::trace!("[SOCK_MAP] {:?} removed", channel_id);
+        trace!("[SOCK_MAP] {:?} removed", channel_id);
         self.channel_map.remove(channel_id).ok_or(())?;
         Ok(())
     }
@@ -63,13 +63,13 @@ impl SocketMap {
     }
 
     pub fn insert_peer(&mut self, peer: PeerHandle, socket_handle: SocketHandle) -> Result<(), ()> {
-        defmt::trace!("[SOCK_MAP] {:?} tied to {:?}", socket_handle, peer);
+        trace!("[SOCK_MAP] {:?} tied to {:?}", socket_handle, peer);
         self.peer_map.insert(peer, socket_handle).map_err(drop)?;
         Ok(())
     }
 
     pub fn remove_peer(&mut self, peer: &PeerHandle) -> Result<(), ()> {
-        defmt::trace!("[SOCK_MAP] {:?} removed", peer);
+        trace!("[SOCK_MAP] {:?} removed", peer);
         self.peer_map.remove(peer).ok_or(())?;
         Ok(())
     }

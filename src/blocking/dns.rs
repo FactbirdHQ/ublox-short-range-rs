@@ -24,7 +24,7 @@ where
         hostname: &str,
         _addr_type: AddrType,
     ) -> nb::Result<IpAddr, Self::Error> {
-        defmt::debug!("Lookup hostname: {}", hostname);
+        debug!("Lookup hostname: {}", hostname);
         self.send_at(Ping {
             hostname,
             retry_num: 1,
