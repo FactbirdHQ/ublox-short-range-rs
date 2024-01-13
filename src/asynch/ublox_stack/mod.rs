@@ -54,6 +54,12 @@ pub struct StackResources<const SOCK: usize> {
     sockets: [SocketStorage<'static>; SOCK],
 }
 
+impl<const SOCK: usize> Default for StackResources<SOCK> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<const SOCK: usize> StackResources<SOCK> {
     pub fn new() -> Self {
         Self {
@@ -404,7 +410,7 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
         for (handle, socket) in sockets.iter_mut().skip(skip as usize) {
             match socket {
                 #[cfg(feature = "socket-udp")]
-                Socket::Udp(udp) => todo!(),
+                Socket::Udp(_udp) => todo!(),
                 #[cfg(feature = "socket-tcp")]
                 Socket::Tcp(tcp) => {
                     tcp.poll();

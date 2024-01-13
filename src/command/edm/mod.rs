@@ -9,7 +9,7 @@ use crate::command::{NoResponse, Urc};
 // use crate::wifi::EGRESS_CHUNK_SIZE;
 /// Containing EDM structs with custom serialaization and deserilaisation.
 use atat::AtatCmd;
-use heapless::Vec;
+
 use types::*;
 use ublox_sockets::ChannelId;
 

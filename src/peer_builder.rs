@@ -173,12 +173,12 @@ mod test {
         let url = PeerUrlBuilder::new()
             .hostname("example.org")
             .port(2000)
-            .creds(&SecurityCredentials {
+            .creds(SecurityCredentials {
                 c_cert_name: heapless::String::try_from("client.crt").unwrap(),
                 ca_cert_name: heapless::String::try_from("ca.crt").unwrap(),
                 c_key_name: heapless::String::try_from("client.key").unwrap(),
             })
-            .tcp()
+            .tcp::<128>()
             .unwrap();
 
         assert_eq!(

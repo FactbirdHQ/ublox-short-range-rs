@@ -134,7 +134,7 @@ impl<'a> TlsSocket<'a> {
     ///
     /// If the timeout is set, the socket will be closed if no data is received for the
     /// specified duration.
-    pub fn set_timeout(&mut self, duration: Option<Duration>) {
+    pub fn set_timeout(&mut self, _duration: Option<Duration>) {
         todo!()
         // self.inner.set_timeout(duration)
     }
@@ -294,7 +294,7 @@ pub mod client {
             host: &str,
             addr_type: embedded_nal_async::AddrType,
         ) -> Result<no_std_net::IpAddr, Self::Error> {
-            DnsSocket::new(&self.stack).query(host, addr_type).await
+            DnsSocket::new(self.stack).query(host, addr_type).await
         }
 
         async fn get_host_by_address(
@@ -346,7 +346,7 @@ pub mod client {
             remote: SocketAddr,
         ) -> Result<Self::Connection<'a>, Self::Error> {
             let remote_endpoint = (remote.ip(), remote.port());
-            let mut socket = TlsConnection::new(&self.stack, self.state, self.credentials.clone())?;
+            let mut socket = TlsConnection::new(self.stack, self.state, self.credentials.clone())?;
             socket
                 .socket
                 .connect(remote_endpoint)

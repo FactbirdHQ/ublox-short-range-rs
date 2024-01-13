@@ -260,7 +260,7 @@ impl<'a> TcpSocket<'a> {
     ///
     /// If the timeout is set, the socket will be closed if no data is received for the
     /// specified duration.
-    pub fn set_timeout(&mut self, duration: Option<Duration>) {
+    pub fn set_timeout(&mut self, _duration: Option<Duration>) {
         todo!()
         // self.io.with_mut(|s| s.set_timeout(duration))
     }
@@ -271,7 +271,7 @@ impl<'a> TcpSocket<'a> {
     /// the specified duration of inactivity.
     ///
     /// If not set, the socket will not send keep-alive packets.
-    pub fn set_keep_alive(&mut self, interval: Option<Duration>) {
+    pub fn set_keep_alive(&mut self, _interval: Option<Duration>) {
         todo!()
         // self.io
         //     .with_mut(|s| s.set_keep_alive(interval.map(duration_to_smoltcp)))
@@ -619,7 +619,7 @@ pub mod client {
     use core::mem::MaybeUninit;
     use core::ptr::NonNull;
 
-    use portable_atomic::{AtomicBool, Ordering};
+    
 
     use crate::asynch::ublox_stack::dns::DnsSocket;
 
@@ -656,7 +656,7 @@ pub mod client {
             host: &str,
             addr_type: embedded_nal_async::AddrType,
         ) -> Result<no_std_net::IpAddr, Self::Error> {
-            DnsSocket::new(&self.stack).query(host, addr_type).await
+            DnsSocket::new(self.stack).query(host, addr_type).await
         }
 
         async fn get_host_by_address(
@@ -703,7 +703,7 @@ pub mod client {
             remote: SocketAddr,
         ) -> Result<Self::Connection<'a>, Self::Error> {
             let remote_endpoint = (remote.ip(), remote.port());
-            let mut socket = TcpConnection::new(&self.stack, self.state)?;
+            let mut socket = TcpConnection::new(self.stack, self.state)?;
             socket
                 .socket
                 .connect(remote_endpoint)

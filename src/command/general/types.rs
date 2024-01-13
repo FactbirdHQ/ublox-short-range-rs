@@ -27,7 +27,7 @@ pub enum IdentificationInfoEnum {
     MCUID = 10,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FirmwareVersion {
     major: u8,
     minor: u8,

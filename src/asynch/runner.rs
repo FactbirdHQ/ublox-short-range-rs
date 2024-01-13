@@ -11,8 +11,8 @@ use crate::{
             GetNetworkStatus,
         },
         system::{
-            types::{BaudRate, ChangeAfterConfirm, EchoOn, FlowControl, Parity, StopBits},
-            RebootDCE, SetEcho, SetRS232Settings, StoreCurrentConfig,
+            types::{EchoOn},
+            RebootDCE, SetEcho, StoreCurrentConfig,
         },
         wifi::{
             types::DisconnectReason,

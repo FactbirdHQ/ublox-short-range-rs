@@ -59,7 +59,7 @@ impl AtatUrc for EdmEvent {
             || !resp.starts_with(&[STARTBYTE])
             || !resp.ends_with(&[ENDBYTE])
         {
-            error!("[Parse URC Start/End byte Error] {:?}", LossyStr(&resp));
+            error!("[Parse URC Start/End byte Error] {:?}", LossyStr(resp));
             return None;
         };
         let payload_len = calc_payload_len(resp);

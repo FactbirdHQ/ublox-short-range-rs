@@ -1,8 +1,8 @@
 //! UDP sockets.
 use core::cell::RefCell;
-use core::future::poll_fn;
+
 use core::mem;
-use core::task::Poll;
+
 
 use atat::asynch::AtatClient;
 use embedded_nal_async::SocketAddr;

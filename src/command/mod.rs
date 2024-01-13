@@ -89,11 +89,11 @@ impl From<bool> for OnOff {
     }
 }
 
-impl Into<bool> for OnOff {
-    fn into(self) -> bool {
-        match self {
-            Self::On => true,
-            Self::Off => false,
+impl From<OnOff> for bool {
+    fn from(val: OnOff) -> Self {
+        match val {
+            OnOff::On => true,
+            OnOff::Off => false,
         }
     }
 }
