@@ -1,7 +1,9 @@
 #[cfg(feature = "socket-tcp")]
 pub mod tcp;
-// #[cfg(feature = "socket-udp")]
-// pub mod udp;
+#[cfg(feature = "socket-tcp")]
+pub mod tls;
+#[cfg(feature = "socket-udp")]
+pub mod udp;
 
 pub mod dns;
 
@@ -17,12 +19,15 @@ use crate::command::data_mode::{ClosePeerConnection, ConnectPeer};
 use crate::command::edm::types::{DataEvent, Protocol, DATA_PACKAGE_SIZE};
 use crate::command::edm::urc::EdmEvent;
 use crate::command::edm::EdmDataCommand;
+use crate::command::ping::types::PingError;
 use crate::command::ping::urc::{PingErrorResponse, PingResponse};
 use crate::command::ping::Ping;
+use crate::command::security::types::SecurityDataType;
+use crate::command::security::{PrepareSecurityDataImport, SendSecurityDataImport};
 use crate::command::Urc;
-use crate::peer_builder::PeerUrlBuilder;
+use crate::peer_builder::{PeerUrlBuilder, SecurityCredentials};
 
-use self::dns::DnsSocket;
+use self::dns::{DnsSocket, DnsState, DnsTable, MAX_DOMAIN_NAME_LENGTH};
 
 use super::state::{self, LinkState};
 use super::AtHandle;
@@ -42,7 +47,8 @@ use ublox_sockets::{
 #[cfg(feature = "socket-tcp")]
 use ublox_sockets::TcpState;
 
-const MAX_HOSTNAME_LEN: usize = 64;
+#[cfg(feature = "socket-udp")]
+use ublox_sockets::UdpState;
 
 pub struct StackResources<const SOCK: usize> {
     sockets: [SocketStorage<'static>; SOCK],
@@ -64,32 +70,12 @@ pub struct UbloxStack<AT: AtatClient + 'static, const URC_CAPACITY: usize> {
     link_up: AtomicBool,
 }
 
-enum DnsState {
-    New,
-    Pending,
-    Ok(IpAddr),
-    Err,
-}
-
-struct DnsQuery {
-    state: DnsState,
-    waker: WakerRegistration,
-}
-
-impl DnsQuery {
-    pub fn new() -> Self {
-        Self {
-            state: DnsState::New,
-            waker: WakerRegistration::new(),
-        }
-    }
-}
-
 struct SocketStack {
     sockets: SocketSet<'static>,
     waker: WakerRegistration,
-    dns_queries: heapless::FnvIndexMap<heapless::String<MAX_HOSTNAME_LEN>, DnsQuery, 4>,
+    dns_table: DnsTable,
     dropped_sockets: heapless::Vec<PeerHandle, 3>,
+    credential_map: heapless::FnvIndexMap<SocketHandle, SecurityCredentials, 3>,
 }
 
 impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAPACITY> {
@@ -101,9 +87,10 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
 
         let socket = SocketStack {
             sockets,
-            dns_queries: heapless::IndexMap::new(),
+            dns_table: DnsTable::new(),
             waker: WakerRegistration::new(),
             dropped_sockets: heapless::Vec::new(),
+            credential_map: heapless::IndexMap::new(),
         };
 
         Self {
@@ -177,6 +164,76 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
         }
     }
 
+    // FIXME: This could probably be improved
+    pub async fn import_credentials(
+        &self,
+        root_ca: (&str, &[u8]),
+        cert: (&str, &[u8]),
+        priv_key: (&str, &[u8]),
+    ) -> Result<(), atat::Error> {
+        let mut device = self.device.borrow_mut();
+
+        assert!(root_ca.0.len() < 16);
+        assert!(cert.0.len() < 16);
+        assert!(priv_key.0.len() < 16);
+
+        device
+            .at
+            .send_edm(PrepareSecurityDataImport {
+                data_type: SecurityDataType::TrustedRootCA,
+                data_size: root_ca.1.len(),
+                internal_name: root_ca.0,
+                password: None,
+            })
+            .await?;
+
+        device
+            .at
+            .send_edm(SendSecurityDataImport {
+                data: atat::serde_bytes::Bytes::new(root_ca.1),
+            })
+            .await?;
+
+        device
+            .at
+            .send_edm(PrepareSecurityDataImport {
+                data_type: SecurityDataType::ClientCertificate,
+                data_size: cert.1.len(),
+                internal_name: cert.0,
+                password: None,
+            })
+            .await?;
+
+        device
+            .at
+            .send_edm(SendSecurityDataImport {
+                data: atat::serde_bytes::Bytes::new(cert.1),
+            })
+            .await?;
+
+        device
+            .at
+            .send_edm(PrepareSecurityDataImport {
+                data_type: SecurityDataType::ClientPrivateKey,
+                data_size: priv_key.1.len(),
+                internal_name: priv_key.0,
+                password: None,
+            })
+            .await?;
+
+        device
+            .at
+            .send_edm(SendSecurityDataImport {
+                data: atat::serde_bytes::Bytes::new(priv_key.1),
+            })
+            .await?;
+
+        // FIXME:
+        // self.socket.borrow_mut().credential_map.insert(key, value);
+
+        Ok(())
+    }
+
     /// Make a query for a given name and return the corresponding IP addresses.
     // #[cfg(feature = "dns")]
     pub async fn dns_query(
@@ -221,7 +278,9 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                     match socket {
                         #[cfg(feature = "socket-udp")]
                         Socket::Udp(udp)
-                            if udp.edm_channel == Some(channel_id) && udp.may_recv() =>
+                            if udp.edm_channel == Some(channel_id) =>
+                            // FIXME:
+                            // if udp.edm_channel == Some(channel_id) && udp.may_recv() =>
                         {
                             let n = udp.rx_enqueue_slice(&data);
                             if n < data.len() {
@@ -258,7 +317,8 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                         #[cfg(feature = "socket-udp")]
                         Socket::Udp(udp) if udp.peer_handle == Some(handle) => {
                             udp.peer_handle = None;
-                            udp.set_state(UdpState::TimeWait);
+                            // FIXME:
+                            // udp.set_state(UdpState::TimeWait);
                             break;
                         }
                         #[cfg(feature = "socket-tcp")]
@@ -275,27 +335,27 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                 ip, hostname, rtt, ..
             })) => {
                 let mut s = socket.borrow_mut();
-                if let Some(query) = s.dns_queries.get_mut(&hostname) {
+                if let Some(query) = s.dns_table.get_mut(&hostname) {
                     match query.state {
                         DnsState::Pending if rtt == -1 => {
                             // According to AT manual, rtt = -1 means the PING has timed out
-                            query.state = DnsState::Err;
+                            query.state = DnsState::Error(PingError::Timeout);
                             query.waker.wake();
                         }
                         DnsState::Pending => {
-                            query.state = DnsState::Ok(ip);
+                            query.state = DnsState::Resolved(ip);
                             query.waker.wake();
                         }
                         _ => {}
                     }
                 }
             }
-            EdmEvent::ATEvent(Urc::PingErrorResponse(PingErrorResponse { error: _ })) => {
+            EdmEvent::ATEvent(Urc::PingErrorResponse(PingErrorResponse { error })) => {
                 let mut s = socket.borrow_mut();
-                for (_, query) in s.dns_queries.iter_mut() {
+                for query in s.dns_table.table.iter_mut() {
                     match query.state {
                         DnsState::Pending => {
-                            query.state = DnsState::Err;
+                            query.state = DnsState::Error(error);
                             query.waker.wake();
                         }
                         _ => {}
@@ -308,11 +368,11 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
 
     fn tx_event(&self) -> Option<TxEvent> {
         let mut s = self.socket.borrow_mut();
-        for (hostname, query) in s.dns_queries.iter_mut() {
+        for query in s.dns_table.table.iter_mut() {
             if let DnsState::New = query.state {
                 query.state = DnsState::Pending;
                 return Some(TxEvent::Dns {
-                    hostname: hostname.clone(),
+                    hostname: query.domain_name.clone(),
                 });
             }
         }
@@ -334,7 +394,14 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
             })
             .unwrap();
 
-        for (handle, socket) in s.sockets.iter_mut().skip(skip as usize) {
+        let SocketStack {
+            sockets,
+            dns_table,
+            credential_map,
+            ..
+        } = s.deref_mut();
+
+        for (handle, socket) in sockets.iter_mut().skip(skip as usize) {
             match socket {
                 #[cfg(feature = "socket-udp")]
                 Socket::Udp(udp) => todo!(),
@@ -345,11 +412,20 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                     match tcp.state() {
                         TcpState::Closed => {
                             if let Some(addr) = tcp.remote_endpoint() {
-                                let url = PeerUrlBuilder::new()
-                                    .address(&addr)
-                                    .set_local_port(tcp.local_port)
-                                    .tcp::<128>()
-                                    .unwrap();
+                                let mut builder = PeerUrlBuilder::new();
+
+                                if let Some(hostname) = dns_table.reverse_lookup(addr.ip()) {
+                                    builder.hostname(hostname).port(addr.port())
+                                } else {
+                                    builder.address(&addr)
+                                };
+
+                                if let Some(creds) = credential_map.remove(&handle) {
+                                    builder.creds(creds);
+                                }
+
+                                let url =
+                                    builder.set_local_port(tcp.local_port).tcp::<128>().unwrap();
 
                                 return Some(TxEvent::Connect {
                                     socket_handle: handle,
@@ -361,7 +437,6 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                         // or the transmit half of the connection is still open.
                         TcpState::Established | TcpState::CloseWait | TcpState::LastAck => {
                             if let Some(edm_channel) = tcp.edm_channel {
-                                warn!("{}", tcp);
                                 return tcp.tx_dequeue(|payload| {
                                     let len = core::cmp::min(payload.len(), DATA_PACKAGE_SIZE);
                                     let res = if len != 0 {
@@ -434,10 +509,10 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                     Ok(_) => {}
                     Err(_) => {
                         let mut s = socket.borrow_mut();
-                        if let Some(query) = s.dns_queries.get_mut(&hostname) {
+                        if let Some(query) = s.dns_table.get_mut(&hostname) {
                             match query.state {
                                 DnsState::Pending => {
-                                    query.state = DnsState::Err;
+                                    query.state = DnsState::Error(PingError::Other);
                                     query.waker.wake();
                                 }
                                 _ => {}
@@ -469,9 +544,9 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                 },
                 #[cfg(feature = "socket-udp")]
                 Protocol::UDP => match ublox_sockets::udp::Socket::downcast_mut(socket) {
-                    Some(udp) if udp.remote_endpoint == Some(endpoint) => {
+                    Some(udp) if udp.endpoint == Some(endpoint) => {
                         udp.edm_channel = Some(channel_id);
-                        udp.set_state(ublox_sockets::UdpState::Established);
+                        udp.set_state(UdpState::Established);
                         break;
                     }
                     _ => {}
@@ -497,7 +572,7 @@ enum TxEvent {
         peer_handle: PeerHandle,
     },
     Dns {
-        hostname: heapless::String<MAX_HOSTNAME_LEN>,
+        hostname: heapless::String<MAX_DOMAIN_NAME_LENGTH>,
     },
 }
 

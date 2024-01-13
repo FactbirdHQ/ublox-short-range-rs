@@ -22,7 +22,7 @@ pub enum EdmEvent {
 
 impl AtatUrc for EdmEvent {
     /// The type of the response. Usually the enum this trait is implemented on.
-    type Response = EdmEvent;
+    type Response = Self;
 
     /// Parse the response into a `Self::Response` instance.
     fn parse(resp: &[u8]) -> Option<Self::Response> {

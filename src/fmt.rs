@@ -114,7 +114,7 @@ macro_rules! trace {
             #[cfg(feature = "log")]
             ::log::trace!($s $(, $x)*);
             #[cfg(feature = "defmt")]
-            ::trace!($s $(, $x)*);
+            ::defmt::trace!($s $(, $x)*);
             #[cfg(not(any(feature = "log", feature="defmt")))]
             let _ = ($( & $x ),*);
         }
@@ -127,7 +127,7 @@ macro_rules! debug {
             #[cfg(feature = "log")]
             ::log::debug!($s $(, $x)*);
             #[cfg(feature = "defmt")]
-            ::debug!($s $(, $x)*);
+            ::defmt::debug!($s $(, $x)*);
             #[cfg(not(any(feature = "log", feature="defmt")))]
             let _ = ($( & $x ),*);
         }
@@ -140,7 +140,7 @@ macro_rules! info {
             #[cfg(feature = "log")]
             ::log::info!($s $(, $x)*);
             #[cfg(feature = "defmt")]
-            ::info!($s $(, $x)*);
+            ::defmt::info!($s $(, $x)*);
             #[cfg(not(any(feature = "log", feature="defmt")))]
             let _ = ($( & $x ),*);
         }
@@ -153,7 +153,7 @@ macro_rules! warn {
             #[cfg(feature = "log")]
             ::log::warn!($s $(, $x)*);
             #[cfg(feature = "defmt")]
-            ::warn!($s $(, $x)*);
+            ::defmt::warn!($s $(, $x)*);
             #[cfg(not(any(feature = "log", feature="defmt")))]
             let _ = ($( & $x ),*);
         }
@@ -166,7 +166,7 @@ macro_rules! error {
             #[cfg(feature = "log")]
             ::log::error!($s $(, $x)*);
             #[cfg(feature = "defmt")]
-            ::error!($s $(, $x)*);
+            ::defmt::error!($s $(, $x)*);
             #[cfg(not(any(feature = "log", feature="defmt")))]
             let _ = ($( & $x ),*);
         }
@@ -226,33 +226,5 @@ impl<T, E> Try for Result<T, E> {
     #[inline]
     fn into_result(self) -> Self {
         self
-    }
-}
-
-#[allow(unused)]
-pub(crate) struct Bytes<'a>(pub &'a [u8]);
-
-impl<'a> Debug for Bytes<'a> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#02x?}", self.0)
-    }
-}
-
-impl<'a> Display for Bytes<'a> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#02x?}", self.0)
-    }
-}
-
-impl<'a> LowerHex for Bytes<'a> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{:#02x?}", self.0)
-    }
-}
-
-#[cfg(feature = "defmt")]
-impl<'a> defmt::Format for Bytes<'a> {
-    fn format(&self, fmt: defmt::Formatter) {
-        defmt::write!(fmt, "{:02x}", self.0)
     }
 }

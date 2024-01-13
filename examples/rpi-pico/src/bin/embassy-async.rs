@@ -226,7 +226,7 @@ async fn main(spawner: Spawner) {
             Timer::after(Duration::from_secs(1)).await;
 
             let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-            // // socket.set_timeout(Some(Duration::from_secs(10)));
+            // socket.set_timeout(Some(Duration::from_secs(10)));
 
             let remote: SocketAddr = (Ipv4Addr::new(192, 168, 1, 183), 4444).into();
             info!("Connecting... {}", debug2Format(&remote));

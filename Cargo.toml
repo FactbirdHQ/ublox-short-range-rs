@@ -15,7 +15,7 @@ name = "ublox_short_range"
 doctest = false
 
 [dependencies]
-atat = { version = "0.20.0", features = ["derive", "bytes"] }
+atat = { version = "0.21", features = ["derive", "bytes"] }
 # atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "70283be", features = ["derive", "defmt", "bytes"] }
 heapless = { version = "^0.8", features = ["serde"] }
 no-std-net = { version = "0.6", features = ["serde"] }
@@ -27,13 +27,13 @@ portable-atomic = "1.5"
 defmt = { version = "0.3", optional = true }
 log = { version = "0.4.14", optional = true }
 
-embedded-hal = "=1.0.0-rc.3"
-embassy-time = "0.2"
+embedded-hal = "1.0"
+embassy-time = "0.3"
 embassy-sync = "0.5"
 embassy-futures = "0.1"
 embassy-net-driver = "0.2"
 
-embedded-nal-async = { version = "0.7", optional = true }
+embedded-nal-async = { version = "0.7" }
 futures = { version = "0.3.17", default-features = false, features = [
     "async-await",
 ] }
@@ -42,9 +42,8 @@ embedded-io = "0.6"
 embedded-io-async = "0.6"
 
 [features]
-default = ["async", "odin_w2xx", "ublox-sockets", "socket-tcp"]
+default = ["odin_w2xx", "ublox-sockets", "socket-tcp", "socket-udp"]
 
-async = ["dep:embedded-nal-async", "atat/async", "ublox-sockets?/async"]
 
 std = []
 

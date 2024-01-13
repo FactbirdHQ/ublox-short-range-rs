@@ -3,12 +3,19 @@ use core::fmt::Write;
 use heapless::String;
 use no_std_net::{IpAddr, SocketAddr};
 
+#[derive(PartialEq, Clone, Default)]
+pub struct SecurityCredentials {
+    pub ca_cert_name: heapless::String<16>,
+    pub c_cert_name: heapless::String<16>,
+    pub c_key_name: heapless::String<16>,
+}
+
 #[derive(Default)]
 pub(crate) struct PeerUrlBuilder<'a> {
     hostname: Option<&'a str>,
     ip_addr: Option<IpAddr>,
     port: Option<u16>,
-    // creds: Option<SecurityCredentials>,
+    creds: Option<SecurityCredentials>,
     local_port: Option<u16>,
 }
 
@@ -32,13 +39,16 @@ impl<'a> PeerUrlBuilder<'a> {
 
     pub fn udp<const N: usize>(&self) -> Result<String<N>, Error> {
         let mut s = String::new();
-        write!(&mut s, "udp://").ok();
+        write!(&mut s, "udp://").map_err(|_| Error::Overflow)?;
         self.write_domain(&mut s)?;
 
         // Start writing query parameters
-        write!(&mut s, "?").ok();
-        self.local_port
-            .map(|v| write!(&mut s, "local_port={}&", v).ok());
+        write!(&mut s, "?").map_err(|_| Error::Overflow)?;
+
+        if let Some(v) = self.local_port {
+            write!(&mut s, "local_port={}&", v).map_err(|_| Error::Overflow)?;
+        }
+
         // Remove trailing '&' or '?' if no query.
         s.pop();
 
@@ -47,27 +57,22 @@ impl<'a> PeerUrlBuilder<'a> {
 
     pub fn tcp<const N: usize>(&mut self) -> Result<String<N>, Error> {
         let mut s = String::new();
-        write!(&mut s, "tcp://").ok();
+        write!(&mut s, "tcp://").map_err(|_| Error::Overflow)?;
         self.write_domain(&mut s)?;
 
         // Start writing query parameters
-        write!(&mut s, "?").ok();
-        self.local_port
-            .map(|v| write!(&mut s, "local_port={}&", v).ok());
-        // self.creds.as_ref().map(|creds| {
-        //     creds
-        //         .ca_cert_name
-        //         .as_ref()
-        //         .map(|v| write!(&mut s, "ca={}&", v).ok());
-        //     creds
-        //         .c_cert_name
-        //         .as_ref()
-        //         .map(|v| write!(&mut s, "cert={}&", v).ok());
-        //     creds
-        //         .c_key_name
-        //         .as_ref()
-        //         .map(|v| write!(&mut s, "privKey={}&", v).ok());
-        // });
+        write!(&mut s, "?").map_err(|_| Error::Overflow)?;
+
+        if let Some(v) = self.local_port {
+            write!(&mut s, "local_port={}&", v).map_err(|_| Error::Overflow)?;
+        }
+
+        if let Some(creds) = self.creds.as_ref() {
+            write!(&mut s, "ca={}&", creds.ca_cert_name).map_err(|_| Error::Overflow)?;
+            write!(&mut s, "cert={}&", creds.c_cert_name).map_err(|_| Error::Overflow)?;
+            write!(&mut s, "privKey={}&", creds.c_key_name).map_err(|_| Error::Overflow)?;
+        };
+
         // Remove trailing '&' or '?' if no query.
         s.pop();
 
@@ -110,10 +115,10 @@ impl<'a> PeerUrlBuilder<'a> {
         self
     }
 
-    // pub fn creds(&mut self, creds: SecurityCredentials) -> &mut Self {
-    //     self.creds.replace(creds);
-    //     self
-    // }
+    pub fn creds(&mut self, creds: SecurityCredentials) -> &mut Self {
+        self.creds.replace(creds);
+        self
+    }
 
     pub fn local_port(&mut self, local_port: u16) -> &mut Self {
         self.local_port.replace(local_port);
@@ -163,21 +168,22 @@ mod test {
         assert_eq!(url, "udp://example.org:2000/?local_port=2001");
     }
 
-    // #[test]
-    // fn tcp_certs() {
-    //     let url = PeerUrlBuilder::new()
-    //         .hostname("example.org")
-    //         .port(2000)
-    //         .creds(SecurityCredentials {
-    //             c_cert_name: Some(heapless::String::from("client.crt")),
-    //             ca_cert_name: Some(heapless::String::from("ca.crt")),
-    //             c_key_name: Some(heapless::String::from("client.key")),
-    //         })
-    //         .tcp()
-    //         .unwrap();
-    //     assert_eq!(
-    //         url,
-    //         "tcp://example.org:2000/?ca=ca.crt&cert=client.crt&privKey=client.key"
-    //     );
-    // }
+    #[test]
+    fn tcp_certs() {
+        let url = PeerUrlBuilder::new()
+            .hostname("example.org")
+            .port(2000)
+            .creds(&SecurityCredentials {
+                c_cert_name: heapless::String::try_from("client.crt").unwrap(),
+                ca_cert_name: heapless::String::try_from("ca.crt").unwrap(),
+                c_key_name: heapless::String::try_from("client.key").unwrap(),
+            })
+            .tcp()
+            .unwrap();
+
+        assert_eq!(
+            url,
+            "tcp://example.org:2000/?ca=ca.crt&cert=client.crt&privKey=client.key"
+        );
+    }
 }
