@@ -3,7 +3,8 @@ use core::fmt::Write;
 use heapless::String;
 use no_std_net::{IpAddr, SocketAddr};
 
-#[derive(PartialEq, Clone, Default)]
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct SecurityCredentials {
     pub ca_cert_name: heapless::String<16>,
     pub c_cert_name: heapless::String<16>,
@@ -15,7 +16,7 @@ pub(crate) struct PeerUrlBuilder<'a> {
     hostname: Option<&'a str>,
     ip_addr: Option<IpAddr>,
     port: Option<u16>,
-    creds: Option<SecurityCredentials>,
+    creds: Option<&'a SecurityCredentials>,
     local_port: Option<u16>,
 }
 
@@ -115,7 +116,7 @@ impl<'a> PeerUrlBuilder<'a> {
         self
     }
 
-    pub fn creds(&mut self, creds: SecurityCredentials) -> &mut Self {
+    pub fn creds(&mut self, creds: &'a SecurityCredentials) -> &mut Self {
         self.creds.replace(creds);
         self
     }
@@ -173,7 +174,7 @@ mod test {
         let url = PeerUrlBuilder::new()
             .hostname("example.org")
             .port(2000)
-            .creds(SecurityCredentials {
+            .creds(&SecurityCredentials {
                 c_cert_name: heapless::String::try_from("client.crt").unwrap(),
                 ca_cert_name: heapless::String::try_from("ca.crt").unwrap(),
                 c_key_name: heapless::String::try_from("client.key").unwrap(),

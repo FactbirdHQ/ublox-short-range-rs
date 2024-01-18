@@ -27,6 +27,7 @@ impl<'a> TlsSocket<'a> {
         let TcpIo { stack, handle } = tcp_socket.io;
 
         let s = &mut *stack.borrow_mut();
+        info!("Associating credentials {} with {}", credentials, handle);
         s.credential_map.insert(handle, credentials);
 
         Self { inner: tcp_socket }
@@ -214,6 +215,13 @@ impl<'a> TlsSocket<'a> {
     /// Get whether the socket is ready to receive data, i.e. whether there is some pending data in the receive buffer.
     pub fn can_recv(&self) -> bool {
         self.inner.can_recv()
+    }
+}
+
+impl<'a> Drop for TlsSocket<'a> {
+    fn drop(&mut self) {
+        let mut stack = self.inner.io.stack.borrow_mut();
+        stack.credential_map.remove(&self.inner.io.handle);
     }
 }
 

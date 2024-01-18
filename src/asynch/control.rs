@@ -4,16 +4,21 @@ use core::task::Poll;
 use atat::asynch::AtatClient;
 use embassy_time::{with_timeout, Duration};
 
-use crate::command::gpio::{
-    types::{GPIOId, GPIOValue},
-    WriteGPIO,
-};
 use crate::command::network::SetNetworkHostName;
+use crate::command::security::types::SecurityDataType;
+use crate::command::security::SendSecurityDataImport;
 use crate::command::wifi::types::{
     Authentication, StatusId, WifiStationAction, WifiStationConfig, WifiStatus, WifiStatusVal,
 };
 use crate::command::wifi::{ExecWifiStationAction, GetWifiStatus, SetWifiStationConfig};
 use crate::command::OnOff;
+use crate::command::{
+    gpio::{
+        types::{GPIOId, GPIOValue},
+        WriteGPIO,
+    },
+    security::PrepareSecurityDataImport,
+};
 use crate::error::Error;
 
 use super::state::LinkState;
@@ -223,7 +228,7 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             })
             .await?;
 
-        with_timeout(Duration::from_secs(10), self.wait_for_join(ssid))
+        with_timeout(Duration::from_secs(20), self.wait_for_join(ssid))
             .await
             .map_err(|_| Error::Timeout)??;
 
@@ -273,6 +278,41 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
 
     pub async fn gpio_set(&mut self, id: GPIOId, value: GPIOValue) -> Result<(), Error> {
         self.at.send_edm(WriteGPIO { id, value }).await?;
+        Ok(())
+    }
+
+    // FIXME: This could probably be improved
+    pub async fn import_credentials(
+        &mut self,
+        data_type: SecurityDataType,
+        name: &str,
+        data: &[u8],
+        md5_sum: Option<&str>,
+    ) -> Result<(), atat::Error> {
+        assert!(name.len() < 16);
+
+        info!("Importing {:?} bytes as {:?}", data.len(), name);
+
+        self.at
+            .send_edm(PrepareSecurityDataImport {
+                data_type,
+                data_size: data.len(),
+                internal_name: name,
+                password: None,
+            })
+            .await?;
+
+        let import_data = self
+            .at
+            .send_edm(SendSecurityDataImport {
+                data: atat::serde_bytes::Bytes::new(data),
+            })
+            .await?;
+
+        if let Some(hash) = md5_sum {
+            assert_eq!(import_data.md5_string.as_str(), hash);
+        }
+
         Ok(())
     }
 }

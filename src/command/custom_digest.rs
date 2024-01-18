@@ -84,8 +84,7 @@ impl Digester for EdmDigester {
                 };
                 (return_val, edm_len)
             }
-            PayloadType::StartEvent => (DigestResult::Urc(&buf[..edm_len]), edm_len),
-            // PayloadType::StartEvent => (DigestResult::Response(Ok(&buf[..edm_len])), edm_len),
+            PayloadType::StartEvent => (DigestResult::Response(Ok(&buf[..edm_len])), edm_len),
             PayloadType::ATEvent
             | PayloadType::ConnectEvent
             | PayloadType::DataEvent

@@ -21,6 +21,7 @@ pub use atat;
 pub mod command;
 pub mod error;
 // pub mod wifi;
+pub use peer_builder::SecurityCredentials;
 
 // TODO:
 // - UDP stack

@@ -20,7 +20,8 @@ atat = { version = "0.21", features = ["derive", "bytes"] }
 heapless = { version = "^0.8", features = ["serde"] }
 no-std-net = { version = "0.6", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
-ublox-sockets = { version = "0.5", features = ["edm"], optional = true }
+# ublox-sockets = { version = "0.5", features = ["edm"], optional = true }
+ublox-sockets = { git = "https://github.com/BlackbirdHQ/ublox-sockets", rev = "9f7fe54", features = ["edm"], optional = true }
 postcard = "1.0.4"
 portable-atomic = "1.5"
 
@@ -78,11 +79,5 @@ exclude = ["examples"]
 
 
 [patch.crates-io]
+no-std-net = { git = "https://github.com/rushmorem/no-std-net", branch = "issue-15" }
 atat = { path = "../atat/atat" }
-ublox-sockets = { path = "../ublox-sockets" }
-no-std-net = { path = "../no-std-net" }
-
-embassy-time = { path = "../embassy/embassy-time" }
-embassy-sync = { path = "../embassy/embassy-sync" }
-embassy-futures = { path = "../embassy/embassy-futures" }
-embassy-net-driver = { path = "../embassy/embassy-net-driver" }

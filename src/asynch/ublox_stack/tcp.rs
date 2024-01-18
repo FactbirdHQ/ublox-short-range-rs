@@ -619,8 +619,6 @@ pub mod client {
     use core::mem::MaybeUninit;
     use core::ptr::NonNull;
 
-    
-
     use crate::asynch::ublox_stack::dns::DnsSocket;
 
     use super::*;

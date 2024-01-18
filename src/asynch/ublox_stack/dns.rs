@@ -147,18 +147,12 @@ impl<'a> DnsSocket<'a> {
             s.waker.wake();
         }
 
-        
-
         poll_fn(|cx| {
             let mut s = self.stack.borrow_mut();
             let query = s.dns_table.get_mut(&name_string).unwrap();
             match query.state {
-                DnsState::Resolved(ip) => {
-                    Poll::Ready(Ok(ip))
-                }
-                DnsState::Error(_e) => {
-                    Poll::Ready(Err(Error::Failed))
-                }
+                DnsState::Resolved(ip) => Poll::Ready(Ok(ip)),
+                DnsState::Error(_e) => Poll::Ready(Err(Error::Failed)),
                 _ => {
                     query.waker.register(cx.waker());
                     Poll::Pending

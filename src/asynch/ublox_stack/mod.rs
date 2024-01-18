@@ -22,8 +22,6 @@ use crate::command::edm::EdmDataCommand;
 use crate::command::ping::types::PingError;
 use crate::command::ping::urc::{PingErrorResponse, PingResponse};
 use crate::command::ping::Ping;
-use crate::command::security::types::SecurityDataType;
-use crate::command::security::{PrepareSecurityDataImport, SendSecurityDataImport};
 use crate::command::Urc;
 use crate::peer_builder::{PeerUrlBuilder, SecurityCredentials};
 
@@ -81,7 +79,7 @@ struct SocketStack {
     waker: WakerRegistration,
     dns_table: DnsTable,
     dropped_sockets: heapless::Vec<PeerHandle, 3>,
-    credential_map: heapless::FnvIndexMap<SocketHandle, SecurityCredentials, 3>,
+    credential_map: heapless::FnvIndexMap<SocketHandle, SecurityCredentials, 2>,
 }
 
 impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAPACITY> {
@@ -168,76 +166,6 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                 }
             }
         }
-    }
-
-    // FIXME: This could probably be improved
-    pub async fn import_credentials(
-        &self,
-        root_ca: (&str, &[u8]),
-        cert: (&str, &[u8]),
-        priv_key: (&str, &[u8]),
-    ) -> Result<(), atat::Error> {
-        let mut device = self.device.borrow_mut();
-
-        assert!(root_ca.0.len() < 16);
-        assert!(cert.0.len() < 16);
-        assert!(priv_key.0.len() < 16);
-
-        device
-            .at
-            .send_edm(PrepareSecurityDataImport {
-                data_type: SecurityDataType::TrustedRootCA,
-                data_size: root_ca.1.len(),
-                internal_name: root_ca.0,
-                password: None,
-            })
-            .await?;
-
-        device
-            .at
-            .send_edm(SendSecurityDataImport {
-                data: atat::serde_bytes::Bytes::new(root_ca.1),
-            })
-            .await?;
-
-        device
-            .at
-            .send_edm(PrepareSecurityDataImport {
-                data_type: SecurityDataType::ClientCertificate,
-                data_size: cert.1.len(),
-                internal_name: cert.0,
-                password: None,
-            })
-            .await?;
-
-        device
-            .at
-            .send_edm(SendSecurityDataImport {
-                data: atat::serde_bytes::Bytes::new(cert.1),
-            })
-            .await?;
-
-        device
-            .at
-            .send_edm(PrepareSecurityDataImport {
-                data_type: SecurityDataType::ClientPrivateKey,
-                data_size: priv_key.1.len(),
-                internal_name: priv_key.0,
-                password: None,
-            })
-            .await?;
-
-        device
-            .at
-            .send_edm(SendSecurityDataImport {
-                data: atat::serde_bytes::Bytes::new(priv_key.1),
-            })
-            .await?;
-
-        // FIXME:
-        // self.socket.borrow_mut().credential_map.insert(key, value);
-
-        Ok(())
     }
 
     /// Make a query for a given name and return the corresponding IP addresses.
@@ -426,7 +354,8 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                                     builder.address(&addr)
                                 };
 
-                                if let Some(creds) = credential_map.remove(&handle) {
+                                if let Some(creds) = credential_map.get(&handle) {
+                                    info!("Found credentials {} for {}", creds, handle);
                                     builder.creds(creds);
                                 }
 

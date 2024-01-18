@@ -4,6 +4,7 @@ use super::state::{self, LinkState};
 use crate::{
     command::{
         edm::{urc::EdmEvent, SwitchToEdmCommand},
+        general::SoftwareVersion,
         network::{
             responses::NetworkStatusResponse,
             types::{InterfaceType, NetworkStatus, NetworkStatusParameter},
@@ -11,8 +12,8 @@ use crate::{
             GetNetworkStatus,
         },
         system::{
-            types::{EchoOn},
-            RebootDCE, SetEcho, StoreCurrentConfig,
+            types::{BaudRate, ChangeAfterConfirm, EchoOn, FlowControl, Parity, StopBits},
+            RebootDCE, SetEcho, SetRS232Settings, StoreCurrentConfig,
         },
         wifi::{
             types::DisconnectReason,
@@ -88,26 +89,21 @@ impl<
         // <change_after_confirm> parameter. Instead, the <change_after_confirm>
         // parameter must be set to 0 and the serial settings will take effect
         // when the module is reset.
-        // let baud_rate = BaudRate::B3000000;
-        // self.at
-        //     .send_edm(SetRS232Settings {
-        //         baud_rate,
-        //         flow_control: FlowControl::On,
-        //         data_bits: 8,
-        //         stop_bits: StopBits::One,
-        //         parity: Parity::None,
-        //         change_after_confirm: ChangeAfterConfirm::StoreAndReset,
-        //     })
-        //     .await?;
+        let baud_rate = BaudRate::B115200;
+        self.at
+            .send_edm(SetRS232Settings {
+                baud_rate,
+                flow_control: FlowControl::On,
+                data_bits: 8,
+                stop_bits: StopBits::One,
+                parity: Parity::None,
+                change_after_confirm: ChangeAfterConfirm::StoreAndReset,
+            })
+            .await?;
 
-        // self.restart(true).await?;
+        self.restart(true).await?;
 
-        // self.at
-        //     .0
-        //     .lock()
-        //     .await
-        //     .set_baudrate(baud_rate as u32)
-        //     .map_err(|_| Error::BaudDetection)?;
+        self.at.send_edm(SoftwareVersion).await?;
 
         // Move to control
         // if let Some(size) = self.config.tls_in_buffer_size {
@@ -133,7 +129,7 @@ impl<
         let fut = async {
             loop {
                 match self.urc_subscription.next_message_pure().await {
-                    EdmEvent::ATEvent(Urc::StartUp) | EdmEvent::StartUp => return,
+                    EdmEvent::ATEvent(Urc::StartUp) => return,
                     _ => {}
                 }
             }
@@ -163,28 +159,29 @@ impl<
 
         self.at.send_edm(RebootDCE).await?;
 
-        Timer::after(Duration::from_millis(3500)).await;
+        self.wait_startup(Duration::from_secs(10)).await?;
 
+        info!("Module started again");
         self.enter_edm(Duration::from_secs(4)).await?;
 
         Ok(())
     }
 
     pub async fn enter_edm(&mut self, timeout: Duration) -> Result<(), Error> {
+        info!("Entering EDM mode");
+
         // Switch to EDM on Init. If in EDM, fail and check with autosense
         let fut = async {
             loop {
                 // Ignore AT results until we are successful in EDM mode
-                self.at.send(SwitchToEdmCommand).await.ok();
-
-                if let Ok(EdmEvent::StartUp) = with_timeout(
-                    Duration::from_millis(300),
-                    self.urc_subscription.next_message_pure(),
-                )
-                .await
-                {
+                if let Ok(_) = self.at.send(SwitchToEdmCommand).await {
+                    // After executing the data mode command or the extended data
+                    // mode command, a delay of 50 ms is required before start of
+                    // data transmission.
+                    Timer::after(Duration::from_millis(50)).await;
                     break;
                 }
+                Timer::after(Duration::from_millis(10)).await;
             }
         };
 
@@ -192,7 +189,7 @@ impl<
             .await
             .map_err(|_| Error::Timeout)?;
 
-        self.at.send_edm(SetEcho { on: EchoOn::Off }).await?;
+        self.at.send_edm(SetEcho { on: EchoOn::On }).await?;
 
         Ok(())
     }

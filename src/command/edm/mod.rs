@@ -172,16 +172,14 @@ impl atat::AtatCmd for SwitchToEdmCommand {
 
     fn parse(
         &self,
-        _resp: Result<&[u8], atat::InternalError>,
+        resp: Result<&[u8], atat::InternalError>,
     ) -> core::result::Result<Self::Response, atat::Error> {
-        // let resp = resp?;
-        // // Parse EDM startup command
-        // let correct = &[0xAA, 0x00, 0x02, 0x00, 0x71, 0x55]; // &[0xAA,0x00,0x06,0x00,0x45,0x4f,0x4b,0x0D,0x0a,0x55]; // AA 00 06 00 44 41 54 0D 0A 0D 0A 4F 4B 0D 0A 55 ?
-        // if resp.len() != correct.len()
-        //     || resp[.. correct.len()] != *correct {
-        //     // TODO: check this
-        //     return Err(atat::Error::InvalidResponse);
-        // }
+        let resp = resp?;
+        // Parse EDM startup command
+        let correct = &[0xAA, 0x00, 0x02, 0x00, 0x71, 0x55];
+        if resp.len() != correct.len() || resp[..correct.len()] != *correct {
+            return Err(atat::Error::InvalidResponse);
+        }
         Ok(NoResponse)
     }
 }
