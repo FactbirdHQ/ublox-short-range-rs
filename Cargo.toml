@@ -53,7 +53,7 @@ defmt = [
     "postcard/use-defmt",
     "heapless/defmt-03",
     "atat/defmt",
-    "ublox-sockets/defmt",
+    "ublox-sockets?/defmt",
 ]
 
 odin_w2xx = []

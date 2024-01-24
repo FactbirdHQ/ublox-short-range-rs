@@ -4,12 +4,8 @@
         "editor.formatOnSave": false
     },
     "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
-    "rust-analyzer.cargo.noDefaultFeatures": true,
     "rust-analyzer.check.allTargets": false,
-    "rust-analyzer.check.noDefaultFeatures": true,
-    "rust-analyzer.linkedProjects": [
-        "examples/rpi-pico/Cargo.toml",
-    ],
+    "rust-analyzer.linkedProjects": [],
     "rust-analyzer.server.extraEnv": {
         "WIFI_NETWORK": "foo",
         "WIFI_PASSWORD": "foo",

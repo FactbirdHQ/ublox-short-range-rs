@@ -16,7 +16,7 @@ use crate::asynch::state::Device;
 use crate::command::data_mode::responses::ConnectPeerResponse;
 use crate::command::data_mode::urc::PeerDisconnected;
 use crate::command::data_mode::{ClosePeerConnection, ConnectPeer};
-use crate::command::edm::types::{DataEvent, Protocol, DATA_PACKAGE_SIZE};
+use crate::command::edm::types::{DataEvent, Protocol};
 use crate::command::edm::urc::EdmEvent;
 use crate::command::edm::EdmDataCommand;
 use crate::command::ping::types::PingError;
@@ -25,13 +25,13 @@ use crate::command::ping::Ping;
 use crate::command::Urc;
 use crate::peer_builder::{PeerUrlBuilder, SecurityCredentials};
 
-use self::dns::{DnsSocket, DnsState, DnsTable, MAX_DOMAIN_NAME_LENGTH};
+use self::dns::{DnsSocket, DnsState, DnsTable};
 
 use super::state::{self, LinkState};
 use super::AtHandle;
 
 use atat::asynch::AtatClient;
-use embassy_futures::select::{select4, Either4};
+use embassy_futures::select;
 use embassy_sync::waitqueue::WakerRegistration;
 use embassy_time::{Duration, Ticker};
 use embedded_nal_async::SocketAddr;
@@ -47,6 +47,8 @@ use ublox_sockets::TcpState;
 
 #[cfg(feature = "socket-udp")]
 use ublox_sockets::UdpState;
+
+const MAX_EGRESS_SIZE: usize = 2048;
 
 pub struct StackResources<const SOCK: usize> {
     sockets: [SocketStorage<'static>; SOCK],
@@ -107,6 +109,8 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
     }
 
     pub async fn run(&self) -> ! {
+        let mut tx_buf = [0u8; MAX_EGRESS_SIZE];
+
         loop {
             // FIXME: It feels like this can be written smarter/simpler?
             let should_tx = poll_fn(|cx| match self.should_tx.load(Ordering::Relaxed) {
@@ -131,7 +135,7 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                 ref mut at,
             } = device.deref_mut();
 
-            match select4(
+            match select::select4(
                 urc_subscription.next_message_pure(),
                 should_tx,
                 ticker.next(),
@@ -145,15 +149,15 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
             )
             .await
             {
-                Either4::First(event) => {
+                select::Either4::First(event) => {
                     Self::socket_rx(event, &self.socket);
                 }
-                Either4::Second(_) | Either4::Third(_) => {
-                    if let Some(ev) = self.tx_event() {
+                select::Either4::Second(_) | select::Either4::Third(_) => {
+                    if let Some(ev) = self.tx_event(&mut tx_buf) {
                         Self::socket_tx(ev, &self.socket, at).await;
                     }
                 }
-                Either4::Fourth(new_state) => {
+                select::Either4::Fourth(new_state) => {
                     // Update link up
                     let old_link_up = self.link_up.load(Ordering::Relaxed);
                     let new_link_up = new_state == LinkState::Up;
@@ -300,13 +304,14 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
         }
     }
 
-    fn tx_event(&self) -> Option<TxEvent> {
+    fn tx_event<'data>(&self, buf: &'data mut [u8]) -> Option<TxEvent<'data>> {
         let mut s = self.socket.borrow_mut();
         for query in s.dns_table.table.iter_mut() {
             if let DnsState::New = query.state {
                 query.state = DnsState::Pending;
+                buf[..query.domain_name.len()].copy_from_slice(query.domain_name.as_bytes());
                 return Some(TxEvent::Dns {
-                    hostname: query.domain_name.clone(),
+                    hostname: core::str::from_utf8(&buf[..query.domain_name.len()]).unwrap(),
                 });
             }
         }
@@ -362,9 +367,12 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                                 let url =
                                     builder.set_local_port(tcp.local_port).tcp::<128>().unwrap();
 
+                                // FIXME: Write directly into `buf` instead
+                                buf[..url.len()].copy_from_slice(url.as_bytes());
+
                                 return Some(TxEvent::Connect {
                                     socket_handle: handle,
-                                    url,
+                                    url: core::str::from_utf8(&buf[..url.len()]).unwrap(),
                                 });
                             }
                         }
@@ -373,11 +381,12 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                         TcpState::Established | TcpState::CloseWait | TcpState::LastAck => {
                             if let Some(edm_channel) = tcp.edm_channel {
                                 return tcp.tx_dequeue(|payload| {
-                                    let len = core::cmp::min(payload.len(), DATA_PACKAGE_SIZE);
+                                    let len = core::cmp::min(payload.len(), MAX_EGRESS_SIZE);
                                     let res = if len != 0 {
+                                        buf[..len].copy_from_slice(&payload[..len]);
                                         Some(TxEvent::Send {
                                             edm_channel,
-                                            data: heapless::Vec::from_slice(payload).unwrap(),
+                                            data: &buf[..len],
                                         })
                                     } else {
                                         None
@@ -404,7 +413,11 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
         None
     }
 
-    async fn socket_tx(ev: TxEvent, socket: &RefCell<SocketStack>, at: &mut AtHandle<'_, AT>) {
+    async fn socket_tx<'data>(
+        ev: TxEvent<'data>,
+        socket: &RefCell<SocketStack>,
+        at: &mut AtHandle<'_, AT>,
+    ) {
         match ev {
             TxEvent::Connect { socket_handle, url } => {
                 match at.send_edm(ConnectPeer { url: &url }).await {
@@ -425,7 +438,7 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                 warn!("Sending {} bytes on {}", data.len(), edm_channel);
                 at.send(EdmDataCommand {
                     channel: edm_channel,
-                    data: &data,
+                    data,
                 })
                 .await
                 .ok();
@@ -494,25 +507,25 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
 
 // TODO: This extra data clone step can probably be avoided by adding a
 // waker/context based API to ATAT.
-enum TxEvent {
+enum TxEvent<'data> {
     Connect {
         socket_handle: SocketHandle,
-        url: heapless::String<128>,
+        url: &'data str,
     },
     Send {
         edm_channel: ChannelId,
-        data: heapless::Vec<u8, DATA_PACKAGE_SIZE>,
+        data: &'data [u8],
     },
     Close {
         peer_handle: PeerHandle,
     },
     Dns {
-        hostname: heapless::String<MAX_DOMAIN_NAME_LENGTH>,
+        hostname: &'data str,
     },
 }
 
 #[cfg(feature = "defmt")]
-impl defmt::Format for TxEvent {
+impl defmt::Format for TxEvent<'_> {
     fn format(&self, fmt: defmt::Formatter) {
         match self {
             TxEvent::Connect { .. } => defmt::write!(fmt, "TxEvent::Connect"),

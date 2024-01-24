@@ -212,71 +212,83 @@ impl<
 
     pub async fn run(mut self) -> ! {
         loop {
-            let event = self.urc_subscription.next_message_pure().await;
-            match event {
-                EdmEvent::ATEvent(Urc::StartUp) => {
-                    error!("AT startup event?! Device restarted unintentionally!");
-                }
-                EdmEvent::ATEvent(Urc::WifiLinkConnected(WifiLinkConnected {
-                    connection_id: _,
-                    bssid,
-                    channel,
-                })) => {
-                    if let Some(ref mut con) = self.wifi_connection {
-                        con.wifi_state = WiFiState::Connected;
-                        con.network.bssid = bssid;
-                        con.network.channel = channel;
-                    } else {
-                        debug!("[URC] Active network config discovered");
-                        self.wifi_connection.replace(
-                            WifiConnection::new(
-                                WifiNetwork::new_station(bssid, channel),
-                                WiFiState::Connected,
-                                255,
-                            )
-                            .activate(),
-                        );
+            let wait_link_up = {
+                let event = self.urc_subscription.next_message_pure().await;
+                match event {
+                    EdmEvent::ATEvent(Urc::StartUp) => {
+                        error!("AT startup event?! Device restarted unintentionally!");
+                        false
                     }
-                    self.is_link_up().await.unwrap();
-                }
-                EdmEvent::ATEvent(Urc::WifiLinkDisconnected(WifiLinkDisconnected {
-                    reason,
-                    ..
-                })) => {
-                    if let Some(ref mut con) = self.wifi_connection {
-                        match reason {
-                            DisconnectReason::NetworkDisabled => {
-                                con.wifi_state = WiFiState::Inactive;
-                            }
-                            DisconnectReason::SecurityProblems => {
-                                error!("Wifi Security Problems");
-                            }
-                            _ => {
-                                con.wifi_state = WiFiState::NotConnected;
+                    EdmEvent::ATEvent(Urc::WifiLinkConnected(WifiLinkConnected {
+                        connection_id: _,
+                        bssid,
+                        channel,
+                    })) => {
+                        if let Some(ref mut con) = self.wifi_connection {
+                            con.wifi_state = WiFiState::Connected;
+                            con.network.bssid = bssid;
+                            con.network.channel = channel;
+                        } else {
+                            debug!("[URC] Active network config discovered");
+                            self.wifi_connection.replace(
+                                WifiConnection::new(
+                                    WifiNetwork::new_station(bssid, channel),
+                                    WiFiState::Connected,
+                                    255,
+                                )
+                                .activate(),
+                            );
+                        }
+                        true
+                    }
+                    EdmEvent::ATEvent(Urc::WifiLinkDisconnected(WifiLinkDisconnected {
+                        reason,
+                        ..
+                    })) => {
+                        if let Some(ref mut con) = self.wifi_connection {
+                            match reason {
+                                DisconnectReason::NetworkDisabled => {
+                                    con.wifi_state = WiFiState::Inactive;
+                                }
+                                DisconnectReason::SecurityProblems => {
+                                    error!("Wifi Security Problems");
+                                }
+                                _ => {
+                                    con.wifi_state = WiFiState::NotConnected;
+                                }
                             }
                         }
-                    }
 
-                    self.is_link_up().await.unwrap();
+                        true
+                    }
+                    EdmEvent::ATEvent(Urc::WifiAPUp(_)) => todo!(),
+                    EdmEvent::ATEvent(Urc::WifiAPDown(_)) => todo!(),
+                    EdmEvent::ATEvent(Urc::WifiAPStationConnected(_)) => todo!(),
+                    EdmEvent::ATEvent(Urc::WifiAPStationDisconnected(_)) => todo!(),
+                    EdmEvent::ATEvent(Urc::EthernetLinkUp(_)) => todo!(),
+                    EdmEvent::ATEvent(Urc::EthernetLinkDown(_)) => todo!(),
+                    EdmEvent::ATEvent(Urc::NetworkUp(NetworkUp { interface_id })) => {
+                        drop(event);
+                        self.network_status_callback(interface_id).await.unwrap();
+                        true
+                    }
+                    EdmEvent::ATEvent(Urc::NetworkDown(NetworkDown { interface_id })) => {
+                        drop(event);
+                        self.network_status_callback(interface_id).await.unwrap();
+                        true
+                    }
+                    EdmEvent::ATEvent(Urc::NetworkError(_)) => todo!(),
+                    EdmEvent::StartUp => {
+                        error!("EDM startup event?! Device restarted unintentionally!");
+                        false
+                    }
+                    _ => false,
                 }
-                EdmEvent::ATEvent(Urc::WifiAPUp(_)) => todo!(),
-                EdmEvent::ATEvent(Urc::WifiAPDown(_)) => todo!(),
-                EdmEvent::ATEvent(Urc::WifiAPStationConnected(_)) => todo!(),
-                EdmEvent::ATEvent(Urc::WifiAPStationDisconnected(_)) => todo!(),
-                EdmEvent::ATEvent(Urc::EthernetLinkUp(_)) => todo!(),
-                EdmEvent::ATEvent(Urc::EthernetLinkDown(_)) => todo!(),
-                EdmEvent::ATEvent(Urc::NetworkUp(NetworkUp { interface_id })) => {
-                    self.network_status_callback(interface_id).await.unwrap();
-                }
-                EdmEvent::ATEvent(Urc::NetworkDown(NetworkDown { interface_id })) => {
-                    self.network_status_callback(interface_id).await.unwrap();
-                }
-                EdmEvent::ATEvent(Urc::NetworkError(_)) => todo!(),
-                EdmEvent::StartUp => {
-                    error!("EDM startup event?! Device restarted unintentionally!");
-                }
-                _ => {}
             };
+
+            if wait_link_up {
+                self.is_link_up().await.unwrap();
+            }
         }
     }
 
@@ -339,8 +351,6 @@ impl<
         if let Some(ref mut con) = self.wifi_connection {
             con.network_up = ipv4_up && ipv6_up;
         }
-
-        self.is_link_up().await?;
 
         Ok(())
     }
