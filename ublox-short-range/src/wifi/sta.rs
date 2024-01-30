@@ -207,7 +207,7 @@ where
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Reset,
             }),
-            false,
+            true,
         )?;
         Ok(())
     }
