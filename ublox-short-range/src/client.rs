@@ -275,7 +275,7 @@ where
         }
 
         // TODO: handle EDM settings quirk see EDM datasheet: 2.2.5.1 AT Request Serial settings
-        self.send_internal(
+        self.retry_send(
             &EdmAtCmdWrapper(SetRS232Settings {
                 baud_rate: BaudRate::B115200,
                 flow_control: FlowControl::On,
@@ -284,7 +284,7 @@ where
                 parity: Parity::None,
                 change_after_confirm: ChangeAfterConfirm::ChangeAfterOK,
             }),
-            false,
+            5,
         )?;
 
         if let Some(hostname) = self.config.hostname.clone() {
@@ -343,7 +343,7 @@ where
     }
 
     pub fn firmware_version(&mut self) -> Result<FirmwareVersion, Error> {
-        let response = self.send_internal(&EdmAtCmdWrapper(SoftwareVersion), false)?;
+        let response = self.send_internal(&EdmAtCmdWrapper(SoftwareVersion), true)?;
         Ok(response.version)
     }
 
