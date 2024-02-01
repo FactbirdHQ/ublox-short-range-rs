@@ -313,7 +313,8 @@ where
             self.handle_urc()?;
         }
 
-        if self.firmware_version()? < FirmwareVersion::new(8, 0, 0) {
+        let response = self.send_internal(&EdmAtCmdWrapper(SoftwareVersion), true)?;
+        if response.version < FirmwareVersion::new(8, 0, 0) {
             self.config.network_up_bug = true;
         } else {
             if let Some(size) = self.config.tls_in_buffer_size {
@@ -343,19 +344,16 @@ where
     }
 
     pub fn firmware_version(&mut self) -> Result<FirmwareVersion, Error> {
-        let response = self.send_internal(&EdmAtCmdWrapper(SoftwareVersion), true)?;
+        let response = self.send_at(SoftwareVersion)?;
         Ok(response.version)
     }
 
     pub fn signal_strength(&mut self) -> Result<i16, Error> {
         if let WifiStatusResponse {
             status_id: WifiStatus::RSSI(rssi),
-        } = self.send_internal(
-            &EdmAtCmdWrapper(GetWifiStatus {
-                status_id: StatusId::RSSI,
-            }),
-            false,
-        )? {
+        } = self.send_at(GetWifiStatus {
+            status_id: StatusId::RSSI,
+        })? {
             Ok(rssi)
         } else {
             Err(Error::_Unknown)
@@ -876,7 +874,7 @@ where
         A: atat::AtatCmd<LEN>,
     {
         if !self.initialized {
-            self.init()?;
+            return Err(Error::Uninitialized);
         }
         match self.serial_mode {
             SerialMode::ExtendedData => self.send_internal(&EdmAtCmdWrapper(cmd), true),
