@@ -347,7 +347,10 @@ impl<'a> TcpSocket<'a> {
 
 impl<'a> Drop for TcpSocket<'a> {
     fn drop(&mut self) {
-        if matches!(self.state(), TcpState::Listen | TcpState::Established) {
+        if matches!(
+            self.state(),
+            TcpState::Listen | TcpState::Established | TcpState::FinWait1
+        ) {
             if let Some(peer_handle) = self.io.with(|s| s.peer_handle) {
                 self.io
                     .stack

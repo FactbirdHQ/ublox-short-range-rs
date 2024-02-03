@@ -252,6 +252,7 @@ impl<
                                 }
                                 DisconnectReason::SecurityProblems => {
                                     error!("Wifi Security Problems");
+                                    con.wifi_state = WiFiState::NotConnected;
                                 }
                                 _ => {
                                     con.wifi_state = WiFiState::NotConnected;
