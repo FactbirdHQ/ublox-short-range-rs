@@ -202,25 +202,19 @@ where
     }
 
     pub fn reset_config_profile(&mut self) -> Result<(), WifiConnectionError> {
-        self.send_internal(
-            &EdmAtCmdWrapper(ExecWifiStationAction {
-                config_id: CONFIG_ID,
-                action: WifiStationAction::Reset,
-            }),
-            true,
-        )?;
+        self.send_at(EdmAtCmdWrapper(ExecWifiStationAction {
+            config_id: CONFIG_ID,
+            action: WifiStationAction::Reset,
+        }))?;
         Ok(())
     }
 
     pub fn disconnect(&mut self) -> Result<(), WifiConnectionError> {
         defmt::debug!("Disconnecting");
-        self.send_internal(
-            &EdmAtCmdWrapper(ExecWifiStationAction {
-                config_id: CONFIG_ID,
-                action: WifiStationAction::Deactivate,
-            }),
-            true,
-        )?;
+        self.send_at(EdmAtCmdWrapper(ExecWifiStationAction {
+            config_id: CONFIG_ID,
+            action: WifiStationAction::Deactivate,
+        }))?;
         Ok(())
     }
 }
