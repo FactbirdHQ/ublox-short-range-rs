@@ -10,8 +10,6 @@ use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::waitqueue::WakerRegistration;
 
-use crate::command::edm::urc::EdmEvent;
-
 /// The link state of a network device.
 #[derive(PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
@@ -22,7 +20,7 @@ pub enum LinkState {
     Up,
 }
 
-use super::AtHandle;
+use super::{AtHandle, UbloxUrc};
 
 pub struct State {
     inner: MaybeUninit<StateInner>,
@@ -92,7 +90,7 @@ impl<'d> StateRunner<'d> {
 pub fn new<'d, AT: AtatClient, const URC_CAPACITY: usize>(
     state: &'d mut State,
     at: AtHandle<'d, AT>,
-    urc_subscription: UrcSubscription<'d, EdmEvent, URC_CAPACITY, 2>,
+    urc_subscription: UrcSubscription<'d, UbloxUrc, URC_CAPACITY, 2>,
 ) -> (Runner<'d>, Device<'d, AT, URC_CAPACITY>) {
     // safety: this is a self-referential struct, however:
     // - it can't move while the `'d` borrow is active.
@@ -121,6 +119,25 @@ pub fn new<'d, AT: AtatClient, const URC_CAPACITY: usize>(
     )
 }
 
+pub fn new_ppp<'d>(state: &'d mut State) -> Runner<'d> {
+    // safety: this is a self-referential struct, however:
+    // - it can't move while the `'d` borrow is active.
+    // - when the borrow ends, the dangling references inside the MaybeUninit will never be used again.
+    let state_uninit: *mut MaybeUninit<StateInner> =
+        (&mut state.inner as *mut MaybeUninit<StateInner>).cast();
+
+    let state = unsafe { &mut *state_uninit }.write(StateInner {
+        shared: Mutex::new(RefCell::new(Shared {
+            link_state: LinkState::Down,
+            waker: WakerRegistration::new(),
+        })),
+    });
+
+    Runner {
+        shared: &state.shared,
+    }
+}
+
 pub struct TestShared<'d> {
     inner: &'d Mutex<NoopRawMutex, RefCell<Shared>>,
 }
@@ -128,7 +145,7 @@ pub struct TestShared<'d> {
 pub struct Device<'d, AT: AtatClient, const URC_CAPACITY: usize> {
     pub(crate) shared: TestShared<'d>,
     pub(crate) at: AtHandle<'d, AT>,
-    pub(crate) urc_subscription: UrcSubscription<'d, EdmEvent, URC_CAPACITY, 2>,
+    pub(crate) urc_subscription: UrcSubscription<'d, UbloxUrc, URC_CAPACITY, 2>,
 }
 
 impl<'d> TestShared<'d> {

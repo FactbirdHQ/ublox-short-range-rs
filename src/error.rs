@@ -1,3 +1,4 @@
+#[cfg(feature = "ublox-sockets")]
 pub use ublox_sockets::Error as SocketError;
 
 #[derive(Debug)]
@@ -17,6 +18,7 @@ pub enum Error {
     // NetworkState(crate::wifi::connection::NetworkState),
     NoWifiSetup,
     // WifiState(crate::wifi::connection::WiFiState),
+    #[cfg(feature = "ublox-sockets")]
     Socket(ublox_sockets::Error),
     AT(atat::Error),
     Busy,
@@ -40,6 +42,7 @@ impl From<atat::Error> for Error {
     }
 }
 
+#[cfg(feature = "ublox-sockets")]
 impl From<ublox_sockets::Error> for Error {
     fn from(e: ublox_sockets::Error) -> Self {
         Error::Socket(e)

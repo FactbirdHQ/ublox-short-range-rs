@@ -20,6 +20,15 @@ pub enum EdmEvent {
     StartUp,
 }
 
+impl EdmEvent {
+    pub fn extract_urc(self) -> Option<Urc> {
+        match self {
+            EdmEvent::ATEvent(urc) => Some(urc),
+            _ => None,
+        }
+    }
+}
+
 impl AtatUrc for EdmEvent {
     /// The type of the response. Usually the enum this trait is implemented on.
     type Response = Self;

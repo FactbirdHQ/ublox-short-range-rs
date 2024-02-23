@@ -36,59 +36,9 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         Self { state_ch, at }
     }
 
-    pub(crate) async fn init(&mut self) -> Result<(), Error> {
-        debug!("Initalizing ublox control");
-        // read MAC addr.
-        // let mut resp = self.at.send_edm(GetWifiMac).await?;
-        // self.state_ch.set_ethernet_address(
-        //     hex::from_hex(resp.mac_addr.as_mut_slice())
-        //         .unwrap()
-        //         .try_into()
-        //         .unwrap(),
-        // );
-
-        // let country = countries::WORLD_WIDE_XX;
-        // let country_info = CountryInfo {
-        //     country_abbrev: [country.code[0], country.code[1], 0, 0],
-        //     country_code: [country.code[0], country.code[1], 0, 0],
-        //     rev: if country.rev == 0 {
-        //         -1
-        //     } else {
-        //         country.rev as _
-        //     },
-        // };
-        // self.set_iovar("country", &country_info.to_bytes()).await;
-
-        // // set country takes some time, next ioctls fail if we don't wait.
-        // Timer::after(Duration::from_millis(100)).await;
-
-        // // Set antenna to chip antenna
-        // self.ioctl_set_u32(IOCTL_CMD_ANTDIV, 0, 0).await;
-
-        // self.set_iovar_u32("bus:txglom", 0).await;
-        // Timer::after(Duration::from_millis(100)).await;
-        // //self.set_iovar_u32("apsta", 1).await; // this crashes, also we already did it before...??
-        // //Timer::after(Duration::from_millis(100)).await;
-        // self.set_iovar_u32("ampdu_ba_wsize", 8).await;
-        // Timer::after(Duration::from_millis(100)).await;
-        // self.set_iovar_u32("ampdu_mpdu", 4).await;
-        // Timer::after(Duration::from_millis(100)).await;
-        // //self.set_iovar_u32("ampdu_rx_factor", 0).await; // this crashes
-
-        // // set wifi up
-        // self.ioctl(ControlType::Set, IOCTL_CMD_UP, 0, &mut []).await;
-
-        // Timer::after(Duration::from_millis(100)).await;
-
-        // self.ioctl_set_u32(110, 0, 1).await; // SET_GMODE = auto
-        // self.ioctl_set_u32(142, 0, 0).await; // SET_BAND = any
-
-        Ok(())
-    }
-
     pub async fn set_hostname(&mut self, hostname: &str) -> Result<(), Error> {
         self.at
-            .send_edm(SetNetworkHostName {
+            .send(SetNetworkHostName {
                 host_name: hostname,
             })
             .await?;
@@ -98,7 +48,7 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
     async fn get_wifi_status(&mut self) -> Result<WifiStatusVal, Error> {
         match self
             .at
-            .send_edm(GetWifiStatus {
+            .send(GetWifiStatus {
                 status_id: StatusId::Status,
             })
             .await?
@@ -112,7 +62,7 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
     async fn get_connected_ssid(&mut self) -> Result<heapless::String<64>, Error> {
         match self
             .at
-            .send_edm(GetWifiStatus {
+            .send(GetWifiStatus {
                 status_id: StatusId::SSID,
             })
             .await?
@@ -135,14 +85,14 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         }
 
         self.at
-            .send_edm(SetWifiStationConfig {
+            .send(SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::ActiveOnStartup(OnOff::Off),
             })
             .await?;
 
         self.at
-            .send_edm(SetWifiStationConfig {
+            .send(SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::SSID(
                     heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
@@ -151,14 +101,14 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             .await?;
 
         self.at
-            .send_edm(SetWifiStationConfig {
+            .send(SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::Authentication(Authentication::Open),
             })
             .await?;
 
         self.at
-            .send_edm(ExecWifiStationAction {
+            .send(ExecWifiStationAction {
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Activate,
             })
@@ -183,21 +133,21 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         }
 
         self.at
-            .send_edm(ExecWifiStationAction {
+            .send(ExecWifiStationAction {
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Reset,
             })
             .await?;
 
         self.at
-            .send_edm(SetWifiStationConfig {
+            .send(SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::ActiveOnStartup(OnOff::Off),
             })
             .await?;
 
         self.at
-            .send_edm(SetWifiStationConfig {
+            .send(SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::SSID(
                     heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
@@ -206,14 +156,14 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             .await?;
 
         self.at
-            .send_edm(SetWifiStationConfig {
+            .send(SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
             })
             .await?;
 
         self.at
-            .send_edm(SetWifiStationConfig {
+            .send(SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::WpaPskOrPassphrase(
                     heapless::String::try_from(passphrase).map_err(|_| Error::Overflow)?,
@@ -222,7 +172,7 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             .await?;
 
         self.at
-            .send_edm(ExecWifiStationAction {
+            .send(ExecWifiStationAction {
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Activate,
             })
@@ -240,7 +190,7 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             WifiStatusVal::Disabled => {}
             WifiStatusVal::Disconnected | WifiStatusVal::Connected => {
                 self.at
-                    .send_edm(ExecWifiStationAction {
+                    .send(ExecWifiStationAction {
                         config_id: CONFIG_ID,
                         action: WifiStationAction::Deactivate,
                     })
@@ -277,7 +227,7 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
     }
 
     pub async fn gpio_set(&mut self, id: GPIOId, value: GPIOValue) -> Result<(), Error> {
-        self.at.send_edm(WriteGPIO { id, value }).await?;
+        self.at.send(WriteGPIO { id, value }).await?;
         Ok(())
     }
 
@@ -294,7 +244,7 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         info!("Importing {:?} bytes as {:?}", data.len(), name);
 
         self.at
-            .send_edm(PrepareSecurityDataImport {
+            .send(PrepareSecurityDataImport {
                 data_type,
                 data_size: data.len(),
                 internal_name: name,
@@ -304,7 +254,7 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
 
         let import_data = self
             .at
-            .send_edm(SendSecurityDataImport {
+            .send(SendSecurityDataImport {
                 data: atat::serde_bytes::Bytes::new(data),
             })
             .await?;

@@ -1,0 +1,16 @@
+{
+    "editor.formatOnSave": true,
+    "[toml]": {
+        "editor.formatOnSave": false
+    },
+    "rust-analyzer.cargo.features": [
+        "ppp",
+    ],
+    "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
+    "rust-analyzer.check.allTargets": false,
+    "rust-analyzer.linkedProjects": [],
+    "rust-analyzer.server.extraEnv": {
+        "WIFI_NETWORK": "foo",
+        "WIFI_PASSWORD": "foo",
+    }
+}

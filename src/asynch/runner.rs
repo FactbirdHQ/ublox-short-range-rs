@@ -1,9 +1,13 @@
 use core::str::FromStr;
 
-use super::state::{self, LinkState};
+use super::{
+    state::{self, LinkState},
+    UbloxUrc,
+};
+#[cfg(feature = "edm")]
+use crate::command::edm::SwitchToEdmCommand;
 use crate::{
     command::{
-        edm::{urc::EdmEvent, SwitchToEdmCommand},
         general::SoftwareVersion,
         network::{
             responses::NetworkStatusResponse,
@@ -12,8 +16,8 @@ use crate::{
             GetNetworkStatus,
         },
         system::{
-            types::{BaudRate, ChangeAfterConfirm, EchoOn, FlowControl, Parity, StopBits},
-            RebootDCE, SetEcho, SetRS232Settings, StoreCurrentConfig,
+            types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
+            RebootDCE, SetRS232Settings, StoreCurrentConfig,
         },
         wifi::{
             types::DisconnectReason,
@@ -35,19 +39,12 @@ use super::AtHandle;
 /// Background runner for the Ublox Module.
 ///
 /// You must call `.run()` in a background task for the Ublox Module to operate.
-pub struct Runner<
-    'd,
-    AT: AtatClient,
-    RST: OutputPin,
-    const MAX_CONNS: usize,
-    const URC_CAPACITY: usize,
-> {
+pub struct Runner<'d, AT: AtatClient, RST: OutputPin, const URC_CAPACITY: usize> {
     ch: state::Runner<'d>,
     at: AtHandle<'d, AT>,
     reset: RST,
     wifi_connection: Option<WifiConnection>,
-    // connections: FnvIndexMap<PeerHandle, ConnectionType, MAX_CONNS>,
-    urc_subscription: UrcSubscription<'d, EdmEvent, URC_CAPACITY, 2>,
+    urc_subscription: UrcSubscription<'d, UbloxUrc, URC_CAPACITY, 2>,
 }
 
 impl<
@@ -55,15 +52,14 @@ impl<
         AT: AtatClient,
         // AT: AtatClient + atat::UartExt,
         RST: OutputPin,
-        const MAX_CONNS: usize,
         const URC_CAPACITY: usize,
-    > Runner<'d, AT, RST, MAX_CONNS, URC_CAPACITY>
+    > Runner<'d, AT, RST, URC_CAPACITY>
 {
     pub(crate) fn new(
         ch: state::Runner<'d>,
         at: AtHandle<'d, AT>,
         reset: RST,
-        urc_subscription: UrcSubscription<'d, EdmEvent, URC_CAPACITY, 2>,
+        urc_subscription: UrcSubscription<'d, UbloxUrc, URC_CAPACITY, 2>,
     ) -> Self {
         Self {
             ch,
@@ -71,7 +67,6 @@ impl<
             reset,
             wifi_connection: None,
             urc_subscription,
-            // connections: IndexMap::new(),
         }
     }
 
@@ -89,10 +84,9 @@ impl<
         // <change_after_confirm> parameter. Instead, the <change_after_confirm>
         // parameter must be set to 0 and the serial settings will take effect
         // when the module is reset.
-        let baud_rate = BaudRate::B115200;
         self.at
-            .send_edm(SetRS232Settings {
-                baud_rate,
+            .send(SetRS232Settings {
+                baud_rate: BaudRate::B115200,
                 flow_control: FlowControl::On,
                 data_bits: 8,
                 stop_bits: StopBits::One,
@@ -103,12 +97,12 @@ impl<
 
         self.restart(true).await?;
 
-        self.at.send_edm(SoftwareVersion).await?;
+        self.at.send(SoftwareVersion).await?;
 
         // Move to control
         // if let Some(size) = self.config.tls_in_buffer_size {
         //     self.at
-        //         .send_edm(SetPeerConfiguration {
+        //         .send(SetPeerConfiguration {
         //             parameter: PeerConfigParameter::TlsInBuffer(size),
         //         })
         //         .await?;
@@ -116,7 +110,7 @@ impl<
 
         // if let Some(size) = self.config.tls_out_buffer_size {
         //     self.at
-        //         .send_edm(SetPeerConfiguration {
+        //         .send(SetPeerConfiguration {
         //             parameter: PeerConfigParameter::TlsOutBuffer(size),
         //         })
         //         .await?;
@@ -128,8 +122,15 @@ impl<
     async fn wait_startup(&mut self, timeout: Duration) -> Result<(), Error> {
         let fut = async {
             loop {
-                match self.urc_subscription.next_message_pure().await {
-                    EdmEvent::ATEvent(Urc::StartUp) => return,
+                let event = self.urc_subscription.next_message_pure().await;
+
+                #[cfg(feature = "edm")]
+                let Some(event) = event.extract_urc() else {
+                    continue;
+                };
+
+                match event {
+                    Urc::StartUp => return,
                     _ => {}
                 }
             }
@@ -146,6 +147,7 @@ impl<
 
         self.wait_startup(Duration::from_secs(4)).await?;
 
+        #[cfg(feature = "edm")]
         self.enter_edm(Duration::from_secs(4)).await?;
 
         Ok(())
@@ -154,19 +156,21 @@ impl<
     pub async fn restart(&mut self, store: bool) -> Result<(), Error> {
         warn!("Soft resetting Ublox Short Range");
         if store {
-            self.at.send_edm(StoreCurrentConfig).await?;
+            self.at.send(StoreCurrentConfig).await?;
         }
 
-        self.at.send_edm(RebootDCE).await?;
+        self.at.send(RebootDCE).await?;
 
         self.wait_startup(Duration::from_secs(10)).await?;
 
         info!("Module started again");
+        #[cfg(feature = "edm")]
         self.enter_edm(Duration::from_secs(4)).await?;
 
         Ok(())
     }
 
+    #[cfg(feature = "edm")]
     pub async fn enter_edm(&mut self, timeout: Duration) -> Result<(), Error> {
         info!("Entering EDM mode");
 
@@ -189,7 +193,11 @@ impl<
             .await
             .map_err(|_| Error::Timeout)?;
 
-        self.at.send_edm(SetEcho { on: EchoOn::On }).await?;
+        self.at
+            .send(crate::command::system::SetEcho {
+                on: crate::command::system::types::EchoOn::Off,
+            })
+            .await?;
 
         Ok(())
     }
@@ -210,20 +218,26 @@ impl<
         Ok(link_state == LinkState::Up)
     }
 
-    pub async fn run(mut self) -> ! {
+    pub async fn run(&mut self) -> ! {
         loop {
             let wait_link_up = {
                 let event = self.urc_subscription.next_message_pure().await;
+
+                #[cfg(feature = "edm")]
+                let Some(event) = event.extract_urc() else {
+                    continue;
+                };
+
                 match event {
-                    EdmEvent::ATEvent(Urc::StartUp) => {
+                    Urc::StartUp => {
                         error!("AT startup event?! Device restarted unintentionally!");
                         false
                     }
-                    EdmEvent::ATEvent(Urc::WifiLinkConnected(WifiLinkConnected {
+                    Urc::WifiLinkConnected(WifiLinkConnected {
                         connection_id: _,
                         bssid,
                         channel,
-                    })) => {
+                    }) => {
                         if let Some(ref mut con) = self.wifi_connection {
                             con.wifi_state = WiFiState::Connected;
                             con.network.bssid = bssid;
@@ -241,10 +255,7 @@ impl<
                         }
                         true
                     }
-                    EdmEvent::ATEvent(Urc::WifiLinkDisconnected(WifiLinkDisconnected {
-                        reason,
-                        ..
-                    })) => {
+                    Urc::WifiLinkDisconnected(WifiLinkDisconnected { reason, .. }) => {
                         if let Some(ref mut con) = self.wifi_connection {
                             match reason {
                                 DisconnectReason::NetworkDisabled => {
@@ -262,27 +273,23 @@ impl<
 
                         true
                     }
-                    EdmEvent::ATEvent(Urc::WifiAPUp(_)) => todo!(),
-                    EdmEvent::ATEvent(Urc::WifiAPDown(_)) => todo!(),
-                    EdmEvent::ATEvent(Urc::WifiAPStationConnected(_)) => todo!(),
-                    EdmEvent::ATEvent(Urc::WifiAPStationDisconnected(_)) => todo!(),
-                    EdmEvent::ATEvent(Urc::EthernetLinkUp(_)) => todo!(),
-                    EdmEvent::ATEvent(Urc::EthernetLinkDown(_)) => todo!(),
-                    EdmEvent::ATEvent(Urc::NetworkUp(NetworkUp { interface_id })) => {
+                    Urc::WifiAPUp(_) => todo!(),
+                    Urc::WifiAPDown(_) => todo!(),
+                    Urc::WifiAPStationConnected(_) => todo!(),
+                    Urc::WifiAPStationDisconnected(_) => todo!(),
+                    Urc::EthernetLinkUp(_) => todo!(),
+                    Urc::EthernetLinkDown(_) => todo!(),
+                    Urc::NetworkUp(NetworkUp { interface_id }) => {
                         drop(event);
-                        self.network_status_callback(interface_id).await.unwrap();
+                        self.network_status_callback(interface_id).await.ok();
                         true
                     }
-                    EdmEvent::ATEvent(Urc::NetworkDown(NetworkDown { interface_id })) => {
+                    Urc::NetworkDown(NetworkDown { interface_id }) => {
                         drop(event);
-                        self.network_status_callback(interface_id).await.unwrap();
+                        self.network_status_callback(interface_id).await.ok();
                         true
                     }
-                    EdmEvent::ATEvent(Urc::NetworkError(_)) => todo!(),
-                    EdmEvent::StartUp => {
-                        error!("EDM startup event?! Device restarted unintentionally!");
-                        false
-                    }
+                    Urc::NetworkError(_) => todo!(),
                     _ => false,
                 }
             };
@@ -299,7 +306,7 @@ impl<
             ..
         } = self
             .at
-            .send_edm(GetNetworkStatus {
+            .send(GetNetworkStatus {
                 interface_id,
                 status: NetworkStatusParameter::InterfaceType,
             })
@@ -313,7 +320,7 @@ impl<
             ..
         } = self
             .at
-            .send_edm(GetNetworkStatus {
+            .send(GetNetworkStatus {
                 interface_id,
                 status: NetworkStatusParameter::Gateway,
             })
@@ -333,7 +340,7 @@ impl<
             ..
         } = self
             .at
-            .send_edm(GetNetworkStatus {
+            .send(GetNetworkStatus {
                 interface_id,
                 status: NetworkStatusParameter::IPv6LinkLocalAddress,
             })

@@ -7,7 +7,6 @@ use atat::atat_derive::AtatCmd;
 use heapless::String;
 use responses::*;
 use types::*;
-use ublox_sockets::PeerHandle;
 
 use super::NoResponse;
 
@@ -28,6 +27,7 @@ pub struct ChangeMode {
 /// Connects to an enabled service on a remote device. When the host connects to a
 /// service on a remote device, it implicitly registers to receive the "Connection Closed"
 /// event.
+#[cfg(feature = "ublox-sockets")]
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 5000)]
 pub struct ConnectPeer<'a> {
@@ -38,6 +38,7 @@ pub struct ConnectPeer<'a> {
 /// 5.3 Close peer connection +UDCPC
 ///
 /// Closes an existing peer connection.
+#[cfg(feature = "ublox-sockets")]
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCPC", NoResponse, timeout_ms = 1000)]
 pub struct ClosePeerConnection {
@@ -65,6 +66,7 @@ pub struct SetDefaultRemotePeer<'a> {
 /// 5.5 Peer list +UDLP
 ///
 /// This command reads the connected peers (peer handle).
+#[cfg(feature = "ublox-sockets")]
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDLP?", PeerListResponse, timeout_ms = 1000)]
 pub struct PeerList;

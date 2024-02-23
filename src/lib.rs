@@ -1,19 +1,17 @@
-#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+#![cfg_attr(not(test), no_std)]
 #![allow(async_fn_in_trait)]
+
+#[cfg(all(feature = "ppp", feature = "internal-network-stack"))]
+compile_error!("You may not enable both `ppp` and `internal-network-stack` features.");
 
 mod fmt;
 
 pub mod asynch;
 
-pub use embedded_nal_async;
-
-pub use ublox_sockets;
-
 mod connection;
 mod network;
 mod peer_builder;
 
-// mod blocking;
 mod hex;
 
 pub use atat;
@@ -29,7 +27,6 @@ pub use peer_builder::SecurityCredentials;
 // - Network scan
 // - AP Mode (control)
 // - TCP listener stack
-// - (Blocking client?)
 // -
 //
 // FIXME:

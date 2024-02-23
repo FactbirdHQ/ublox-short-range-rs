@@ -4,9 +4,6 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
-#[path = "../common.rs"]
-mod common;
-
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_rp::gpio::{Level, Output};

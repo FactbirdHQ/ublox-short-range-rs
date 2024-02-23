@@ -15,38 +15,50 @@ name = "ublox_short_range"
 doctest = false
 
 [dependencies]
-atat = { version = "0.21", features = ["derive", "bytes"] }
+# atat = { version = "0.21", features = ["derive", "bytes"] }
+atat = { path = "../atat/atat", features = ["derive", "bytes"] }
+
 # atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "70283be", features = ["derive", "defmt", "bytes"] }
 heapless = { version = "^0.8", features = ["serde"] }
 no-std-net = { version = "0.6", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
 # ublox-sockets = { version = "0.5", features = ["edm"], optional = true }
-ublox-sockets = { git = "https://github.com/BlackbirdHQ/ublox-sockets", rev = "9f7fe54", features = ["edm"], optional = true }
+ublox-sockets = { git = "https://github.com/BlackbirdHQ/ublox-sockets", rev = "9f7fe54", optional = true }
 postcard = "1.0.4"
-portable-atomic = "1.5"
+portable-atomic = "1.6"
 
-defmt = { version = "0.3", optional = true }
-log = { version = "0.4.14", optional = true }
+log = { version = "^0.4", default-features = false, optional = true }
+defmt = { version = "^0.3", optional = true }
 
 embedded-hal = "1.0"
 embassy-time = "0.3"
 embassy-sync = "0.5"
 embassy-futures = "0.1"
-embassy-net-driver = "0.2"
 
 embedded-nal-async = { version = "0.7" }
-futures = { version = "0.3.17", default-features = false, features = [
-    "async-await",
-] }
+futures-util = { version = "0.3.29", default-features = false }
 
 embedded-io = "0.6"
 embedded-io-async = "0.6"
 
+embassy-net-ppp = { version = "0.1", optional = true }
+embassy-net = { version = "0.4", features = [
+    "proto-ipv4",
+    "medium-ip",
+], optional = true }
+
+
 [features]
-default = ["odin_w2xx", "ublox-sockets", "socket-tcp", "socket-udp"]
+default = ["socket-tcp", "socket-udp", "odin_w2xx"]
 
+internal-network-stack = ["dep:ublox-sockets", "edm"]
+edm = ["ublox-sockets?/edm"]
 
-std = []
+# PPP mode requires UDP sockets enabled, to be able to do AT commands over UDP port 23
+ppp = ["dep:embassy-net-ppp", "dep:embassy-net", "socket-udp"]
+
+socket-tcp = ["ublox-sockets?/socket-tcp", "embassy-net?/tcp"]
+socket-udp = ["ublox-sockets?/socket-udp", "embassy-net?/udp"]
 
 defmt = [
     "dep:defmt",
@@ -54,7 +66,10 @@ defmt = [
     "heapless/defmt-03",
     "atat/defmt",
     "ublox-sockets?/defmt",
+    "embassy-net-ppp?/defmt",
+    "embassy-net?/defmt",
 ]
+log = ["dep:log", "ublox-sockets?/log", "atat/log"]
 
 odin_w2xx = []
 nina_w1xx = []
@@ -62,15 +77,6 @@ nina_b1xx = []
 anna_b1xx = []
 nina_b2xx = []
 nina_b3xx = []
-
-socket-tcp = [
-    "ublox-sockets?/socket-tcp",
-    # "smoltcp?/socket-tcp"
-]
-socket-udp = [
-    "ublox-sockets?/socket-udp",
-    # "smoltcp?/socket-udp"
-]
 
 [workspace]
 members = []
