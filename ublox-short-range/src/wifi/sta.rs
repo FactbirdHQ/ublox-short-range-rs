@@ -198,6 +198,7 @@ where
                 return Ok(ssid);
             }
         };
+        //TEST
         return Err(WifiConnectionError::Illegal);
     }
 
