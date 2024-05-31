@@ -1,365 +1,299 @@
-use core::str::FromStr;
-
 use super::{
-    state::{self, LinkState},
-    UbloxUrc,
+    control::{Control, ControlResources},
+    network::NetDevice,
+    state, Resources, UbloxUrc,
 };
 #[cfg(feature = "edm")]
 use crate::command::edm::SwitchToEdmCommand;
 use crate::{
+    asynch::at_udp_socket::AtUdpSocket,
     command::{
-        general::SoftwareVersion,
-        network::{
-            responses::NetworkStatusResponse,
-            types::{InterfaceType, NetworkStatus, NetworkStatusParameter},
-            urc::{NetworkDown, NetworkUp},
-            GetNetworkStatus,
-        },
-        system::{
-            types::{BaudRate, ChangeAfterConfirm, FlowControl, Parity, StopBits},
-            RebootDCE, SetRS232Settings, StoreCurrentConfig,
-        },
-        wifi::{
-            types::DisconnectReason,
-            urc::{WifiLinkConnected, WifiLinkDisconnected},
-        },
+        data_mode::{self, ChangeMode},
         Urc,
     },
-    connection::{WiFiState, WifiConnection},
-    error::Error,
-    network::WifiNetwork,
+    WifiConfig,
 };
-use atat::{asynch::AtatClient, UrcSubscription};
-use embassy_time::{with_timeout, Duration, Timer};
-use embedded_hal::digital::OutputPin;
-use no_std_net::{Ipv4Addr, Ipv6Addr};
+use atat::{
+    asynch::{AtatClient, SimpleClient},
+    AtatIngress as _, UrcChannel,
+};
+use embassy_futures::select::Either;
+use embassy_net::{
+    udp::{PacketMetadata, UdpSocket},
+    Ipv4Address,
+};
+use embassy_time::{Duration, Instant, Timer};
+use embedded_io_async::{BufRead, Read, Write};
 
-use super::AtHandle;
+pub(crate) const URC_SUBSCRIBERS: usize = 3;
 
 /// Background runner for the Ublox Module.
 ///
 /// You must call `.run()` in a background task for the Ublox Module to operate.
-pub struct Runner<'d, AT: AtatClient, RST: OutputPin, const URC_CAPACITY: usize> {
-    ch: state::Runner<'d>,
-    at: AtHandle<'d, AT>,
-    reset: RST,
-    wifi_connection: Option<WifiConnection>,
-    urc_subscription: UrcSubscription<'d, UbloxUrc, URC_CAPACITY, 2>,
+pub struct Runner<'a, R, W, C, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize> {
+    iface: (R, W),
+
+    ch: state::Runner<'a>,
+    config: C,
+
+    pub urc_channel: &'a UrcChannel<Urc, URC_CAPACITY, URC_SUBSCRIBERS>,
+
+    pub ingress: atat::Ingress<
+        'a,
+        atat::AtDigester<Urc>,
+        Urc,
+        INGRESS_BUF_SIZE,
+        URC_CAPACITY,
+        URC_SUBSCRIBERS,
+    >,
+    pub cmd_buf: &'a mut [u8],
+    pub res_slot: &'a atat::ResponseSlot<INGRESS_BUF_SIZE>,
+
+    #[cfg(feature = "ppp")]
+    ppp_runner: Option<embassy_net_ppp::Runner<'a>>,
 }
 
-impl<
-        'd,
-        AT: AtatClient,
-        // AT: AtatClient + atat::UartExt,
-        RST: OutputPin,
-        const URC_CAPACITY: usize,
-    > Runner<'d, AT, RST, URC_CAPACITY>
+impl<'a, R, W, C, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
+    Runner<'a, R, W, C, INGRESS_BUF_SIZE, URC_CAPACITY>
+where
+    R: BufRead + Read,
+    W: Write,
+    C: WifiConfig<'a> + 'a,
 {
-    pub(crate) fn new(
-        ch: state::Runner<'d>,
-        at: AtHandle<'d, AT>,
-        reset: RST,
-        urc_subscription: UrcSubscription<'d, UbloxUrc, URC_CAPACITY, 2>,
+    pub fn new<const CMD_BUF_SIZE: usize>(
+        iface: (R, W),
+        resources: &'a mut Resources<CMD_BUF_SIZE, INGRESS_BUF_SIZE, URC_CAPACITY>,
+        config: C,
     ) -> Self {
+        let ch_runner = state::Runner::new(&mut resources.ch);
+
+        let ingress = atat::Ingress::new(
+            atat::AtDigester::new(),
+            &mut resources.ingress_buf,
+            &resources.res_slot,
+            &resources.urc_channel,
+        );
+
         Self {
-            ch,
-            at,
-            reset,
-            wifi_connection: None,
-            urc_subscription,
+            iface,
+
+            ch: ch_runner,
+            config,
+            urc_channel: &resources.urc_channel,
+
+            ingress,
+            cmd_buf: &mut resources.cmd_buf,
+            res_slot: &resources.res_slot,
+
+            #[cfg(feature = "ppp")]
+            ppp_runner: None,
         }
     }
 
-    pub(crate) async fn init(&mut self) -> Result<(), Error> {
-        // Initilize a new ublox device to a known state (set RS232 settings)
-        debug!("Initializing module");
-        // Hard reset module
-        self.reset().await?;
-
-        // ## 2.2.6.1 AT request serial settings (EDM mode)
-        //
-        // The AT+UMRS command to change serial settings does not work exactly
-        // the same as in command mode. When executed in the extended data mode,
-        // it is not possible to change the settings directly using the
-        // <change_after_confirm> parameter. Instead, the <change_after_confirm>
-        // parameter must be set to 0 and the serial settings will take effect
-        // when the module is reset.
-        self.at
-            .send(SetRS232Settings {
-                baud_rate: BaudRate::B115200,
-                flow_control: FlowControl::On,
-                data_bits: 8,
-                stop_bits: StopBits::One,
-                parity: Parity::None,
-                change_after_confirm: ChangeAfterConfirm::StoreAndReset,
-            })
-            .await?;
-
-        self.restart(true).await?;
-
-        self.at.send(SoftwareVersion).await?;
-
-        // Move to control
-        // if let Some(size) = self.config.tls_in_buffer_size {
-        //     self.at
-        //         .send(SetPeerConfiguration {
-        //             parameter: PeerConfigParameter::TlsInBuffer(size),
-        //         })
-        //         .await?;
-        // }
-
-        // if let Some(size) = self.config.tls_out_buffer_size {
-        //     self.at
-        //         .send(SetPeerConfiguration {
-        //             parameter: PeerConfigParameter::TlsOutBuffer(size),
-        //         })
-        //         .await?;
-        // }
-
-        Ok(())
+    pub fn control<'r, D: embassy_net::driver::Driver>(
+        &self,
+        resources: &'r mut ControlResources,
+        stack: &'r embassy_net::Stack<D>,
+    ) -> Control<'a, 'r, URC_CAPACITY> {
+        Control::new(self.ch.clone(), &self.urc_channel, resources, stack)
     }
 
-    async fn wait_startup(&mut self, timeout: Duration) -> Result<(), Error> {
-        let fut = async {
-            loop {
-                let event = self.urc_subscription.next_message_pure().await;
-
-                #[cfg(feature = "edm")]
-                let Some(event) = event.extract_urc() else {
-                    continue;
-                };
-
-                match event {
-                    Urc::StartUp => return,
-                    _ => {}
-                }
-            }
-        };
-
-        with_timeout(timeout, fut).await.map_err(|_| Error::Timeout)
+    #[cfg(feature = "ppp")]
+    pub fn ppp_stack<'d: 'a, const N_RX: usize, const N_TX: usize>(
+        &mut self,
+        ppp_state: &'d mut embassy_net_ppp::State<N_RX, N_TX>,
+    ) -> embassy_net_ppp::Device<'d> {
+        let (net_device, ppp_runner) = embassy_net_ppp::new(ppp_state);
+        self.ppp_runner.replace(ppp_runner);
+        net_device
     }
 
-    pub async fn reset(&mut self) -> Result<(), Error> {
-        warn!("Hard resetting Ublox Short Range");
-        self.reset.set_low().ok();
-        Timer::after(Duration::from_millis(100)).await;
-        self.reset.set_high().ok();
-
-        self.wait_startup(Duration::from_secs(4)).await?;
-
-        #[cfg(feature = "edm")]
-        self.enter_edm(Duration::from_secs(4)).await?;
-
-        Ok(())
-    }
-
-    pub async fn restart(&mut self, store: bool) -> Result<(), Error> {
-        warn!("Soft resetting Ublox Short Range");
-        if store {
-            self.at.send(StoreCurrentConfig).await?;
+    #[cfg(feature = "internal-network-stack")]
+    pub fn internal_stack(&mut self) -> state::Device<URC_CAPACITY> {
+        state::Device {
+            shared: &self.ch.shared,
+            urc_subscription: self.urc_channel.subscribe().unwrap(),
         }
-
-        self.at.send(RebootDCE).await?;
-
-        self.wait_startup(Duration::from_secs(10)).await?;
-
-        info!("Module started again");
-        #[cfg(feature = "edm")]
-        self.enter_edm(Duration::from_secs(4)).await?;
-
-        Ok(())
     }
 
-    #[cfg(feature = "edm")]
-    pub async fn enter_edm(&mut self, timeout: Duration) -> Result<(), Error> {
-        info!("Entering EDM mode");
+    pub async fn run<D: embassy_net::driver::Driver>(mut self, stack: &embassy_net::Stack<D>) -> ! {
+        #[cfg(feature = "ppp")]
+        let mut ppp_runner = self.ppp_runner.take().unwrap();
 
-        // Switch to EDM on Init. If in EDM, fail and check with autosense
-        let fut = async {
-            loop {
-                // Ignore AT results until we are successful in EDM mode
-                if let Ok(_) = self.at.send(SwitchToEdmCommand).await {
-                    // After executing the data mode command or the extended data
-                    // mode command, a delay of 50 ms is required before start of
-                    // data transmission.
-                    Timer::after(Duration::from_millis(50)).await;
-                    break;
-                }
-                Timer::after(Duration::from_millis(10)).await;
-            }
-        };
-
-        with_timeout(timeout, fut)
-            .await
-            .map_err(|_| Error::Timeout)?;
-
-        self.at
-            .send(crate::command::system::SetEcho {
-                on: crate::command::system::types::EchoOn::Off,
-            })
-            .await?;
-
-        Ok(())
-    }
-
-    pub async fn is_link_up(&mut self) -> Result<bool, Error> {
-        // Determine link state
-        let link_state = match self.wifi_connection {
-            Some(ref conn)
-                if conn.network_up && matches!(conn.wifi_state, WiFiState::Connected) =>
-            {
-                LinkState::Up
-            }
-            _ => LinkState::Down,
-        };
-
-        self.ch.set_link_state(link_state);
-
-        Ok(link_state == LinkState::Up)
-    }
-
-    pub async fn run(&mut self) -> ! {
+        let at_config = atat::Config::default();
         loop {
-            let wait_link_up = {
-                let event = self.urc_subscription.next_message_pure().await;
+            // Run the cellular device from full power down to the
+            // `DataEstablished` state, handling power on, module configuration,
+            // network registration & operator selection and PDP context
+            // activation along the way.
+            //
+            // This is all done directly on the serial line, before setting up
+            // virtual channels through multiplexing.
+            {
+                let at_client = atat::asynch::Client::new(
+                    &mut self.iface.1,
+                    self.res_slot,
+                    self.cmd_buf,
+                    at_config,
+                );
+                let mut wifi_device =
+                    NetDevice::new(&self.ch, &mut self.config, at_client, self.urc_channel);
 
-                #[cfg(feature = "edm")]
-                let Some(event) = event.extract_urc() else {
-                    continue;
-                };
+                // Clean up and start from completely powered off state. Ignore URCs in the process.
+                self.ingress.clear();
 
-                match event {
-                    Urc::StartUp => {
-                        error!("AT startup event?! Device restarted unintentionally!");
-                        false
+                match embassy_futures::select::select(
+                    self.ingress.read_from(&mut self.iface.0),
+                    wifi_device.init(),
+                )
+                .await
+                {
+                    Either::First(_) => {
+                        // This has return type never (`-> !`)
+                        unreachable!()
                     }
-                    Urc::WifiLinkConnected(WifiLinkConnected {
-                        connection_id: _,
-                        bssid,
-                        channel,
-                    }) => {
-                        if let Some(ref mut con) = self.wifi_connection {
-                            con.wifi_state = WiFiState::Connected;
-                            con.network.bssid = bssid;
-                            con.network.channel = channel;
+                    Either::Second(Err(_)) => {
+                        // Reboot the wifi module and try again!
+                        continue;
+                    }
+                    Either::Second(Ok(_)) => {
+                        // All good! We are now ready to start communication services!
+                    }
+                }
+            }
+
+            #[cfg(feature = "ppp")]
+            let ppp_fut = async {
+                let mut iface = super::ReadWriteAdapter(&mut self.iface.0, &mut self.iface.1);
+
+                let mut fails = 0;
+                let mut last_start = None;
+
+                loop {
+                    if let Some(last_start) = last_start {
+                        Timer::at(last_start + Duration::from_secs(10)).await;
+                        // Do not attempt to start too fast.
+
+                        // If was up stably for at least 1 min, reset fail counter.
+                        if Instant::now() > last_start + Duration::from_secs(60) {
+                            fails = 0;
                         } else {
-                            debug!("[URC] Active network config discovered");
-                            self.wifi_connection.replace(
-                                WifiConnection::new(
-                                    WifiNetwork::new_station(bssid, channel),
-                                    WiFiState::Connected,
-                                    255,
-                                )
-                                .activate(),
-                            );
-                        }
-                        true
-                    }
-                    Urc::WifiLinkDisconnected(WifiLinkDisconnected { reason, .. }) => {
-                        if let Some(ref mut con) = self.wifi_connection {
-                            match reason {
-                                DisconnectReason::NetworkDisabled => {
-                                    con.wifi_state = WiFiState::Inactive;
-                                }
-                                DisconnectReason::SecurityProblems => {
-                                    error!("Wifi Security Problems");
-                                    con.wifi_state = WiFiState::NotConnected;
-                                }
-                                _ => {
-                                    con.wifi_state = WiFiState::NotConnected;
-                                }
+                            fails += 1;
+                            if fails == 10 {
+                                warn!("modem: PPP failed too much, rebooting modem.");
+                                break;
                             }
                         }
+                    }
+                    last_start = Some(Instant::now());
 
-                        true
+                    {
+                        let mut buf = [0u8; 64];
+
+                        let mut at_client = SimpleClient::new(
+                            &mut iface,
+                            atat::AtDigester::<UbloxUrc>::new(),
+                            &mut buf,
+                            at_config,
+                        );
+
+                        // Send AT command `ATO3` to enter PPP mode
+                        let res = at_client
+                            .send(&ChangeMode {
+                                mode: data_mode::types::Mode::PPPMode,
+                            })
+                            .await;
+
+                        if let Err(e) = res {
+                            warn!("ppp dial failed {:?}", e);
+                            continue;
+                        }
+
+                        drop(at_client);
+
+                        // Drain the UART
+                        let _ = embassy_time::with_timeout(Duration::from_secs(2), async {
+                            loop {
+                                iface.read(&mut buf).await.ok();
+                            }
+                        })
+                        .await;
+
+                        Timer::after(Duration::from_millis(100)).await;
                     }
-                    Urc::WifiAPUp(_) => todo!(),
-                    Urc::WifiAPDown(_) => todo!(),
-                    Urc::WifiAPStationConnected(_) => todo!(),
-                    Urc::WifiAPStationDisconnected(_) => todo!(),
-                    Urc::EthernetLinkUp(_) => todo!(),
-                    Urc::EthernetLinkDown(_) => todo!(),
-                    Urc::NetworkUp(NetworkUp { interface_id }) => {
-                        drop(event);
-                        self.network_status_callback(interface_id).await.ok();
-                        true
-                    }
-                    Urc::NetworkDown(NetworkDown { interface_id }) => {
-                        drop(event);
-                        self.network_status_callback(interface_id).await.ok();
-                        true
-                    }
-                    Urc::NetworkError(_) => todo!(),
-                    _ => false,
+
+                    info!("RUNNING PPP");
+                    let res = ppp_runner
+                        .run(&mut iface, C::PPP_CONFIG, |ipv4| {
+                            let Some(addr) = ipv4.address else {
+                                warn!("PPP did not provide an IP address.");
+                                return;
+                            };
+                            let mut dns_servers = heapless::Vec::new();
+                            for s in ipv4.dns_servers.iter().flatten() {
+                                let _ =
+                                    dns_servers.push(embassy_net::Ipv4Address::from_bytes(&s.0));
+                            }
+                            let config =
+                                embassy_net::ConfigV4::Static(embassy_net::StaticConfigV4 {
+                                    address: embassy_net::Ipv4Cidr::new(
+                                        embassy_net::Ipv4Address::from_bytes(&addr.0),
+                                        0,
+                                    ),
+                                    gateway: None,
+                                    dns_servers,
+                                });
+
+                            stack.set_config_v4(config);
+                        })
+                        .await;
+
+                    info!("ppp failed: {:?}", res);
                 }
             };
 
-            if wait_link_up {
-                self.is_link_up().await.unwrap();
+            let network_fut = async {
+                stack.wait_config_up().await;
+
+                let mut rx_meta = [PacketMetadata::EMPTY; 1];
+                let mut tx_meta = [PacketMetadata::EMPTY; 1];
+                let mut socket_rx_buf = [0u8; 64];
+                let mut socket_tx_buf = [0u8; 64];
+                let mut socket = UdpSocket::new(
+                    stack,
+                    &mut rx_meta,
+                    &mut socket_rx_buf,
+                    &mut tx_meta,
+                    &mut socket_tx_buf,
+                );
+
+                let endpoint = stack.config_v4().unwrap();
+
+                info!("Socket bound!");
+                socket
+                    .bind((Ipv4Address::new(172, 30, 0, 252), AtUdpSocket::PPP_AT_PORT))
+                    .unwrap();
+
+                let at_socket = AtUdpSocket(socket);
+
+                let at_client =
+                    atat::asynch::Client::new(&at_socket, self.res_slot, self.cmd_buf, at_config);
+
+                let mut wifi_device =
+                    NetDevice::new(&self.ch, &mut self.config, at_client, self.urc_channel);
+
+                embassy_futures::join::join(self.ingress.read_from(&at_socket), wifi_device.run())
+                    .await;
+            };
+
+            match embassy_futures::select::select(ppp_fut, network_fut).await {
+                Either::First(_) => {
+                    warn!("Breaking to reboot module from PPP");
+                }
+                Either::Second(_) => {
+                    warn!("Breaking to reboot module from network runner");
+                }
             }
         }
-    }
-
-    async fn network_status_callback(&mut self, interface_id: u8) -> Result<(), Error> {
-        let NetworkStatusResponse {
-            status: NetworkStatus::InterfaceType(InterfaceType::WifiStation),
-            ..
-        } = self
-            .at
-            .send(GetNetworkStatus {
-                interface_id,
-                status: NetworkStatusParameter::InterfaceType,
-            })
-            .await?
-        else {
-            return Err(Error::Network);
-        };
-
-        let NetworkStatusResponse {
-            status: NetworkStatus::Gateway(ipv4),
-            ..
-        } = self
-            .at
-            .send(GetNetworkStatus {
-                interface_id,
-                status: NetworkStatusParameter::Gateway,
-            })
-            .await?
-        else {
-            return Err(Error::Network);
-        };
-
-        let ipv4_up = core::str::from_utf8(ipv4.as_slice())
-            .ok()
-            .and_then(|s| Ipv4Addr::from_str(s).ok())
-            .map(|ip| !ip.is_unspecified())
-            .unwrap_or_default();
-
-        let NetworkStatusResponse {
-            status: NetworkStatus::IPv6LinkLocalAddress(ipv6),
-            ..
-        } = self
-            .at
-            .send(GetNetworkStatus {
-                interface_id,
-                status: NetworkStatusParameter::IPv6LinkLocalAddress,
-            })
-            .await?
-        else {
-            return Err(Error::Network);
-        };
-
-        let ipv6_up = core::str::from_utf8(ipv6.as_slice())
-            .ok()
-            .and_then(|s| Ipv6Addr::from_str(s).ok())
-            .map(|ip| !ip.is_unspecified())
-            .unwrap_or_default();
-
-        // Use `ipv4_up` & `ipv6_up` to determine link state
-        if let Some(ref mut con) = self.wifi_connection {
-            con.network_up = ipv4_up && ipv6_up;
-        }
-
-        Ok(())
     }
 }

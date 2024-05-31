@@ -112,20 +112,6 @@ impl Digester for EdmDigester {
 
 //     struct MockWriter;
 
-//     impl embedded_io::Io for MockWriter {
-//         type Error = ();
-//     }
-
-//     impl embedded_io::blocking::Write for MockWriter {
-//         fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
-//             Ok(buf.len())
-//         }
-
-//         fn flush(&mut self) -> Result<(), Self::Error> {
-//             Ok(())
-//         }
-//     }
-
 //     /// Removed functionality used to change OK responses to empty responses.
 //     #[test]
 //     fn ok_response<'a>() {

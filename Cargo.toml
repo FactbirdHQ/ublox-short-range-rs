@@ -15,16 +15,13 @@ name = "ublox_short_range"
 doctest = false
 
 [dependencies]
-# atat = { version = "0.21", features = ["derive", "bytes"] }
-atat = { path = "../atat/atat", features = ["derive", "bytes"] }
+atat = { version = "0.22", features = ["derive", "bytes"] }
 
-# atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "70283be", features = ["derive", "defmt", "bytes"] }
 heapless = { version = "^0.8", features = ["serde"] }
 no-std-net = { version = "0.6", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
 # ublox-sockets = { version = "0.5", features = ["edm"], optional = true }
 ublox-sockets = { git = "https://github.com/BlackbirdHQ/ublox-sockets", rev = "9f7fe54", optional = true }
-postcard = "1.0.4"
 portable-atomic = "1.6"
 
 log = { version = "^0.4", default-features = false, optional = true }
@@ -38,7 +35,6 @@ embassy-futures = "0.1"
 embedded-nal-async = { version = "0.7" }
 futures-util = { version = "0.3.29", default-features = false }
 
-embedded-io = "0.6"
 embedded-io-async = "0.6"
 
 embassy-net-ppp = { version = "0.1", optional = true }
@@ -49,7 +45,7 @@ embassy-net = { version = "0.4", features = [
 
 
 [features]
-default = ["socket-tcp", "socket-udp", "odin_w2xx"]
+default = ["socket-tcp", "socket-udp"]
 
 internal-network-stack = ["dep:ublox-sockets", "edm"]
 edm = ["ublox-sockets?/edm"]
@@ -62,7 +58,6 @@ socket-udp = ["ublox-sockets?/socket-udp", "embassy-net?/udp"]
 
 defmt = [
     "dep:defmt",
-    "postcard/use-defmt",
     "heapless/defmt-03",
     "atat/defmt",
     "ublox-sockets?/defmt",

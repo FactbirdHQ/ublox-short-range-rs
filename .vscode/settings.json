@@ -6,6 +6,10 @@
     "rust-analyzer.cargo.target": "thumbv6m-none-eabi",
     "rust-analyzer.check.allTargets": false,
     "rust-analyzer.linkedProjects": [],
+    "rust-analyzer.cargo.features": [
+        "odin_w2xx",
+        "ppp"
+    ],
     "rust-analyzer.server.extraEnv": {
         "WIFI_NETWORK": "foo",
         "WIFI_PASSWORD": "foo",

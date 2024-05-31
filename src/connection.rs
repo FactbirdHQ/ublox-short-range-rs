@@ -14,7 +14,7 @@ pub struct WifiConnection {
     /// Keeps track of connection state on module
     pub wifi_state: WiFiState,
     pub network_up: bool,
-    pub network: WifiNetwork,
+    pub network: Option<WifiNetwork>,
     /// Number from 0-9. 255 used for unknown
     pub config_id: u8,
     /// Keeps track of activation of the config by driver
@@ -22,30 +22,28 @@ pub struct WifiConnection {
 }
 
 impl WifiConnection {
-    pub(crate) fn new(network: WifiNetwork, wifi_state: WiFiState, config_id: u8) -> Self {
+    pub(crate) const fn new() -> Self {
         WifiConnection {
-            wifi_state,
+            wifi_state: WiFiState::Inactive,
             network_up: false,
-            network,
-            config_id,
+            network: None,
+            config_id: 255,
             activated: false,
         }
     }
 
     pub fn is_station(&self) -> bool {
-        self.network.mode == WifiMode::Station
+        match self.network {
+            Some(ref n) => n.mode == WifiMode::Station,
+            _ => false,
+        }
     }
 
     pub fn is_access_point(&self) -> bool {
         !self.is_station()
     }
 
-    pub(crate) fn activate(mut self) -> Self {
-        self.activated = true;
-        self
-    }
-
-    pub(crate) fn deactivate(&mut self) {
-        self.activated = false;
+    pub fn is_connected(&self) -> bool {
+        self.network_up
     }
 }

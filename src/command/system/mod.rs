@@ -29,7 +29,7 @@ pub struct SetToDefaultConfig;
 /// Reset to factory defined defaults. A reboot is required before using the new settings.
 #[derive(Debug, PartialEq, Clone, AtatCmd)]
 #[at_cmd("+UFACTORY", NoResponse, timeout_ms = 1000)]
-pub struct ResetToFacroryDefaults;
+pub struct ResetToFactoryDefaults;
 
 /// 4.4 Circuit 108/2 (DTR) behavior &D
 ///

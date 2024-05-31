@@ -1,44 +1,101 @@
 use core::future::poll_fn;
 use core::task::Poll;
 
-use atat::asynch::AtatClient;
+use atat::{
+    asynch::{AtatClient, SimpleClient},
+    UrcChannel, UrcSubscription,
+};
+use embassy_net::{
+    udp::{PacketMetadata, UdpSocket},
+    Ipv4Address,
+};
 use embassy_time::{with_timeout, Duration};
 
+use crate::command::gpio::{
+    types::{GPIOId, GPIOValue},
+    WriteGPIO,
+};
 use crate::command::network::SetNetworkHostName;
-use crate::command::security::types::SecurityDataType;
-use crate::command::security::SendSecurityDataImport;
+use crate::command::system::{RebootDCE, ResetToFactoryDefaults};
 use crate::command::wifi::types::{
     Authentication, StatusId, WifiStationAction, WifiStationConfig, WifiStatus, WifiStatusVal,
 };
 use crate::command::wifi::{ExecWifiStationAction, GetWifiStatus, SetWifiStationConfig};
 use crate::command::OnOff;
-use crate::command::{
-    gpio::{
-        types::{GPIOId, GPIOValue},
-        WriteGPIO,
-    },
-    security::PrepareSecurityDataImport,
-};
 use crate::error::Error;
 
 use super::state::LinkState;
-use super::{state, AtHandle};
+use super::{at_udp_socket::AtUdpSocket, runner::URC_SUBSCRIBERS};
+use super::{state, UbloxUrc};
 
 const CONFIG_ID: u8 = 0;
 
-pub struct Control<'a, AT: AtatClient> {
-    state_ch: state::StateRunner<'a>,
-    at: AtHandle<'a, AT>,
+const MAX_COMMAND_LEN: usize = 128;
+
+// TODO: Can this be made in a more intuitive way?
+pub struct ControlResources {
+    rx_meta: [PacketMetadata; 1],
+    tx_meta: [PacketMetadata; 1],
+    socket_rx_buf: [u8; 32],
+    socket_tx_buf: [u8; 32],
+    at_buf: [u8; MAX_COMMAND_LEN],
 }
 
-impl<'a, AT: AtatClient> Control<'a, AT> {
-    pub(crate) fn new(state_ch: state::StateRunner<'a>, at: AtHandle<'a, AT>) -> Self {
-        Self { state_ch, at }
+impl ControlResources {
+    pub const fn new() -> Self {
+        Self {
+            rx_meta: [PacketMetadata::EMPTY; 1],
+            tx_meta: [PacketMetadata::EMPTY; 1],
+            socket_rx_buf: [0u8; 32],
+            socket_tx_buf: [0u8; 32],
+            at_buf: [0u8; MAX_COMMAND_LEN],
+        }
+    }
+}
+
+pub struct Control<'a, 'r, const URC_CAPACITY: usize> {
+    state_ch: state::Runner<'a>,
+    at_client: SimpleClient<'r, AtUdpSocket<'r>, atat::DefaultDigester<UbloxUrc>>,
+    _urc_subscription: UrcSubscription<'a, UbloxUrc, URC_CAPACITY, URC_SUBSCRIBERS>,
+}
+
+impl<'a, 'r, const URC_CAPACITY: usize> Control<'a, 'r, URC_CAPACITY> {
+    pub(crate) fn new<D: embassy_net::driver::Driver>(
+        state_ch: state::Runner<'a>,
+        urc_channel: &'a UrcChannel<UbloxUrc, URC_CAPACITY, URC_SUBSCRIBERS>,
+        resources: &'r mut ControlResources,
+        stack: &'r embassy_net::Stack<D>,
+    ) -> Self {
+        let mut socket = UdpSocket::new(
+            stack,
+            &mut resources.rx_meta,
+            &mut resources.socket_rx_buf,
+            &mut resources.tx_meta,
+            &mut resources.socket_tx_buf,
+        );
+
+        info!("Socket bound!");
+        socket
+            .bind((Ipv4Address::new(172, 30, 0, 252), AtUdpSocket::PPP_AT_PORT))
+            .unwrap();
+
+        let at_client = SimpleClient::new(
+            AtUdpSocket(socket),
+            atat::AtDigester::<UbloxUrc>::new(),
+            &mut resources.at_buf,
+            atat::Config::default(),
+        );
+
+        Self {
+            state_ch,
+            at_client,
+            _urc_subscription: urc_channel.subscribe().unwrap(),
+        }
     }
 
     pub async fn set_hostname(&mut self, hostname: &str) -> Result<(), Error> {
-        self.at
-            .send(SetNetworkHostName {
+        self.at_client
+            .send(&SetNetworkHostName {
                 host_name: hostname,
             })
             .await?;
@@ -47,8 +104,8 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
 
     async fn get_wifi_status(&mut self) -> Result<WifiStatusVal, Error> {
         match self
-            .at
-            .send(GetWifiStatus {
+            .at_client
+            .send(&GetWifiStatus {
                 status_id: StatusId::Status,
             })
             .await?
@@ -61,8 +118,8 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
 
     async fn get_connected_ssid(&mut self) -> Result<heapless::String<64>, Error> {
         match self
-            .at
-            .send(GetWifiStatus {
+            .at_client
+            .send(&GetWifiStatus {
                 status_id: StatusId::SSID,
             })
             .await?
@@ -71,6 +128,13 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             WifiStatus::SSID(s) => Ok(s),
             _ => Err(Error::AT(atat::Error::InvalidResponse)),
         }
+    }
+
+    pub async fn factory_reset(&mut self) -> Result<(), Error> {
+        self.at_client.send(&ResetToFactoryDefaults).await?;
+        self.at_client.send(&RebootDCE).await?;
+
+        Ok(())
     }
 
     pub async fn join_open(&mut self, ssid: &str) -> Result<(), Error> {
@@ -84,15 +148,22 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             };
         }
 
-        self.at
-            .send(SetWifiStationConfig {
+        self.at_client
+            .send(&ExecWifiStationAction {
+                config_id: CONFIG_ID,
+                action: WifiStationAction::Reset,
+            })
+            .await?;
+
+        self.at_client
+            .send(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::ActiveOnStartup(OnOff::Off),
             })
             .await?;
 
-        self.at
-            .send(SetWifiStationConfig {
+        self.at_client
+            .send(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::SSID(
                     heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
@@ -100,21 +171,21 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             })
             .await?;
 
-        self.at
-            .send(SetWifiStationConfig {
+        self.at_client
+            .send(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::Authentication(Authentication::Open),
             })
             .await?;
 
-        self.at
-            .send(ExecWifiStationAction {
+        self.at_client
+            .send(&ExecWifiStationAction {
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Activate,
             })
             .await?;
 
-        with_timeout(Duration::from_secs(10), self.wait_for_join(ssid))
+        with_timeout(Duration::from_secs(25), self.wait_for_join(ssid))
             .await
             .map_err(|_| Error::Timeout)??;
 
@@ -132,22 +203,22 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             };
         }
 
-        self.at
-            .send(ExecWifiStationAction {
+        self.at_client
+            .send(&ExecWifiStationAction {
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Reset,
             })
             .await?;
 
-        self.at
-            .send(SetWifiStationConfig {
+        self.at_client
+            .send(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::ActiveOnStartup(OnOff::Off),
             })
             .await?;
 
-        self.at
-            .send(SetWifiStationConfig {
+        self.at_client
+            .send(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::SSID(
                     heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
@@ -155,15 +226,15 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             })
             .await?;
 
-        self.at
-            .send(SetWifiStationConfig {
+        self.at_client
+            .send(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
             })
             .await?;
 
-        self.at
-            .send(SetWifiStationConfig {
+        self.at_client
+            .send(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::WpaPskOrPassphrase(
                     heapless::String::try_from(passphrase).map_err(|_| Error::Overflow)?,
@@ -171,8 +242,8 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             })
             .await?;
 
-        self.at
-            .send(ExecWifiStationAction {
+        self.at_client
+            .send(&ExecWifiStationAction {
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Activate,
             })
@@ -189,8 +260,8 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
         match self.get_wifi_status().await? {
             WifiStatusVal::Disabled => {}
             WifiStatusVal::Disconnected | WifiStatusVal::Connected => {
-                self.at
-                    .send(ExecWifiStationAction {
+                self.at_client
+                    .send(&ExecWifiStationAction {
                         config_id: CONFIG_ID,
                         action: WifiStationAction::Deactivate,
                     })
@@ -227,11 +298,12 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
     }
 
     pub async fn gpio_set(&mut self, id: GPIOId, value: GPIOValue) -> Result<(), Error> {
-        self.at.send(WriteGPIO { id, value }).await?;
+        self.at_client.send(&WriteGPIO { id, value }).await?;
         Ok(())
     }
 
     // FIXME: This could probably be improved
+    #[cfg(feature = "internal-network-stack")]
     pub async fn import_credentials(
         &mut self,
         data_type: SecurityDataType,
@@ -243,8 +315,8 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
 
         info!("Importing {:?} bytes as {:?}", data.len(), name);
 
-        self.at
-            .send(PrepareSecurityDataImport {
+        self.at_client
+            .send(&PrepareSecurityDataImport {
                 data_type,
                 data_size: data.len(),
                 internal_name: name,
@@ -253,8 +325,8 @@ impl<'a, AT: AtatClient> Control<'a, AT> {
             .await?;
 
         let import_data = self
-            .at
-            .send(SendSecurityDataImport {
+            .at_client
+            .send(&SendSecurityDataImport {
                 data: atat::serde_bytes::Bytes::new(data),
             })
             .await?;

@@ -1,16 +1,30 @@
-#![cfg(feature = "ppp")]
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
+#[cfg(not(feature = "ppp"))]
+compile_error!("You must enable the `ppp` feature flag to build this example");
+
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_net::{Stack, StackResources};
+use embassy_net::tcp::TcpSocket;
+use embassy_net::{Ipv4Address, Stack, StackResources};
 use embassy_rp::gpio::{AnyPin, Level, Output, Pin};
 use embassy_rp::peripherals::UART1;
 use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart};
 use embassy_rp::{bind_interrupts, uart};
 use embassy_time::{Duration, Timer};
+use embedded_tls::Aes128GcmSha256;
+use embedded_tls::TlsConfig;
+use embedded_tls::TlsConnection;
+use embedded_tls::TlsContext;
+use embedded_tls::UnsecureProvider;
+use rand_chacha::rand_core::SeedableRng;
+use rand_chacha::ChaCha8Rng;
+use reqwless::headers::ContentType;
+use reqwless::request::Request;
+use reqwless::request::RequestBuilder as _;
+use reqwless::response::Response;
 use static_cell::StaticCell;
 use ublox_short_range::asynch::{PPPRunner, Resources};
 use {defmt_rtt as _, panic_probe as _};
@@ -26,7 +40,7 @@ async fn net_task(stack: &'static Stack<embassy_net_ppp::Device<'static>>) -> ! 
 
 #[embassy_executor::task]
 async fn ppp_task(
-    mut runner: PPPRunner<'static, Output<'static, AnyPin>, INGRESS_BUF_SIZE, URC_CAPACITY>,
+    mut runner: PPPRunner<'static, Output<'static>, INGRESS_BUF_SIZE, URC_CAPACITY>,
     interface: BufferedUart<'static, UART1>,
     stack: &'static embassy_net::Stack<embassy_net_ppp::Device<'static>>,
 ) -> ! {
@@ -68,7 +82,7 @@ async fn main(spawner: Spawner) {
 
     // Init network stack
     static STACK: StaticCell<Stack<embassy_net_ppp::Device<'static>>> = StaticCell::new();
-    static STACK_RESOURCES: StaticCell<StackResources<2>> = StaticCell::new();
+    static STACK_RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
 
     let stack = &*STACK.init(Stack::new(
         net_device,
@@ -91,19 +105,51 @@ async fn main(spawner: Spawner) {
 
     control.join_open("Test").await;
 
-    // // Then we can use it!
-    // let mut rx_buffer = [0; 4096];
-    // let mut tx_buffer = [0; 4096];
-    // let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+    info!("We have network!");
 
-    // socket.set_timeout(Some(Duration::from_secs(10)));
+    let mut rx_buffer = [0; 4096];
+    let mut tx_buffer = [0; 4096];
+    let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+    socket.set_timeout(Some(Duration::from_secs(10)));
 
-    // let remote_endpoint = (Ipv4Address::new(93, 184, 216, 34), 12345);
-    // info!("connecting to {:?}...", remote_endpoint);
-    // let r = socket.connect(remote_endpoint).await;
-    // if let Err(e) = r {
-    //     warn!("connect error: {:?}", e);
-    //     return;
-    // }
-    // info!("TCP connected!");
+    let hostname = "ecdsa-test.germancoding.com";
+
+    let mut remote = stack
+        .dns_query(hostname, smoltcp::wire::DnsQueryType::A)
+        .await
+        .unwrap();
+    let remote_endpoint = (remote.pop().unwrap(), 443);
+    info!("connecting to {:?}...", remote_endpoint);
+    let r = socket.connect(remote_endpoint).await;
+    if let Err(e) = r {
+        warn!("connect error: {:?}", e);
+        return;
+    }
+    info!("TCP connected!");
+
+    let mut read_record_buffer = [0; 16384];
+    let mut write_record_buffer = [0; 16384];
+    let config = TlsConfig::new().with_server_name(hostname);
+    let mut tls = TlsConnection::new(socket, &mut read_record_buffer, &mut write_record_buffer);
+
+    tls.open(TlsContext::new(
+        &config,
+        UnsecureProvider::new::<Aes128GcmSha256>(ChaCha8Rng::seed_from_u64(seed)),
+    ))
+    .await
+    .expect("error establishing TLS connection");
+
+    info!("TLS Established!");
+
+    let request = Request::get("/")
+        .host(hostname)
+        .content_type(ContentType::TextPlain)
+        .build();
+    request.write(&mut tls).await.unwrap();
+
+    let mut rx_buf = [0; 4096];
+    let response = Response::read(&mut tls, reqwless::request::Method::GET, &mut rx_buf)
+        .await
+        .unwrap();
+    info!("{=[u8]:a}", rx_buf);
 }
