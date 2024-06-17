@@ -17,7 +17,7 @@ embassy-time = { version = "0.3", features = [
     "defmt",
     "defmt-timestamp-uptime",
 ] }
-embassy-sync = { version = "0.5" }
+embassy-sync = { version = "0.6" }
 embassy-rp = { version = "0.1.0", features = [
     "defmt",
     "unstable-pac",
@@ -80,6 +80,7 @@ embassy-futures = { path = "../../../embassy/embassy-futures" }
 embassy-executor = { path = "../../../embassy/embassy-executor" }
 ublox-sockets = { path = "../../../ublox-sockets" }
 no-std-net = { path = "../../../no-std-net" }
+atat = { path = "../../../atat/atat" }
 
 [profile.dev]
 debug = 2

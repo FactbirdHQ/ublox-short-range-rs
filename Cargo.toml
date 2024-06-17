@@ -29,7 +29,7 @@ defmt = { version = "^0.3", optional = true }
 
 embedded-hal = "1.0"
 embassy-time = "0.3"
-embassy-sync = "0.5"
+embassy-sync = "0.6"
 embassy-futures = "0.1"
 
 embedded-nal-async = { version = "0.7" }

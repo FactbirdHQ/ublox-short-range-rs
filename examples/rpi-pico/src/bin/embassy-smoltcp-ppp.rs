@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
+#![feature(impl_trait_in_assoc_type)]
 
 #[cfg(not(feature = "ppp"))]
 compile_error!("You must enable the `ppp` feature flag to build this example");
@@ -9,16 +10,16 @@ use defmt::*;
 use embassy_executor::Spawner;
 use embassy_net::tcp::TcpSocket;
 use embassy_net::{Ipv4Address, Stack, StackResources};
-use embassy_rp::gpio::{AnyPin, Level, Output, Pin};
+use embassy_rp::gpio::{AnyPin, Level, Output, OutputOpenDrain, Pin};
 use embassy_rp::peripherals::UART1;
-use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart};
+use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, BufferedUartRx, BufferedUartTx};
 use embassy_rp::{bind_interrupts, uart};
 use embassy_time::{Duration, Timer};
-use embedded_tls::Aes128GcmSha256;
 use embedded_tls::TlsConfig;
 use embedded_tls::TlsConnection;
 use embedded_tls::TlsContext;
 use embedded_tls::UnsecureProvider;
+use embedded_tls::{Aes128GcmSha256, MaxFragmentLength};
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
 use reqwless::headers::ContentType;
@@ -26,12 +27,30 @@ use reqwless::request::Request;
 use reqwless::request::RequestBuilder as _;
 use reqwless::response::Response;
 use static_cell::StaticCell;
-use ublox_short_range::asynch::{PPPRunner, Resources};
+use ublox_short_range::asynch::control::ControlResources;
+use ublox_short_range::asynch::{Resources, Runner};
 use {defmt_rtt as _, panic_probe as _};
 
 const CMD_BUF_SIZE: usize = 128;
 const INGRESS_BUF_SIZE: usize = 512;
 const URC_CAPACITY: usize = 2;
+
+pub struct WifiConfig {
+    pub rst_pin: OutputOpenDrain<'static>,
+}
+
+impl<'a> ublox_short_range::WifiConfig<'a> for WifiConfig {
+    type ResetPin = OutputOpenDrain<'static>;
+
+    const PPP_CONFIG: embassy_net_ppp::Config<'a> = embassy_net_ppp::Config {
+        username: b"",
+        password: b"",
+    };
+
+    fn reset_pin(&mut self) -> Option<&mut Self::ResetPin> {
+        Some(&mut self.rst_pin)
+    }
+}
 
 #[embassy_executor::task]
 async fn net_task(stack: &'static Stack<embassy_net_ppp::Device<'static>>) -> ! {
@@ -40,11 +59,17 @@ async fn net_task(stack: &'static Stack<embassy_net_ppp::Device<'static>>) -> ! 
 
 #[embassy_executor::task]
 async fn ppp_task(
-    mut runner: PPPRunner<'static, Output<'static>, INGRESS_BUF_SIZE, URC_CAPACITY>,
-    interface: BufferedUart<'static, UART1>,
+    mut runner: Runner<
+        'static,
+        BufferedUartRx<'static, UART1>,
+        BufferedUartTx<'static, UART1>,
+        WifiConfig,
+        INGRESS_BUF_SIZE,
+        URC_CAPACITY,
+    >,
     stack: &'static embassy_net::Stack<embassy_net_ppp::Device<'static>>,
 ) -> ! {
-    runner.run(interface, stack).await
+    runner.run(stack).await
 }
 
 bind_interrupts!(struct Irqs {
@@ -55,7 +80,7 @@ bind_interrupts!(struct Irqs {
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    let rst = Output::new(p.PIN_26.degrade(), Level::High);
+    let rst_pin = OutputOpenDrain::new(p.PIN_26.degrade(), Level::High);
 
     static TX_BUF: StaticCell<[u8; 32]> = StaticCell::new();
     static RX_BUF: StaticCell<[u8; 32]> = StaticCell::new();
@@ -74,15 +99,21 @@ async fn main(spawner: Spawner) {
     static RESOURCES: StaticCell<Resources<CMD_BUF_SIZE, INGRESS_BUF_SIZE, URC_CAPACITY>> =
         StaticCell::new();
 
-    let (net_device, mut control, runner) =
-        ublox_short_range::asynch::new_ppp(RESOURCES.init(Resources::new()), rst);
+    let mut runner = Runner::new(
+        wifi_uart.split(),
+        RESOURCES.init(Resources::new()),
+        WifiConfig { rst_pin },
+    );
+
+    static PPP_STATE: StaticCell<embassy_net_ppp::State<2, 2>> = StaticCell::new();
+    let net_device = runner.ppp_stack(PPP_STATE.init(embassy_net_ppp::State::new()));
 
     // Generate random seed
     let seed = 0x0123_4567_89ab_cdef; // chosen by fair dice roll. guarenteed to be random.
 
     // Init network stack
     static STACK: StaticCell<Stack<embassy_net_ppp::Device<'static>>> = StaticCell::new();
-    static STACK_RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
+    static STACK_RESOURCES: StaticCell<StackResources<6>> = StaticCell::new();
 
     let stack = &*STACK.init(Stack::new(
         net_device,
@@ -91,19 +122,19 @@ async fn main(spawner: Spawner) {
         seed,
     ));
 
+    static CONTROL_RESOURCES: StaticCell<ControlResources> = StaticCell::new();
+    let mut control = runner.control(CONTROL_RESOURCES.init(ControlResources::new()), &stack);
+
     spawner.spawn(net_task(stack)).unwrap();
-    spawner.spawn(ppp_task(runner, wifi_uart, &stack)).unwrap();
+    spawner.spawn(ppp_task(runner, &stack)).unwrap();
 
     stack.wait_config_up().await;
 
     Timer::after(Duration::from_secs(1)).await;
 
-    control
-        .set_hostname("Factbird-duo-wifi-test")
-        .await
-        .unwrap();
+    control.set_hostname("Ublox-wifi-test").await.ok();
 
-    control.join_open("Test").await;
+    control.join_wpa2("MyAccessPoint", "12345678").await;
 
     info!("We have network!");
 
@@ -129,7 +160,9 @@ async fn main(spawner: Spawner) {
 
     let mut read_record_buffer = [0; 16384];
     let mut write_record_buffer = [0; 16384];
-    let config = TlsConfig::new().with_server_name(hostname);
+    let config = TlsConfig::new()
+        // .with_max_fragment_length(MaxFragmentLength::Bits11)
+        .with_server_name(hostname);
     let mut tls = TlsConnection::new(socket, &mut read_record_buffer, &mut write_record_buffer);
 
     tls.open(TlsContext::new(
@@ -147,9 +180,17 @@ async fn main(spawner: Spawner) {
         .build();
     request.write(&mut tls).await.unwrap();
 
-    let mut rx_buf = [0; 4096];
+    let mut rx_buf = [0; 1024];
+    let mut body_buf = [0; 8192];
     let response = Response::read(&mut tls, reqwless::request::Method::GET, &mut rx_buf)
         .await
         .unwrap();
-    info!("{=[u8]:a}", rx_buf);
+    let len = response
+        .body()
+        .reader()
+        .read_to_end(&mut body_buf)
+        .await
+        .unwrap();
+
+    info!("{=[u8]:a}", &body_buf[..len]);
 }
