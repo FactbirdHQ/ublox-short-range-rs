@@ -1,99 +1,135 @@
-use core::future::poll_fn;
-use core::task::Poll;
+use atat::{asynch::AtatClient, response_slot::ResponseSlotGuard, UrcChannel};
+use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Sender};
+use embassy_time::{with_timeout, Duration, Timer};
+use heapless::Vec;
 
-use atat::{
-    asynch::{AtatClient, SimpleClient},
-    UrcChannel, UrcSubscription,
-};
-use embassy_net::{
-    udp::{PacketMetadata, UdpSocket},
-    Ipv4Address,
-};
-use embassy_time::{with_timeout, Duration};
-
-use crate::command::gpio::{
-    types::{GPIOId, GPIOValue},
-    WriteGPIO,
-};
-use crate::command::network::SetNetworkHostName;
-use crate::command::system::{RebootDCE, ResetToFactoryDefaults};
-use crate::command::wifi::types::{
-    Authentication, StatusId, WifiStationAction, WifiStationConfig, WifiStatus, WifiStatusVal,
-};
+use crate::command::gpio::responses::ReadGPIOResponse;
+use crate::command::gpio::types::GPIOMode;
+use crate::command::gpio::ConfigureGPIO;
 use crate::command::wifi::{ExecWifiStationAction, GetWifiStatus, SetWifiStationConfig};
 use crate::command::OnOff;
+use crate::command::{
+    gpio::ReadGPIO,
+    wifi::{
+        types::{
+            AccessPointAction, Authentication, SecurityMode, SecurityModePSK, StatusId,
+            WifiStationAction, WifiStationConfig, WifiStatus, WifiStatusVal,
+        },
+        WifiAPAction,
+    },
+};
+use crate::command::{
+    gpio::{
+        types::{GPIOId, GPIOValue},
+        WriteGPIO,
+    },
+    wifi::SetWifiAPConfig,
+};
+use crate::command::{network::SetNetworkHostName, wifi::types::AccessPointConfig};
+use crate::command::{
+    system::{RebootDCE, ResetToFactoryDefaults},
+    wifi::types::AccessPointId,
+};
 use crate::error::Error;
 
+use super::runner::{MAX_CMD_LEN, URC_SUBSCRIBERS};
 use super::state::LinkState;
-use super::{at_udp_socket::AtUdpSocket, runner::URC_SUBSCRIBERS};
 use super::{state, UbloxUrc};
 
 const CONFIG_ID: u8 = 0;
 
-const MAX_COMMAND_LEN: usize = 128;
-
-// TODO: Can this be made in a more intuitive way?
-pub struct ControlResources {
-    rx_meta: [PacketMetadata; 1],
-    tx_meta: [PacketMetadata; 1],
-    socket_rx_buf: [u8; 32],
-    socket_tx_buf: [u8; 32],
-    at_buf: [u8; MAX_COMMAND_LEN],
+pub(crate) struct ProxyClient<'a, const INGRESS_BUF_SIZE: usize> {
+    pub(crate) req_sender: Sender<'a, NoopRawMutex, Vec<u8, MAX_CMD_LEN>, 1>,
+    pub(crate) res_slot: &'a atat::ResponseSlot<INGRESS_BUF_SIZE>,
+    cooldown_timer: Option<Timer>,
 }
 
-impl ControlResources {
-    pub const fn new() -> Self {
+impl<'a, const INGRESS_BUF_SIZE: usize> ProxyClient<'a, INGRESS_BUF_SIZE> {
+    pub fn new(
+        req_sender: Sender<'a, NoopRawMutex, Vec<u8, MAX_CMD_LEN>, 1>,
+        res_slot: &'a atat::ResponseSlot<INGRESS_BUF_SIZE>,
+    ) -> Self {
         Self {
-            rx_meta: [PacketMetadata::EMPTY; 1],
-            tx_meta: [PacketMetadata::EMPTY; 1],
-            socket_rx_buf: [0u8; 32],
-            socket_tx_buf: [0u8; 32],
-            at_buf: [0u8; MAX_COMMAND_LEN],
+            req_sender,
+            res_slot,
+            cooldown_timer: None,
+        }
+    }
+
+    async fn wait_response<'guard>(
+        &'guard mut self,
+        timeout: Duration,
+    ) -> Result<ResponseSlotGuard<'guard, INGRESS_BUF_SIZE>, atat::Error> {
+        with_timeout(timeout, self.res_slot.get())
+            .await
+            .map_err(|_| atat::Error::Timeout)
+    }
+}
+
+impl<'a, const INGRESS_BUF_SIZE: usize> atat::asynch::AtatClient
+    for ProxyClient<'a, INGRESS_BUF_SIZE>
+{
+    async fn send<Cmd: atat::AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, atat::Error> {
+        let mut buf = [0u8; MAX_CMD_LEN];
+        let len = cmd.write(&mut buf);
+
+        if len < 50 {
+            debug!(
+                "Sending command: {:?}",
+                atat::helpers::LossyStr(&buf[..len])
+            );
+        } else {
+            debug!("Sending command with long payload ({} bytes)", len);
+        }
+
+        if let Some(cooldown) = self.cooldown_timer.take() {
+            cooldown.await
+        }
+
+        // TODO: Guard against race condition!
+        self.req_sender
+            .send(Vec::try_from(&buf[..len]).unwrap())
+            .await;
+
+        self.cooldown_timer = Some(Timer::after(Duration::from_millis(20)));
+
+        if !Cmd::EXPECTS_RESPONSE_CODE {
+            cmd.parse(Ok(&[]))
+        } else {
+            let response = self
+                .wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
+                .await?;
+            let response: &atat::Response<INGRESS_BUF_SIZE> = &response.borrow();
+            cmd.parse(response.into())
         }
     }
 }
 
-pub struct Control<'a, 'r, const URC_CAPACITY: usize> {
+pub struct Control<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize> {
     state_ch: state::Runner<'a>,
-    at_client: SimpleClient<'r, AtUdpSocket<'r>, atat::DefaultDigester<UbloxUrc>>,
-    _urc_subscription: UrcSubscription<'a, UbloxUrc, URC_CAPACITY, URC_SUBSCRIBERS>,
+    at_client: ProxyClient<'a, INGRESS_BUF_SIZE>,
+    _urc_channel: &'a UrcChannel<UbloxUrc, URC_CAPACITY, URC_SUBSCRIBERS>,
 }
 
-impl<'a, 'r, const URC_CAPACITY: usize> Control<'a, 'r, URC_CAPACITY> {
-    pub(crate) fn new<D: embassy_net::driver::Driver>(
+impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
+    Control<'a, INGRESS_BUF_SIZE, URC_CAPACITY>
+{
+    pub(crate) fn new(
         state_ch: state::Runner<'a>,
         urc_channel: &'a UrcChannel<UbloxUrc, URC_CAPACITY, URC_SUBSCRIBERS>,
-        resources: &'r mut ControlResources,
-        stack: &'r embassy_net::Stack<D>,
+        req_sender: Sender<'a, NoopRawMutex, Vec<u8, MAX_CMD_LEN>, 1>,
+        res_slot: &'a atat::ResponseSlot<INGRESS_BUF_SIZE>,
     ) -> Self {
-        let mut socket = UdpSocket::new(
-            stack,
-            &mut resources.rx_meta,
-            &mut resources.socket_rx_buf,
-            &mut resources.tx_meta,
-            &mut resources.socket_tx_buf,
-        );
-
-        info!("Socket bound!");
-        socket
-            .bind((Ipv4Address::new(172, 30, 0, 252), AtUdpSocket::PPP_AT_PORT))
-            .unwrap();
-
-        let at_client = SimpleClient::new(
-            AtUdpSocket(socket),
-            atat::AtDigester::<UbloxUrc>::new(),
-            &mut resources.at_buf,
-            atat::Config::default(),
-        );
-
         Self {
             state_ch,
-            at_client,
-            _urc_subscription: urc_channel.subscribe().unwrap(),
+            at_client: ProxyClient::new(req_sender, res_slot),
+            _urc_channel: urc_channel,
         }
     }
 
     pub async fn set_hostname(&mut self, hostname: &str) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+
         self.at_client
             .send(&SetNetworkHostName {
                 host_name: hostname,
@@ -131,13 +167,141 @@ impl<'a, 'r, const URC_CAPACITY: usize> Control<'a, 'r, URC_CAPACITY> {
     }
 
     pub async fn factory_reset(&mut self) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+
         self.at_client.send(&ResetToFactoryDefaults).await?;
         self.at_client.send(&RebootDCE).await?;
 
         Ok(())
     }
 
+    pub async fn start_ap(&mut self, ssid: &str) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+
+        // Deactivate network id 0
+        self.at_client
+            .send(&WifiAPAction {
+                ap_config_id: AccessPointId::Id0,
+                ap_action: AccessPointAction::Deactivate,
+            })
+            .await?;
+
+        self.at_client
+            .send(&WifiAPAction {
+                ap_config_id: AccessPointId::Id0,
+                ap_action: AccessPointAction::Reset,
+            })
+            .await?;
+
+        // // Disable DHCP Server (static IP address will be used)
+        // if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
+        //     self.at_client
+        //         .send(&SetWifiAPConfig {
+        //             ap_config_id: AccessPointId::Id0,
+        //             ap_config_param: AccessPointConfig::IPv4Mode(IPv4Mode::Static),
+        //         })
+        //         .await?;
+        // }
+
+        // // Network IP address
+        // if let Some(ip) = options.ip {
+        //     self.at_client
+        //         .send(&SetWifiAPConfig {
+        //             ap_config_id: AccessPointId::Id0,
+        //             ap_config_param: AccessPointConfig::IPv4Address(ip),
+        //         })
+        //         .await?;
+        // }
+        // // Network Subnet mask
+        // if let Some(subnet) = options.subnet {
+        //     self.at_client
+        //         .send(&SetWifiAPConfig {
+        //             ap_config_id: AccessPointId::Id0,
+        //             ap_config_param: AccessPointConfig::SubnetMask(subnet),
+        //         })
+        //         .await?;
+        // }
+        // // Network Default gateway
+        // if let Some(gateway) = options.gateway {
+        //     self.at_client
+        //         .send(&SetWifiAPConfig {
+        //             ap_config_id: AccessPointId::Id0,
+        //             ap_config_param: AccessPointConfig::DefaultGateway(gateway),
+        //         })
+        //         .await?;
+        // }
+
+        // self.at_client
+        //     .send(&SetWifiAPConfig {
+        //         ap_config_id: AccessPointId::Id0,
+        //         ap_config_param: AccessPointConfig::DHCPServer(true.into()),
+        //     })
+        //     .await?;
+
+        // Wifi part
+        // Set the Network SSID to connect to
+        self.at_client
+            .send(&SetWifiAPConfig {
+                ap_config_id: AccessPointId::Id0,
+                ap_config_param: AccessPointConfig::SSID(
+                    heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
+                ),
+            })
+            .await?;
+
+        // if let Some(pass) = options.password.clone() {
+        //     // Use WPA2 as authentication type
+        //     self.at_client
+        //         .send(&SetWifiAPConfig {
+        //             ap_config_id: AccessPointId::Id0,
+        //             ap_config_param: AccessPointConfig::SecurityMode(
+        //                 SecurityMode::Wpa2AesCcmp,
+        //                 SecurityModePSK::PSK,
+        //             ),
+        //         })
+        //         .await?;
+
+        //     // Input passphrase
+        //     self.at_client
+        //         .send(&SetWifiAPConfig {
+        //             ap_config_id: AccessPointId::Id0,
+        //             ap_config_param: AccessPointConfig::PSKPassphrase(PasskeyR::Passphrase(pass)),
+        //         })
+        //         .await?;
+        // } else {
+        self.at_client
+            .send(&SetWifiAPConfig {
+                ap_config_id: AccessPointId::Id0,
+                ap_config_param: AccessPointConfig::SecurityMode(
+                    SecurityMode::Open,
+                    SecurityModePSK::Open,
+                ),
+            })
+            .await?;
+        // }
+
+        // if let Some(channel) = configuration.channel {
+        //     self.at_client
+        //         .send(&SetWifiAPConfig {
+        //             ap_config_id: AccessPointId::Id0,
+        //             ap_config_param: AccessPointConfig::Channel(channel as u8),
+        //         })
+        //         .await?;
+        // }
+
+        self.at_client
+            .send(&WifiAPAction {
+                ap_config_id: AccessPointId::Id0,
+                ap_action: AccessPointAction::Activate,
+            })
+            .await?;
+
+        Ok(())
+    }
+
     pub async fn join_open(&mut self, ssid: &str) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+
         if matches!(self.get_wifi_status().await?, WifiStatusVal::Connected) {
             // Wifi already connected. Check if the SSID is the same
             let current_ssid = self.get_connected_ssid().await?;
@@ -193,6 +357,8 @@ impl<'a, 'r, const URC_CAPACITY: usize> Control<'a, 'r, URC_CAPACITY> {
     }
 
     pub async fn join_wpa2(&mut self, ssid: &str, passphrase: &str) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+
         if matches!(self.get_wifi_status().await?, WifiStatusVal::Connected) {
             // Wifi already connected. Check if the SSID is the same
             let current_ssid = self.get_connected_ssid().await?;
@@ -257,6 +423,8 @@ impl<'a, 'r, const URC_CAPACITY: usize> Control<'a, 'r, URC_CAPACITY> {
     }
 
     pub async fn disconnect(&mut self) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+
         match self.get_wifi_status().await? {
             WifiStatusVal::Disabled => {}
             WifiStatusVal::Disconnected | WifiStatusVal::Connected => {
@@ -269,24 +437,20 @@ impl<'a, 'r, const URC_CAPACITY: usize> Control<'a, 'r, URC_CAPACITY> {
             }
         }
 
-        let wait_for_disconnect = poll_fn(|cx| match self.state_ch.link_state(cx) {
-            LinkState::Up => Poll::Pending,
-            LinkState::Down => Poll::Ready(()),
-        });
-
-        with_timeout(Duration::from_secs(10), wait_for_disconnect)
-            .await
-            .map_err(|_| Error::Timeout)?;
+        with_timeout(
+            Duration::from_secs(10),
+            self.state_ch.wait_for_link_state(LinkState::Down),
+        )
+        .await
+        .map_err(|_| Error::Timeout)?;
 
         Ok(())
     }
 
     async fn wait_for_join(&mut self, ssid: &str) -> Result<(), Error> {
-        poll_fn(|cx| match self.state_ch.link_state(cx) {
-            LinkState::Down => Poll::Pending,
-            LinkState::Up => Poll::Ready(()),
-        })
-        .await;
+        // TODO: Handle returning error in case of security problems
+
+        self.state_ch.wait_for_link_state(LinkState::Up).await;
 
         // Check that SSID matches
         let current_ssid = self.get_connected_ssid().await?;
@@ -297,44 +461,65 @@ impl<'a, 'r, const URC_CAPACITY: usize> Control<'a, 'r, URC_CAPACITY> {
         Ok(())
     }
 
-    pub async fn gpio_set(&mut self, id: GPIOId, value: GPIOValue) -> Result<(), Error> {
+    pub async fn gpio_configure(&mut self, id: GPIOId, mode: GPIOMode) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+        self.at_client.send(&ConfigureGPIO { id, mode }).await?;
+        Ok(())
+    }
+
+    pub async fn gpio_set(&mut self, id: GPIOId, value: bool) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+
+        let value = if value {
+            GPIOValue::High
+        } else {
+            GPIOValue::Low
+        };
+
         self.at_client.send(&WriteGPIO { id, value }).await?;
         Ok(())
     }
 
-    // FIXME: This could probably be improved
-    #[cfg(feature = "internal-network-stack")]
-    pub async fn import_credentials(
-        &mut self,
-        data_type: SecurityDataType,
-        name: &str,
-        data: &[u8],
-        md5_sum: Option<&str>,
-    ) -> Result<(), atat::Error> {
-        assert!(name.len() < 16);
+    pub async fn gpio_get(&mut self, id: GPIOId) -> Result<bool, Error> {
+        self.state_ch.wait_for_initialized().await;
 
-        info!("Importing {:?} bytes as {:?}", data.len(), name);
-
-        self.at_client
-            .send(&PrepareSecurityDataImport {
-                data_type,
-                data_size: data.len(),
-                internal_name: name,
-                password: None,
-            })
-            .await?;
-
-        let import_data = self
-            .at_client
-            .send(&SendSecurityDataImport {
-                data: atat::serde_bytes::Bytes::new(data),
-            })
-            .await?;
-
-        if let Some(hash) = md5_sum {
-            assert_eq!(import_data.md5_string.as_str(), hash);
-        }
-
-        Ok(())
+        let ReadGPIOResponse { value, .. } = self.at_client.send(&ReadGPIO { id }).await?;
+        Ok(value as u8 != 0)
     }
+
+    // FIXME: This could probably be improved
+    // #[cfg(feature = "internal-network-stack")]
+    // pub async fn import_credentials(
+    //     &mut self,
+    //     data_type: SecurityDataType,
+    //     name: &str,
+    //     data: &[u8],
+    //     md5_sum: Option<&str>,
+    // ) -> Result<(), atat::Error> {
+    //     assert!(name.len() < 16);
+
+    //     info!("Importing {:?} bytes as {:?}", data.len(), name);
+
+    //     self.at_client
+    //         .send(&PrepareSecurityDataImport {
+    //             data_type,
+    //             data_size: data.len(),
+    //             internal_name: name,
+    //             password: None,
+    //         })
+    //         .await?;
+
+    //     let import_data = self
+    //         .at_client
+    //         .send(&SendSecurityDataImport {
+    //             data: atat::serde_bytes::Bytes::new(data),
+    //         })
+    //         .await?;
+
+    //     if let Some(hash) = md5_sum {
+    //         assert_eq!(import_data.md5_string.as_str(), hash);
+    //     }
+
+    //     Ok(())
+    // }
 }

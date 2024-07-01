@@ -73,7 +73,7 @@ impl AtatUrc for EdmEvent {
         };
         let payload_len = calc_payload_len(resp);
         if resp.len() != payload_len + EDM_OVERHEAD {
-            error!("[Parse URC lenght Error] {:?}", LossyStr(resp));
+            error!("[Parse URC length Error] {:?}", LossyStr(resp));
             return None;
         }
 

@@ -30,11 +30,11 @@ pub enum Urc {
     #[at_urc("+STARTUP")]
     StartUp,
     /// 5.10 Peer connected +UUDPC
-    #[cfg(feature = "ublox-sockets")]
+    #[cfg(feature = "internal-network-stack")]
     #[at_urc("+UUDPC")]
     PeerConnected(data_mode::urc::PeerConnected),
     /// 5.11 Peer disconnected +UUDPD
-    #[cfg(feature = "ublox-sockets")]
+    #[cfg(feature = "internal-network-stack")]
     #[at_urc("+UUDPD")]
     PeerDisconnected(data_mode::urc::PeerDisconnected),
     /// 7.15 Wi-Fi Link connected +UUWLE

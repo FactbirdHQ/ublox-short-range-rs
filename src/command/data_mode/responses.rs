@@ -2,7 +2,7 @@
 use atat::atat_derive::AtatResp;
 
 /// 5.2 Connect peer +UDCP
-#[cfg(feature = "ublox-sockets")]
+#[cfg(feature = "internal-network-stack")]
 #[derive(Clone, AtatResp)]
 pub struct ConnectPeerResponse {
     #[at_arg(position = 0)]
@@ -10,7 +10,7 @@ pub struct ConnectPeerResponse {
 }
 
 /// 5.5 Peer list +UDLP
-#[cfg(feature = "ublox-sockets")]
+#[cfg(feature = "internal-network-stack")]
 #[derive(Clone, AtatResp)]
 pub struct PeerListResponse {
     #[at_arg(position = 0)]

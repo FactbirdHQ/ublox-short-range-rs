@@ -14,7 +14,6 @@ impl<'a> embedded_io_async::ErrorType for &AtUdpSocket<'a> {
 impl<'a> Read for &AtUdpSocket<'a> {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         let (len, _) = self.0.recv_from(buf).await.unwrap();
-        debug!("READ {} bytes: {=[u8]:a}", len, &buf[..len]);
         Ok(len)
     }
 }
@@ -40,7 +39,6 @@ impl<'a> embedded_io_async::ErrorType for AtUdpSocket<'a> {
 impl<'a> Read for AtUdpSocket<'a> {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         let (len, _) = self.0.recv_from(buf).await.unwrap();
-        debug!("READ {} bytes: {=[u8]:a}", len, &buf[..len]);
         Ok(len)
     }
 }

@@ -109,7 +109,7 @@ async fn main(spawner: Spawner) {
     let net_device = runner.ppp_stack(PPP_STATE.init(embassy_net_ppp::State::new()));
 
     // Generate random seed
-    let seed = 0x0123_4567_89ab_cdef; // chosen by fair dice roll. guarenteed to be random.
+    let seed = 0x0123_4567_89ab_cdef; // chosen by fair dice roll. guaranteed to be random.
 
     // Init network stack
     static STACK: StaticCell<Stack<embassy_net_ppp::Device<'static>>> = StaticCell::new();

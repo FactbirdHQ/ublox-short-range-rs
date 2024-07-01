@@ -3,7 +3,7 @@
 use super::types::*;
 
 /// 5.10 Peer connected +UUDPC
-#[cfg(feature = "ublox-sockets")]
+#[cfg(feature = "internal-network-stack")]
 #[derive(Debug, PartialEq, Clone, atat::atat_derive::AtatResp)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct PeerConnected {
@@ -30,7 +30,7 @@ pub struct PeerConnected {
 }
 
 /// 5.11 Peer disconnected +UUDPD
-#[cfg(feature = "ublox-sockets")]
+#[cfg(feature = "internal-network-stack")]
 #[derive(Debug, PartialEq, Clone, atat::atat_derive::AtatResp)]
 pub struct PeerDisconnected {
     #[at_arg(position = 0)]

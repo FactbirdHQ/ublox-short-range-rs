@@ -27,7 +27,7 @@ pub struct ChangeMode {
 /// Connects to an enabled service on a remote device. When the host connects to a
 /// service on a remote device, it implicitly registers to receive the "Connection Closed"
 /// event.
-#[cfg(feature = "ublox-sockets")]
+#[cfg(feature = "internal-network-stack")]
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 5000)]
 pub struct ConnectPeer<'a> {
@@ -38,12 +38,12 @@ pub struct ConnectPeer<'a> {
 /// 5.3 Close peer connection +UDCPC
 ///
 /// Closes an existing peer connection.
-#[cfg(feature = "ublox-sockets")]
+#[cfg(feature = "internal-network-stack")]
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCPC", NoResponse, timeout_ms = 1000)]
 pub struct ClosePeerConnection {
     #[at_arg(position = 0, len = 1)]
-    pub peer_handle: PeerHandle,
+    pub peer_handle: ublox_sockets::PeerHandle,
 }
 
 /// 5.4 Default remote peer +UDDRP
@@ -66,7 +66,7 @@ pub struct SetDefaultRemotePeer<'a> {
 /// 5.5 Peer list +UDLP
 ///
 /// This command reads the connected peers (peer handle).
-#[cfg(feature = "ublox-sockets")]
+#[cfg(feature = "internal-network-stack")]
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDLP?", PeerListResponse, timeout_ms = 1000)]
 pub struct PeerList;
@@ -129,7 +129,7 @@ pub struct SetWatchdogSettings {
 ///
 /// Writes peer configuration.
 ///
-/// Suported parameter tags | Software Version
+/// Supported parameter tags | Software Version
 /// ------------------------|------------------
 /// 0,1                     |   All versions
 /// 2                       |    >= 4.0.0

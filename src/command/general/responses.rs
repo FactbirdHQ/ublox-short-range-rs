@@ -37,7 +37,7 @@ pub struct SerialNumberResponse {
 
 /// 3.10 Identification information I0
 #[derive(Clone, AtatResp)]
-pub struct IdentificationInfomationTypeCodeResponse {
+pub struct IdentificationInformationTypeCodeResponse {
     /// Text string that identifies the serial number.
     #[at_arg(position = 0)]
     pub serial_number: String<64>,
@@ -45,7 +45,7 @@ pub struct IdentificationInfomationTypeCodeResponse {
 
 /// 3.10 Identification information I9
 #[derive(Clone, AtatResp)]
-pub struct IdentificationInfomationSoftwareVersionResponse {
+pub struct IdentificationInformationSoftwareVersionResponse {
     /// Text string that identifies the firmware version.
     #[at_arg(position = 0)]
     pub version: String<64>,
@@ -53,7 +53,7 @@ pub struct IdentificationInfomationSoftwareVersionResponse {
 
 /// 3.10 Identification information I10
 #[derive(Clone, AtatResp)]
-pub struct IdentificationInfomationMCUIDResponse {
+pub struct IdentificationInformationMCUIDResponse {
     /// Text string that identifies the serial number.
     #[at_arg(position = 0)]
     pub serial_number: String<64>,

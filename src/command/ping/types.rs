@@ -18,12 +18,12 @@ use atat::atat_derive::AtatEnum;
 /// provides the TTL value received in the incoming packet.
 /// - Range: 1-255
 /// - Default value: 32
-// pub type TTL = (u8, Option<Inteval>);
+// pub type TTL = (u8, Option<Interval>);
 /// The time in milliseconds to wait after an echo reply response before sending the next
 /// echo request.
 /// - Range: 0-60000
 /// - Default value: 1000
-// pub type Inteval = u16;
+// pub type Interval = u16;
 
 #[derive(Debug, PartialEq, Clone, Copy, AtatEnum)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

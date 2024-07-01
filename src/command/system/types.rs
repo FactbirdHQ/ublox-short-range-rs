@@ -40,7 +40,7 @@ pub enum DSRAssertMode {
     /// DSR line when no remote peers are connected. See Connect Peer +UDCP and Default
     /// remote peer +UDDRP for definition of the remote peer. This applies to both incoming
     /// and outgoing connections.
-    WhenPeersConected = 2,
+    WhenPeersConnected = 2,
 }
 
 /// Echo on
