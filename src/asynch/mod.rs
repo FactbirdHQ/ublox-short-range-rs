@@ -1,18 +1,18 @@
+#[cfg(feature = "ppp")]
 mod at_udp_socket;
 pub mod control;
 pub mod network;
 mod resources;
 pub mod runner;
-#[cfg(feature = "ublox-sockets")]
+#[cfg(feature = "internal-network-stack")]
 pub mod ublox_stack;
 
 pub(crate) mod state;
 
 pub use resources::Resources;
 pub use runner::Runner;
+pub use state::LinkState;
 
-#[cfg(feature = "internal-network-stack")]
-mod internal_stack;
 use embedded_io_async::{BufRead, Error as _, ErrorKind, Read, Write};
 
 #[cfg(feature = "edm")]

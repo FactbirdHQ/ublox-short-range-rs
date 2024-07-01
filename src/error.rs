@@ -1,4 +1,4 @@
-#[cfg(feature = "ublox-sockets")]
+#[cfg(feature = "internal-network-stack")]
 pub use ublox_sockets::Error as SocketError;
 
 #[derive(Debug)]
@@ -18,7 +18,7 @@ pub enum Error {
     // NetworkState(crate::wifi::connection::NetworkState),
     NoWifiSetup,
     // WifiState(crate::wifi::connection::WiFiState),
-    #[cfg(feature = "ublox-sockets")]
+    #[cfg(feature = "internal-network-stack")]
     Socket(ublox_sockets::Error),
     AT(atat::Error),
     Busy,
@@ -42,7 +42,7 @@ impl From<atat::Error> for Error {
     }
 }
 
-#[cfg(feature = "ublox-sockets")]
+#[cfg(feature = "internal-network-stack")]
 impl From<ublox_sockets::Error> for Error {
     fn from(e: ublox_sockets::Error) -> Self {
         Error::Socket(e)
@@ -97,7 +97,7 @@ pub enum WifiError {
 #[derive(Debug)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum WifiHotspotError {
-    /// Failed to ceate wireless hotspot.
+    /// Failed to create wireless hotspot.
     CreationFailed,
     /// Failed to stop wireless hotspot service. Try turning off
     /// the wireless interface via ```wifi.turn_off()```.

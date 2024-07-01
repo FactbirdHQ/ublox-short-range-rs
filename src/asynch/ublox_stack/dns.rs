@@ -1,6 +1,5 @@
 use core::{cell::RefCell, future::poll_fn, task::Poll};
 
-use atat::asynch::AtatClient;
 use embassy_sync::waitqueue::WakerRegistration;
 use embedded_nal_async::AddrType;
 use no_std_net::IpAddr;
@@ -115,8 +114,8 @@ pub struct DnsSocket<'a> {
 
 impl<'a> DnsSocket<'a> {
     /// Create a new DNS socket using the provided stack.
-    pub fn new<AT: AtatClient, const URC_CAPACITY: usize>(
-        stack: &'a UbloxStack<AT, URC_CAPACITY>,
+    pub fn new<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>(
+        stack: &'a UbloxStack<INGRESS_BUF_SIZE, URC_CAPACITY>,
     ) -> Self {
         Self {
             stack: &stack.socket,

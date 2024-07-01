@@ -6,7 +6,7 @@ use heapless::String;
 
 use core::convert::TryFrom;
 
-#[derive(PartialEq, Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WifiMode {
     Station,
     AccessPoint,

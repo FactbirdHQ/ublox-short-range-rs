@@ -5,7 +5,9 @@ pub trait WifiConfig<'a> {
 
     const FLOW_CONTROL: bool = false;
 
+    #[cfg(feature = "internal-network-stack")]
     const TLS_IN_BUFFER_SIZE: Option<u16> = None;
+    #[cfg(feature = "internal-network-stack")]
     const TLS_OUT_BUFFER_SIZE: Option<u16> = None;
 
     #[cfg(feature = "ppp")]

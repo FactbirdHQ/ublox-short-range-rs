@@ -3,7 +3,6 @@ use core::future::poll_fn;
 use core::mem;
 use core::task::Poll;
 
-use atat::asynch::AtatClient;
 use embassy_time::Duration;
 use embedded_nal_async::SocketAddr;
 use ublox_sockets::{tcp, SocketHandle, TcpState};
@@ -123,8 +122,8 @@ impl<'a> TcpWriter<'a> {
 
 impl<'a> TcpSocket<'a> {
     /// Create a new TCP socket on the given stack, with the given buffers.
-    pub fn new<AT: AtatClient, const URC_CAPACITY: usize>(
-        stack: &'a UbloxStack<AT, URC_CAPACITY>,
+    pub fn new<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>(
+        stack: &'a UbloxStack<INGRESS_BUF_SIZE, URC_CAPACITY>,
         rx_buffer: &'a mut [u8],
         tx_buffer: &'a mut [u8],
     ) -> Self {
@@ -331,7 +330,7 @@ impl<'a> TcpSocket<'a> {
         self.io.with(|s| s.may_send())
     }
 
-    /// return whether the recieve half of the full-duplex connection is open.
+    /// return whether the receive half of the full-duplex connection is open.
     /// This function returns true if it’s possible to receive data from the remote endpoint.
     /// It will return true while there is data in the receive buffer, and if there isn’t,
     /// as long as the remote endpoint has not closed the connection.
@@ -481,7 +480,7 @@ impl<'d> TcpIo<'d> {
                         s.register_recv_waker(cx.waker());
                         Poll::Pending
                     } else {
-                        // if we can't receive because the recieve half of the duplex connection is closed then return an error
+                        // if we can't receive because the receive half of the duplex connection is closed then return an error
                         Poll::Ready(Err(Error::ConnectionReset))
                     }
                 } else {
@@ -631,24 +630,25 @@ pub mod client {
     /// The pool is capable of managing up to N concurrent connections with tx and rx buffers according to TX_SZ and RX_SZ.
     pub struct TcpClient<
         'd,
-        AT: AtatClient + 'static,
-        const N: usize,
+        const INGRESS_BUF_SIZE: usize,
         const URC_CAPACITY: usize,
+        const N: usize,
         const TX_SZ: usize = 1024,
         const RX_SZ: usize = 1024,
     > {
-        pub(crate) stack: &'d UbloxStack<AT, URC_CAPACITY>,
+        pub(crate) stack: &'d UbloxStack<INGRESS_BUF_SIZE, URC_CAPACITY>,
         pub(crate) state: &'d TcpClientState<N, TX_SZ, RX_SZ>,
     }
 
     impl<
             'd,
-            AT: AtatClient,
-            const N: usize,
+            const INGRESS_BUF_SIZE: usize,
             const URC_CAPACITY: usize,
+            const N: usize,
             const TX_SZ: usize,
             const RX_SZ: usize,
-        > embedded_nal_async::Dns for TcpClient<'d, AT, N, URC_CAPACITY, TX_SZ, RX_SZ>
+        > embedded_nal_async::Dns
+        for TcpClient<'d, INGRESS_BUF_SIZE, URC_CAPACITY, N, TX_SZ, RX_SZ>
     {
         type Error = crate::asynch::ublox_stack::dns::Error;
 
@@ -671,16 +671,16 @@ pub mod client {
 
     impl<
             'd,
-            AT: AtatClient,
-            const N: usize,
+            const INGRESS_BUF_SIZE: usize,
             const URC_CAPACITY: usize,
+            const N: usize,
             const TX_SZ: usize,
             const RX_SZ: usize,
-        > TcpClient<'d, AT, N, URC_CAPACITY, TX_SZ, RX_SZ>
+        > TcpClient<'d, INGRESS_BUF_SIZE, URC_CAPACITY, N, TX_SZ, RX_SZ>
     {
         /// Create a new `TcpClient`.
         pub fn new(
-            stack: &'d UbloxStack<AT, URC_CAPACITY>,
+            stack: &'d UbloxStack<INGRESS_BUF_SIZE, URC_CAPACITY>,
             state: &'d TcpClientState<N, TX_SZ, RX_SZ>,
         ) -> Self {
             Self { stack, state }
@@ -689,12 +689,13 @@ pub mod client {
 
     impl<
             'd,
-            AT: AtatClient,
-            const N: usize,
+            const INGRESS_BUF_SIZE: usize,
             const URC_CAPACITY: usize,
+            const N: usize,
             const TX_SZ: usize,
             const RX_SZ: usize,
-        > embedded_nal_async::TcpConnect for TcpClient<'d, AT, N, URC_CAPACITY, TX_SZ, RX_SZ>
+        > embedded_nal_async::TcpConnect
+        for TcpClient<'d, INGRESS_BUF_SIZE, URC_CAPACITY, N, TX_SZ, RX_SZ>
     {
         type Error = Error;
         type Connection<'m> = TcpConnection<'m, N, TX_SZ, RX_SZ> where Self: 'm;
@@ -724,8 +725,8 @@ pub mod client {
     impl<'d, const N: usize, const TX_SZ: usize, const RX_SZ: usize>
         TcpConnection<'d, N, TX_SZ, RX_SZ>
     {
-        fn new<AT: AtatClient, const URC_CAPACITY: usize>(
-            stack: &'d UbloxStack<AT, URC_CAPACITY>,
+        fn new<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>(
+            stack: &'d UbloxStack<INGRESS_BUF_SIZE, URC_CAPACITY>,
             state: &'d TcpClientState<N, TX_SZ, RX_SZ>,
         ) -> Result<Self, Error> {
             let mut bufs = state.pool.alloc().ok_or(Error::ConnectionReset)?;

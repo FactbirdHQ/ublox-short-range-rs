@@ -21,7 +21,6 @@ pub mod asynch;
 mod config;
 mod connection;
 mod network;
-mod peer_builder;
 
 mod hex;
 
@@ -29,6 +28,4 @@ pub use atat;
 
 pub mod command;
 pub mod error;
-// pub mod wifi;
 pub use config::WifiConfig;
-pub use peer_builder::SecurityCredentials;

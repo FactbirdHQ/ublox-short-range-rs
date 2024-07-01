@@ -5,37 +5,37 @@ pub mod tls;
 #[cfg(feature = "socket-udp")]
 pub mod udp;
 
+mod device;
 pub mod dns;
+mod peer_builder;
+
+pub use device::Device;
 
 use core::cell::RefCell;
 use core::future::poll_fn;
 use core::ops::{DerefMut, Rem};
 use core::task::Poll;
 
-use crate::asynch::state::Device;
 use crate::command::data_mode::responses::ConnectPeerResponse;
 use crate::command::data_mode::urc::PeerDisconnected;
 use crate::command::data_mode::{ClosePeerConnection, ConnectPeer};
 use crate::command::edm::types::{DataEvent, Protocol};
 use crate::command::edm::urc::EdmEvent;
-use crate::command::edm::EdmDataCommand;
+use crate::command::edm::{EdmAtCmdWrapper, EdmDataCommand};
 use crate::command::ping::types::PingError;
 use crate::command::ping::urc::{PingErrorResponse, PingResponse};
 use crate::command::ping::Ping;
 use crate::command::Urc;
-use crate::peer_builder::{PeerUrlBuilder, SecurityCredentials};
+use peer_builder::{PeerUrlBuilder, SecurityCredentials};
 
 use self::dns::{DnsSocket, DnsState, DnsTable};
 
-use super::state::{self, LinkState};
-use super::AtHandle;
+use super::control::ProxyClient;
 
-use atat::asynch::AtatClient;
 use embassy_futures::select;
 use embassy_sync::waitqueue::WakerRegistration;
 use embassy_time::{Duration, Ticker};
 use embedded_nal_async::SocketAddr;
-use futures::pin_mut;
 use no_std_net::IpAddr;
 use portable_atomic::{AtomicBool, AtomicU8, Ordering};
 use ublox_sockets::{
@@ -68,15 +68,14 @@ impl<const SOCK: usize> StackResources<SOCK> {
     }
 }
 
-pub struct UbloxStack<AT: AtatClient + 'static, const URC_CAPACITY: usize> {
+pub struct UbloxStack<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize> {
     socket: RefCell<SocketStack>,
-    device: RefCell<state::Device<'static, AT, URC_CAPACITY>>,
+    device: Device<'static, INGRESS_BUF_SIZE, URC_CAPACITY>,
     last_tx_socket: AtomicU8,
     should_tx: AtomicBool,
-    link_up: AtomicBool,
 }
 
-struct SocketStack {
+pub(crate) struct SocketStack {
     sockets: SocketSet<'static>,
     waker: WakerRegistration,
     dns_table: DnsTable,
@@ -84,9 +83,11 @@ struct SocketStack {
     credential_map: heapless::FnvIndexMap<SocketHandle, SecurityCredentials, 2>,
 }
 
-impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAPACITY> {
+impl<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
+    UbloxStack<INGRESS_BUF_SIZE, URC_CAPACITY>
+{
     pub fn new<const SOCK: usize>(
-        device: state::Device<'static, AT, URC_CAPACITY>,
+        device: Device<'static, INGRESS_BUF_SIZE, URC_CAPACITY>,
         resources: &'static mut StackResources<SOCK>,
     ) -> Self {
         let sockets = SocketSet::new(&mut resources.sockets[..]);
@@ -101,15 +102,22 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
 
         Self {
             socket: RefCell::new(socket),
-            device: RefCell::new(device),
+            device,
             last_tx_socket: AtomicU8::new(0),
-            link_up: AtomicBool::new(false),
             should_tx: AtomicBool::new(false),
         }
     }
 
     pub async fn run(&self) -> ! {
         let mut tx_buf = [0u8; MAX_EGRESS_SIZE];
+
+        let Device {
+            urc_channel,
+            state_ch,
+            at_client,
+        } = &self.device;
+
+        let mut urc_subscription = urc_channel.subscribe().unwrap();
 
         loop {
             // FIXME: It feels like this can be written smarter/simpler?
@@ -126,46 +134,21 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
             });
 
             let ticker = Ticker::every(Duration::from_millis(100));
-            pin_mut!(ticker);
+            futures_util::pin_mut!(ticker);
 
-            let mut device = self.device.borrow_mut();
-            let Device {
-                ref mut urc_subscription,
-                ref mut shared,
-                ref mut at,
-            } = device.deref_mut();
-
-            match select::select4(
+            match select::select3(
                 urc_subscription.next_message_pure(),
                 should_tx,
                 ticker.next(),
-                poll_fn(
-                    |cx| match (self.link_up.load(Ordering::Relaxed), shared.link_state(cx)) {
-                        (true, LinkState::Down) => Poll::Ready(LinkState::Down),
-                        (false, LinkState::Up) => Poll::Ready(LinkState::Up),
-                        _ => Poll::Pending,
-                    },
-                ),
             )
             .await
             {
-                select::Either4::First(event) => {
+                select::Either3::First(event) => {
                     Self::socket_rx(event, &self.socket);
                 }
-                select::Either4::Second(_) | select::Either4::Third(_) => {
+                select::Either3::Second(_) | select::Either3::Third(_) => {
                     if let Some(ev) = self.tx_event(&mut tx_buf) {
-                        Self::socket_tx(ev, &self.socket, at).await;
-                    }
-                }
-                select::Either4::Fourth(new_state) => {
-                    // Update link up
-                    let old_link_up = self.link_up.load(Ordering::Relaxed);
-                    let new_link_up = new_state == LinkState::Up;
-                    self.link_up.store(new_link_up, Ordering::Relaxed);
-
-                    // Print when changed
-                    if old_link_up != new_link_up {
-                        info!("link_up = {:?}", new_link_up);
+                        Self::socket_tx(ev, &self.socket, &at_client).await;
                     }
                 }
             }
@@ -325,13 +308,14 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
         }
 
         // Make sure to give all sockets an even opportunity to TX
-        let skip = self
-            .last_tx_socket
-            .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
-                let next = v + 1;
-                Some(next.rem(s.sockets.sockets.len() as u8))
-            })
-            .unwrap();
+        // let skip = self
+        //     .last_tx_socket
+        //     .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
+        //         let next = v + 1;
+        //         Some(next.rem(s.sockets.sockets.len() as u8))
+        //     })
+        //     .unwrap();
+        let skip = 0;
 
         let SocketStack {
             sockets,
@@ -416,11 +400,14 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
     async fn socket_tx<'data>(
         ev: TxEvent<'data>,
         socket: &RefCell<SocketStack>,
-        at: &mut AtHandle<'_, AT>,
+        at_client: &RefCell<ProxyClient<'_, INGRESS_BUF_SIZE>>,
     ) {
+        use atat::asynch::AtatClient;
+
+        let mut at = at_client.borrow_mut();
         match ev {
             TxEvent::Connect { socket_handle, url } => {
-                match at.send_edm(ConnectPeer { url: &url }).await {
+                match at.send(&EdmAtCmdWrapper(ConnectPeer { url: &url })).await {
                     Ok(ConnectPeerResponse { peer_handle }) => {
                         let mut s = socket.borrow_mut();
                         let tcp = s
@@ -436,7 +423,7 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
             }
             TxEvent::Send { edm_channel, data } => {
                 warn!("Sending {} bytes on {}", data.len(), edm_channel);
-                at.send(EdmDataCommand {
+                at.send(&EdmDataCommand {
                     channel: edm_channel,
                     data,
                 })
@@ -444,14 +431,16 @@ impl<AT: AtatClient + 'static, const URC_CAPACITY: usize> UbloxStack<AT, URC_CAP
                 .ok();
             }
             TxEvent::Close { peer_handle } => {
-                at.send_edm(ClosePeerConnection { peer_handle }).await.ok();
+                at.send(&EdmAtCmdWrapper(ClosePeerConnection { peer_handle }))
+                    .await
+                    .ok();
             }
             TxEvent::Dns { hostname } => {
                 match at
-                    .send_edm(Ping {
+                    .send(&EdmAtCmdWrapper(Ping {
                         hostname: &hostname,
                         retry_num: 1,
-                    })
+                    }))
                     .await
                 {
                     Ok(_) => {}

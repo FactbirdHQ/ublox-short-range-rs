@@ -8,6 +8,7 @@
     "rust-analyzer.linkedProjects": [],
     "rust-analyzer.cargo.features": [
         "odin_w2xx",
+        // "internal-network-stack"
         "ppp"
     ],
     "rust-analyzer.server.extraEnv": {
