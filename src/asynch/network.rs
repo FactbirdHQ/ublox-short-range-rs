@@ -62,17 +62,19 @@ where
         // Hard reset module
         self.reset().await?;
 
-        self.at_client.send(&SoftwareVersion).await?;
-        self.at_client.send(&SetEcho { on: EchoOn::Off }).await?;
+        self.at_client.send_retry(&SoftwareVersion).await?;
         self.at_client
-            .send(&SetWifiConfig {
+            .send_retry(&SetEcho { on: EchoOn::Off })
+            .await?;
+        self.at_client
+            .send_retry(&SetWifiConfig {
                 config_param: WifiConfigParam::DropNetworkOnLinkLoss(OnOff::On),
             })
             .await?;
 
         // Disable all power savings for now
         self.at_client
-            .send(&SetWifiConfig {
+            .send_retry(&SetWifiConfig {
                 config_param: WifiConfigParam::PowerSaveMode(PowerSaveMode::ActiveMode),
             })
             .await?;
@@ -80,7 +82,7 @@ where
         #[cfg(feature = "internal-network-stack")]
         if let Some(size) = C::TLS_IN_BUFFER_SIZE {
             self.at_client
-                .send(&crate::command::data_mode::SetPeerConfiguration {
+                .send_retry(&crate::command::data_mode::SetPeerConfiguration {
                     parameter: crate::command::data_mode::types::PeerConfigParameter::TlsInBuffer(
                         size,
                     ),
@@ -91,7 +93,7 @@ where
         #[cfg(feature = "internal-network-stack")]
         if let Some(size) = C::TLS_OUT_BUFFER_SIZE {
             self.at_client
-                .send(&crate::command::data_mode::SetPeerConfiguration {
+                .send_retry(&crate::command::data_mode::SetPeerConfiguration {
                     parameter: crate::command::data_mode::types::PeerConfigParameter::TlsOutBuffer(
                         size,
                     ),
@@ -109,20 +111,37 @@ where
             self.init().await?;
         }
 
+        let mut link_was_up = false;
+
         loop {
-            let event = self.urc_subscription.next_message_pure().await;
+            match embassy_futures::select::select(
+                self.urc_subscription.next_message_pure(),
+                self.ch.wait_for_wifi_state_change(),
+            )
+            .await
+            {
+                embassy_futures::select::Either::First(event) => {
+                    #[cfg(feature = "edm")]
+                    let Some(event) = event.extract_urc() else {
+                        continue;
+                    };
 
-            #[cfg(feature = "edm")]
-            let Some(event) = event.extract_urc() else {
-                continue;
-            };
+                    self.handle_urc(event).await?;
+                }
+                embassy_futures::select::Either::Second(_) => {}
+            }
 
-            self.handle_urc(event).await?;
+            match self.ch.wifi_state(None) {
+                WiFiState::Inactive if self.ch.connection_down(None) && link_was_up => {
+                    return Ok(())
+                }
+                WiFiState::Connected if self.ch.is_connected(None) => link_was_up = true,
+                _ => {}
+            }
         }
     }
 
     async fn handle_urc(&mut self, event: Urc) -> Result<(), Error> {
-        debug!("GOT URC event");
         match event {
             Urc::StartUp => {
                 error!("AT startup event?! Device restarted unintentionally!");
@@ -161,11 +180,9 @@ where
             Urc::EthernetLinkUp(_) => warn!("Not yet implemented [EthernetLinkUp]"),
             Urc::EthernetLinkDown(_) => warn!("Not yet implemented [EthernetLinkDown]"),
             Urc::NetworkUp(NetworkUp { interface_id }) => {
-                drop(event);
                 self.network_status_callback(interface_id).await?;
             }
             Urc::NetworkDown(NetworkDown { interface_id }) => {
-                drop(event);
                 self.network_status_callback(interface_id).await?;
             }
             Urc::NetworkError(_) => warn!("Not yet implemented [NetworkError]"),
@@ -188,7 +205,7 @@ where
             ..
         } = self
             .at_client
-            .send(&GetNetworkStatus {
+            .send_retry(&GetNetworkStatus {
                 interface_id,
                 status: NetworkStatusParameter::InterfaceType,
             })
@@ -202,7 +219,7 @@ where
             ..
         } = self
             .at_client
-            .send(&GetNetworkStatus {
+            .send_retry(&GetNetworkStatus {
                 interface_id,
                 status: NetworkStatusParameter::IPv4Address,
             })
@@ -211,18 +228,17 @@ where
             return Err(Error::Network);
         };
 
-        let ipv4_up = core::str::from_utf8(ipv4.as_slice())
+        let ipv4_addr = core::str::from_utf8(ipv4.as_slice())
             .ok()
             .and_then(|s| Ipv4Addr::from_str(s).ok())
-            .map(|ip| !ip.is_unspecified())
-            .unwrap_or_default();
+            .and_then(|ip| (!ip.is_unspecified()).then_some(ip));
 
         let NetworkStatusResponse {
             status: NetworkStatus::IPv6LinkLocalAddress(ipv6),
             ..
         } = self
             .at_client
-            .send(&GetNetworkStatus {
+            .send_retry(&GetNetworkStatus {
                 interface_id,
                 status: NetworkStatusParameter::IPv6LinkLocalAddress,
             })
@@ -231,15 +247,17 @@ where
             return Err(Error::Network);
         };
 
-        let ipv6_up = core::str::from_utf8(ipv6.as_slice())
+        let ipv6_addr = core::str::from_utf8(ipv6.as_slice())
             .ok()
             .and_then(|s| Ipv6Addr::from_str(s).ok())
-            .map(|ip| !ip.is_unspecified())
-            .unwrap_or_default();
+            .and_then(|ip| (!ip.is_unspecified()).then_some(ip));
 
-        // Use `ipv4_up` & `ipv6_up` to determine link state
-        self.ch
-            .update_connection_with(|con| con.network_up = ipv4_up && ipv6_up);
+        // Use `ipv4_addr` & `ipv6_addr` to determine link state
+        self.ch.update_connection_with(|con| {
+            con.ipv4 = ipv4_addr;
+            con.ipv6 = ipv6_addr;
+            con.network_up = ipv4_addr.is_some() && ipv6_addr.is_some()
+        });
 
         Ok(())
     }
@@ -265,12 +283,17 @@ where
     }
 
     pub async fn reset(&mut self) -> Result<(), Error> {
-        warn!("Hard resetting Ublox Short Range");
-        self.config.reset_pin().unwrap().set_low().ok();
-        Timer::after(Duration::from_millis(100)).await;
-        self.config.reset_pin().unwrap().set_high().ok();
+        if let Some(reset_pin) = self.config.reset_pin() {
+            warn!("Reset pin found! Hard resetting Ublox Short Range");
+            reset_pin.set_low().ok();
+            Timer::after(Duration::from_millis(100)).await;
+            reset_pin.set_high().ok();
+        } else {
+            warn!("No reset pin found! Soft resetting Ublox Short Range");
+            self.at_client.send_retry(&RebootDCE).await?;
+        }
 
-        self.wait_startup(Duration::from_secs(4)).await?;
+        self.wait_startup(Duration::from_secs(10)).await?;
 
         #[cfg(feature = "edm")]
         self.enter_edm(Duration::from_secs(4)).await?;
@@ -282,10 +305,10 @@ where
     pub async fn restart(&mut self, store: bool) -> Result<(), Error> {
         warn!("Soft resetting Ublox Short Range");
         if store {
-            self.at_client.send(&StoreCurrentConfig).await?;
+            self.at_client.send_retry(&StoreCurrentConfig).await?;
         }
 
-        self.at_client.send(&RebootDCE).await?;
+        self.at_client.send_retry(&RebootDCE).await?;
 
         self.wait_startup(Duration::from_secs(10)).await?;
 
@@ -306,7 +329,7 @@ where
                 // Ignore AT results until we are successful in EDM mode
                 if let Ok(_) = self
                     .at_client
-                    .send(&crate::command::edm::SwitchToEdmCommand)
+                    .send_retry(&crate::command::edm::SwitchToEdmCommand)
                     .await
                 {
                     // After executing the data mode command or the extended data

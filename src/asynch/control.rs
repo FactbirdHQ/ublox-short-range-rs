@@ -1,3 +1,5 @@
+use core::cell::Cell;
+
 use atat::{asynch::AtatClient, response_slot::ResponseSlotGuard, UrcChannel};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Sender};
 use embassy_time::{with_timeout, Duration, Timer};
@@ -30,6 +32,7 @@ use crate::command::{
     system::{RebootDCE, ResetToFactoryDefaults},
     wifi::types::AccessPointId,
 };
+use crate::connection::WiFiState;
 use crate::error::Error;
 
 use super::runner::{MAX_CMD_LEN, URC_SUBSCRIBERS};
@@ -41,7 +44,7 @@ const CONFIG_ID: u8 = 0;
 pub(crate) struct ProxyClient<'a, const INGRESS_BUF_SIZE: usize> {
     pub(crate) req_sender: Sender<'a, NoopRawMutex, Vec<u8, MAX_CMD_LEN>, 1>,
     pub(crate) res_slot: &'a atat::ResponseSlot<INGRESS_BUF_SIZE>,
-    cooldown_timer: Option<Timer>,
+    cooldown_timer: Cell<Option<Timer>>,
 }
 
 impl<'a, const INGRESS_BUF_SIZE: usize> ProxyClient<'a, INGRESS_BUF_SIZE> {
@@ -52,14 +55,14 @@ impl<'a, const INGRESS_BUF_SIZE: usize> ProxyClient<'a, INGRESS_BUF_SIZE> {
         Self {
             req_sender,
             res_slot,
-            cooldown_timer: None,
+            cooldown_timer: Cell::new(None),
         }
     }
 
-    async fn wait_response<'guard>(
-        &'guard mut self,
+    async fn wait_response(
+        &self,
         timeout: Duration,
-    ) -> Result<ResponseSlotGuard<'guard, INGRESS_BUF_SIZE>, atat::Error> {
+    ) -> Result<ResponseSlotGuard<'_, INGRESS_BUF_SIZE>, atat::Error> {
         with_timeout(timeout, self.res_slot.get())
             .await
             .map_err(|_| atat::Error::Timeout)
@@ -67,7 +70,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize> ProxyClient<'a, INGRESS_BUF_SIZE> {
 }
 
 impl<'a, const INGRESS_BUF_SIZE: usize> atat::asynch::AtatClient
-    for ProxyClient<'a, INGRESS_BUF_SIZE>
+    for &ProxyClient<'a, INGRESS_BUF_SIZE>
 {
     async fn send<Cmd: atat::AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, atat::Error> {
         let mut buf = [0u8; MAX_CMD_LEN];
@@ -91,7 +94,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize> atat::asynch::AtatClient
             .send(Vec::try_from(&buf[..len]).unwrap())
             .await;
 
-        self.cooldown_timer = Some(Timer::after(Duration::from_millis(20)));
+        self.cooldown_timer.set(Some(Timer::after_millis(20)));
 
         if !Cmd::EXPECTS_RESPONSE_CODE {
             cmd.parse(Ok(&[]))
@@ -127,21 +130,20 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         }
     }
 
-    pub async fn set_hostname(&mut self, hostname: &str) -> Result<(), Error> {
+    pub async fn set_hostname(&self, hostname: &str) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
-        self.at_client
-            .send(&SetNetworkHostName {
+        (&(&self).at_client)
+            .send_retry(&SetNetworkHostName {
                 host_name: hostname,
             })
             .await?;
         Ok(())
     }
 
-    async fn get_wifi_status(&mut self) -> Result<WifiStatusVal, Error> {
-        match self
-            .at_client
-            .send(&GetWifiStatus {
+    async fn get_wifi_status(&self) -> Result<WifiStatusVal, Error> {
+        match (&self.at_client)
+            .send_retry(&GetWifiStatus {
                 status_id: StatusId::Status,
             })
             .await?
@@ -152,10 +154,9 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         }
     }
 
-    async fn get_connected_ssid(&mut self) -> Result<heapless::String<64>, Error> {
-        match self
-            .at_client
-            .send(&GetWifiStatus {
+    async fn get_connected_ssid(&self) -> Result<heapless::String<64>, Error> {
+        match (&self.at_client)
+            .send_retry(&GetWifiStatus {
                 status_id: StatusId::SSID,
             })
             .await?
@@ -166,28 +167,30 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         }
     }
 
-    pub async fn factory_reset(&mut self) -> Result<(), Error> {
+    pub async fn factory_reset(&self) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
-        self.at_client.send(&ResetToFactoryDefaults).await?;
-        self.at_client.send(&RebootDCE).await?;
+        (&self.at_client)
+            .send_retry(&ResetToFactoryDefaults)
+            .await?;
+        (&self.at_client).send_retry(&RebootDCE).await?;
 
         Ok(())
     }
 
-    pub async fn start_ap(&mut self, ssid: &str) -> Result<(), Error> {
+    pub async fn start_ap(&self, ssid: &str) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
         // Deactivate network id 0
-        self.at_client
-            .send(&WifiAPAction {
+        (&self.at_client)
+            .send_retry(&WifiAPAction {
                 ap_config_id: AccessPointId::Id0,
                 ap_action: AccessPointAction::Deactivate,
             })
             .await?;
 
-        self.at_client
-            .send(&WifiAPAction {
+        (&self.at_client)
+            .send_retry(&WifiAPAction {
                 ap_config_id: AccessPointId::Id0,
                 ap_action: AccessPointAction::Reset,
             })
@@ -195,8 +198,8 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
 
         // // Disable DHCP Server (static IP address will be used)
         // if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
-        //     self.at_client
-        //         .send(&SetWifiAPConfig {
+        //     (&self.at_client)
+        //         .send_retry(&SetWifiAPConfig {
         //             ap_config_id: AccessPointId::Id0,
         //             ap_config_param: AccessPointConfig::IPv4Mode(IPv4Mode::Static),
         //         })
@@ -205,8 +208,8 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
 
         // // Network IP address
         // if let Some(ip) = options.ip {
-        //     self.at_client
-        //         .send(&SetWifiAPConfig {
+        //     (&self.at_client)
+        //         .send_retry(&SetWifiAPConfig {
         //             ap_config_id: AccessPointId::Id0,
         //             ap_config_param: AccessPointConfig::IPv4Address(ip),
         //         })
@@ -214,8 +217,8 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         // }
         // // Network Subnet mask
         // if let Some(subnet) = options.subnet {
-        //     self.at_client
-        //         .send(&SetWifiAPConfig {
+        //     (&self.at_client)
+        //         .send_retry(&SetWifiAPConfig {
         //             ap_config_id: AccessPointId::Id0,
         //             ap_config_param: AccessPointConfig::SubnetMask(subnet),
         //         })
@@ -223,16 +226,16 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         // }
         // // Network Default gateway
         // if let Some(gateway) = options.gateway {
-        //     self.at_client
-        //         .send(&SetWifiAPConfig {
+        //     (&self.at_client)
+        //         .send_retry(&SetWifiAPConfig {
         //             ap_config_id: AccessPointId::Id0,
         //             ap_config_param: AccessPointConfig::DefaultGateway(gateway),
         //         })
         //         .await?;
         // }
 
-        // self.at_client
-        //     .send(&SetWifiAPConfig {
+        // (&self.at_client)
+        //     .send_retry(&SetWifiAPConfig {
         //         ap_config_id: AccessPointId::Id0,
         //         ap_config_param: AccessPointConfig::DHCPServer(true.into()),
         //     })
@@ -240,8 +243,8 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
 
         // Wifi part
         // Set the Network SSID to connect to
-        self.at_client
-            .send(&SetWifiAPConfig {
+        (&self.at_client)
+            .send_retry(&SetWifiAPConfig {
                 ap_config_id: AccessPointId::Id0,
                 ap_config_param: AccessPointConfig::SSID(
                     heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
@@ -251,8 +254,8 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
 
         // if let Some(pass) = options.password.clone() {
         //     // Use WPA2 as authentication type
-        //     self.at_client
-        //         .send(&SetWifiAPConfig {
+        //     (&self.at_client)
+        //         .send_retry(&SetWifiAPConfig {
         //             ap_config_id: AccessPointId::Id0,
         //             ap_config_param: AccessPointConfig::SecurityMode(
         //                 SecurityMode::Wpa2AesCcmp,
@@ -262,15 +265,15 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         //         .await?;
 
         //     // Input passphrase
-        //     self.at_client
-        //         .send(&SetWifiAPConfig {
+        //     (&self.at_client)
+        //         .send_retry(&SetWifiAPConfig {
         //             ap_config_id: AccessPointId::Id0,
         //             ap_config_param: AccessPointConfig::PSKPassphrase(PasskeyR::Passphrase(pass)),
         //         })
         //         .await?;
         // } else {
-        self.at_client
-            .send(&SetWifiAPConfig {
+        (&self.at_client)
+            .send_retry(&SetWifiAPConfig {
                 ap_config_id: AccessPointId::Id0,
                 ap_config_param: AccessPointConfig::SecurityMode(
                     SecurityMode::Open,
@@ -281,16 +284,16 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         // }
 
         // if let Some(channel) = configuration.channel {
-        //     self.at_client
-        //         .send(&SetWifiAPConfig {
+        //     (&self.at_client)
+        //         .send_retry(&SetWifiAPConfig {
         //             ap_config_id: AccessPointId::Id0,
         //             ap_config_param: AccessPointConfig::Channel(channel as u8),
         //         })
         //         .await?;
         // }
 
-        self.at_client
-            .send(&WifiAPAction {
+        (&self.at_client)
+            .send_retry(&WifiAPAction {
                 ap_config_id: AccessPointId::Id0,
                 ap_action: AccessPointAction::Activate,
             })
@@ -299,7 +302,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         Ok(())
     }
 
-    pub async fn join_open(&mut self, ssid: &str) -> Result<(), Error> {
+    pub async fn join_open(&self, ssid: &str) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
         if matches!(self.get_wifi_status().await?, WifiStatusVal::Connected) {
@@ -312,22 +315,22 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             };
         }
 
-        self.at_client
-            .send(&ExecWifiStationAction {
+        (&self.at_client)
+            .send_retry(&ExecWifiStationAction {
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Reset,
             })
             .await?;
 
-        self.at_client
-            .send(&SetWifiStationConfig {
+        (&self.at_client)
+            .send_retry(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::ActiveOnStartup(OnOff::Off),
             })
             .await?;
 
-        self.at_client
-            .send(&SetWifiStationConfig {
+        (&self.at_client)
+            .send_retry(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::SSID(
                     heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
@@ -335,28 +338,24 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             })
             .await?;
 
-        self.at_client
-            .send(&SetWifiStationConfig {
+        (&self.at_client)
+            .send_retry(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::Authentication(Authentication::Open),
             })
             .await?;
 
-        self.at_client
-            .send(&ExecWifiStationAction {
+        (&self.at_client)
+            .send_retry(&ExecWifiStationAction {
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Activate,
             })
             .await?;
 
-        with_timeout(Duration::from_secs(25), self.wait_for_join(ssid))
-            .await
-            .map_err(|_| Error::Timeout)??;
-
-        Ok(())
+        self.wait_for_join(ssid, Duration::from_secs(20)).await
     }
 
-    pub async fn join_wpa2(&mut self, ssid: &str, passphrase: &str) -> Result<(), Error> {
+    pub async fn join_wpa2(&self, ssid: &str, passphrase: &str) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
         if matches!(self.get_wifi_status().await?, WifiStatusVal::Connected) {
@@ -369,22 +368,22 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             };
         }
 
-        self.at_client
-            .send(&ExecWifiStationAction {
+        (&self.at_client)
+            .send_retry(&ExecWifiStationAction {
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Reset,
             })
             .await?;
 
-        self.at_client
-            .send(&SetWifiStationConfig {
+        (&self.at_client)
+            .send_retry(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::ActiveOnStartup(OnOff::Off),
             })
             .await?;
 
-        self.at_client
-            .send(&SetWifiStationConfig {
+        (&self.at_client)
+            .send_retry(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::SSID(
                     heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
@@ -392,15 +391,15 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             })
             .await?;
 
-        self.at_client
-            .send(&SetWifiStationConfig {
+        (&self.at_client)
+            .send_retry(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
             })
             .await?;
 
-        self.at_client
-            .send(&SetWifiStationConfig {
+        (&self.at_client)
+            .send_retry(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
                 config_param: WifiStationConfig::WpaPskOrPassphrase(
                     heapless::String::try_from(passphrase).map_err(|_| Error::Overflow)?,
@@ -408,28 +407,24 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             })
             .await?;
 
-        self.at_client
-            .send(&ExecWifiStationAction {
+        (&self.at_client)
+            .send_retry(&ExecWifiStationAction {
                 config_id: CONFIG_ID,
                 action: WifiStationAction::Activate,
             })
             .await?;
 
-        with_timeout(Duration::from_secs(20), self.wait_for_join(ssid))
-            .await
-            .map_err(|_| Error::Timeout)??;
-
-        Ok(())
+        self.wait_for_join(ssid, Duration::from_secs(20)).await
     }
 
-    pub async fn disconnect(&mut self) -> Result<(), Error> {
+    pub async fn disconnect(&self) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
         match self.get_wifi_status().await? {
             WifiStatusVal::Disabled => {}
             WifiStatusVal::Disconnected | WifiStatusVal::Connected => {
-                self.at_client
-                    .send(&ExecWifiStationAction {
+                (&self.at_client)
+                    .send_retry(&ExecWifiStationAction {
                         config_id: CONFIG_ID,
                         action: WifiStationAction::Deactivate,
                     })
@@ -439,7 +434,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
 
         with_timeout(
             Duration::from_secs(10),
-            self.state_ch.wait_for_link_state(LinkState::Down),
+            self.state_ch.wait_connection_down(),
         )
         .await
         .map_err(|_| Error::Timeout)?;
@@ -447,27 +442,33 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         Ok(())
     }
 
-    async fn wait_for_join(&mut self, ssid: &str) -> Result<(), Error> {
-        // TODO: Handle returning error in case of security problems
+    async fn wait_for_join(&self, ssid: &str, timeout: Duration) -> Result<(), Error> {
+        match with_timeout(timeout, self.state_ch.wait_for_link_state(LinkState::Up)).await {
+            Ok(_) => {
+                // Check that SSID matches
+                let current_ssid = self.get_connected_ssid().await?;
+                if ssid != current_ssid.as_str() {
+                    return Err(Error::Network);
+                }
 
-        self.state_ch.wait_for_link_state(LinkState::Up).await;
-
-        // Check that SSID matches
-        let current_ssid = self.get_connected_ssid().await?;
-        if ssid != current_ssid.as_str() {
-            return Err(Error::Network);
+                Ok(())
+            }
+            Err(_) if self.state_ch.wifi_state(None) == WiFiState::SecurityProblems => {
+                Err(Error::SecurityProblems)
+            }
+            Err(_) => Err(Error::Timeout),
         }
-
-        Ok(())
     }
 
-    pub async fn gpio_configure(&mut self, id: GPIOId, mode: GPIOMode) -> Result<(), Error> {
+    pub async fn gpio_configure(&self, id: GPIOId, mode: GPIOMode) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
-        self.at_client.send(&ConfigureGPIO { id, mode }).await?;
+        (&self.at_client)
+            .send_retry(&ConfigureGPIO { id, mode })
+            .await?;
         Ok(())
     }
 
-    pub async fn gpio_set(&mut self, id: GPIOId, value: bool) -> Result<(), Error> {
+    pub async fn gpio_set(&self, id: GPIOId, value: bool) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
         let value = if value {
@@ -476,14 +477,16 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             GPIOValue::Low
         };
 
-        self.at_client.send(&WriteGPIO { id, value }).await?;
+        (&self.at_client)
+            .send_retry(&WriteGPIO { id, value })
+            .await?;
         Ok(())
     }
 
-    pub async fn gpio_get(&mut self, id: GPIOId) -> Result<bool, Error> {
+    pub async fn gpio_get(&self, id: GPIOId) -> Result<bool, Error> {
         self.state_ch.wait_for_initialized().await;
 
-        let ReadGPIOResponse { value, .. } = self.at_client.send(&ReadGPIO { id }).await?;
+        let ReadGPIOResponse { value, .. } = (&self.at_client).send_retry(&ReadGPIO { id }).await?;
         Ok(value as u8 != 0)
     }
 
@@ -500,8 +503,8 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
 
     //     info!("Importing {:?} bytes as {:?}", data.len(), name);
 
-    //     self.at_client
-    //         .send(&PrepareSecurityDataImport {
+    //     (&self.at_client)
+    //         .send_retry(&PrepareSecurityDataImport {
     //             data_type,
     //             data_size: data.len(),
     //             internal_name: name,
@@ -511,7 +514,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
 
     //     let import_data = self
     //         .at_client
-    //         .send(&SendSecurityDataImport {
+    //         .send_retry(&SendSecurityDataImport {
     //             data: atat::serde_bytes::Bytes::new(data),
     //         })
     //         .await?;

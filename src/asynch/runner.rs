@@ -14,7 +14,7 @@ use atat::{
     AtatIngress as _, UrcChannel,
 };
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Channel};
-use embassy_time::{Duration, Instant, Timer};
+use embassy_time::{Duration, Timer};
 use embedded_io_async::{BufRead, Read, Write};
 
 #[cfg(feature = "ppp")]
@@ -187,26 +187,16 @@ where
     ) -> ! {
         let at_config = atat::Config::default();
 
-        let network_fut = async {
-            loop {
+        loop {
+            let network_fut = async {
                 // Allow control to send/receive AT commands directly on the
                 // UART, until we are ready to establish connection using PPP
 
                 // Send "+++" to escape data mode, and enter command mode
-                // warn!("Escaping to command mode!");
-                // Timer::after_secs(5).await;
-                // self.iface.1.write_all(b"+++").await.ok();
-                // Timer::after_secs(1).await;
-                let mut iface = super::ReadWriteAdapter(&mut self.iface.0, &mut self.iface.1);
-                iface.write_all(b"+++").await.ok();
-                let mut buf = [0u8; 8];
-
-                let _ = embassy_time::with_timeout(Duration::from_millis(500), async {
-                    loop {
-                        iface.read(&mut buf).await.ok();
-                    }
-                })
-                .await;
+                warn!("Escaping to command mode!");
+                Timer::after_secs(1).await;
+                self.iface.1.write_all(b"+++").await.ok();
+                Timer::after_secs(1).await;
 
                 let _ = embassy_futures::select::select(
                     at_bridge(
@@ -223,70 +213,69 @@ where
                 let ppp_fut = async {
                     let mut iface = super::ReadWriteAdapter(&mut self.iface.0, &mut self.iface.1);
 
-                    loop {
-                        self.ch.wait_for_link_state(LinkState::Up).await;
+                    self.ch.wait_for_link_state(LinkState::Up).await;
 
-                        {
-                            let mut buf = [0u8; 8];
-                            let mut at_client = SimpleClient::new(
-                                &mut iface,
-                                atat::AtDigester::<UbloxUrc>::new(),
-                                &mut buf,
-                                at_config,
-                            );
+                    {
+                        let mut buf = [0u8; 8];
+                        let mut at_client = SimpleClient::new(
+                            &mut iface,
+                            atat::AtDigester::<UbloxUrc>::new(),
+                            &mut buf,
+                            at_config,
+                        );
 
-                            // Send AT command `ATO3` to enter PPP mode
-                            let res = at_client
-                                .send(&ChangeMode {
-                                    mode: data_mode::types::Mode::PPPMode,
-                                })
-                                .await;
-
-                            if let Err(e) = res {
-                                warn!("ppp dial failed {:?}", e);
-                                continue;
-                            }
-
-                            // Drain the UART
-                            let _ = embassy_time::with_timeout(Duration::from_millis(500), async {
-                                loop {
-                                    iface.read(&mut buf).await.ok();
-                                }
+                        // Send AT command `ATO3` to enter PPP mode
+                        let res = at_client
+                            .send_retry(&ChangeMode {
+                                mode: data_mode::types::Mode::PPPMode,
                             })
                             .await;
+
+                        if let Err(e) = res {
+                            warn!("ppp dial failed {:?}", e);
+                            return;
                         }
 
-                        info!("RUNNING PPP");
-                        let res = self
-                            .ppp_runner
-                            .as_mut()
-                            .unwrap()
-                            .run(&mut iface, C::PPP_CONFIG, |ipv4| {
-                                let Some(addr) = ipv4.address else {
-                                    warn!("PPP did not provide an IP address.");
-                                    return;
-                                };
-                                let mut dns_servers = heapless::Vec::new();
-                                for s in ipv4.dns_servers.iter().flatten() {
-                                    let _ = dns_servers
-                                        .push(embassy_net::Ipv4Address::from_bytes(&s.0));
-                                }
-                                let config =
-                                    embassy_net::ConfigV4::Static(embassy_net::StaticConfigV4 {
-                                        address: embassy_net::Ipv4Cidr::new(
-                                            embassy_net::Ipv4Address::from_bytes(&addr.0),
-                                            0,
-                                        ),
-                                        gateway: None,
-                                        dns_servers,
-                                    });
-
-                                stack.set_config_v4(config);
-                            })
-                            .await;
-
-                        info!("ppp failed: {:?}", res);
+                        // Drain the UART
+                        let _ = embassy_time::with_timeout(Duration::from_millis(500), async {
+                            loop {
+                                iface.read(&mut buf).await.ok();
+                            }
+                        })
+                        .await;
                     }
+
+                    info!("RUNNING PPP");
+                    let res = self
+                        .ppp_runner
+                        .as_mut()
+                        .unwrap()
+                        .run(&mut iface, C::PPP_CONFIG, |ipv4| {
+                            debug!("Running on_ipv4_up for wifi!");
+                            let Some(addr) = ipv4.address else {
+                                warn!("PPP did not provide an IP address.");
+                                return;
+                            };
+                            let mut dns_servers = heapless::Vec::new();
+                            for s in ipv4.dns_servers.iter().flatten() {
+                                let _ =
+                                    dns_servers.push(embassy_net::Ipv4Address::from_bytes(&s.0));
+                            }
+                            let config =
+                                embassy_net::ConfigV4::Static(embassy_net::StaticConfigV4 {
+                                    address: embassy_net::Ipv4Cidr::new(
+                                        embassy_net::Ipv4Address::from_bytes(&addr.0),
+                                        0,
+                                    ),
+                                    gateway: None,
+                                    dns_servers,
+                                });
+
+                            stack.set_config_v4(config);
+                        })
+                        .await;
+
+                    info!("ppp failed: {:?}", res);
                 };
 
                 let at_fut = async {
@@ -311,61 +300,25 @@ where
                     at_bridge(&at_socket, &at_socket, &self.req_slot, &mut self.ingress).await;
                 };
 
-                let break_fut = async {
-                    let mut fails = 0;
-                    let mut last_start = None;
+                embassy_futures::select::select(ppp_fut, at_fut).await;
+            };
 
-                    self.ch.wait_for_initialized().await;
-
-                    loop {
-                        if let Some(last_start) = last_start {
-                            info!("LINK DOWN! Attempt: {}", fails);
-                            Timer::at(last_start + Duration::from_secs(10)).await;
-                            // Do not attempt to start too fast.
-
-                            // If was up, and stable for at least 1 min, reset fail counter.
-                            if Instant::now() > last_start + Duration::from_secs(60) {
-                                fails = 0;
-                            } else {
-                                fails += 1;
-                                if fails == 2 {
-                                    warn!("modem: Link down too much, rebooting modem.");
-                                    break;
-                                }
-                            }
-                        }
-                        last_start = Some(Instant::now());
-
-                        self.ch.wait_for_link_state(LinkState::Down).await;
-                    }
-                };
-
-                embassy_futures::select::select3(ppp_fut, at_fut, break_fut).await;
-
-                warn!("Breaking WiFi network loop");
-            }
-        };
-
-        let device_fut = async {
-            loop {
-                let mut device = NetDevice::new(
-                    &self.ch,
-                    &mut self.config,
-                    ProxyClient::new(self.req_slot.sender(), &self.res_slot),
-                    self.urc_channel,
-                );
+            let device_fut = async {
+                let at_client = ProxyClient::new(self.req_slot.sender(), &self.res_slot);
+                let mut device =
+                    NetDevice::new(&self.ch, &mut self.config, &at_client, self.urc_channel);
 
                 if let Err(e) = device.init().await {
                     error!("WiFi init failed {:?}", e);
-                    continue;
+                    return;
                 };
 
                 let _ = device.run().await;
-            }
-        };
 
-        embassy_futures::join::join(device_fut, network_fut).await;
+                warn!("Breaking to reboot device");
+            };
 
-        unreachable!()
+            embassy_futures::select::select(device_fut, network_fut).await;
+        }
     }
 }

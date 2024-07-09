@@ -8,7 +8,7 @@ use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::waitqueue::WakerRegistration;
 
-use crate::connection::WifiConnection;
+use crate::connection::{WiFiState, WifiConnection};
 
 /// The link state of a network device.
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -125,6 +125,30 @@ impl<'d> Runner<'d> {
         })
     }
 
+    pub(crate) fn connection_down(&self, cx: Option<&mut Context>) -> bool {
+        self.shared.lock(|s| {
+            let s = &mut *s.borrow_mut();
+            if let Some(cx) = cx {
+                s.connection_waker.register(cx.waker());
+            }
+            s.wifi_connection.ipv4.is_none() && s.wifi_connection.ipv6.is_none()
+        })
+    }
+
+    pub(crate) async fn wait_connection_down(&self) {
+        if self.connection_down(None) {
+            return;
+        }
+
+        poll_fn(|cx| {
+            if self.connection_down(Some(cx)) {
+                return Poll::Ready(());
+            }
+            Poll::Pending
+        })
+        .await
+    }
+
     pub(crate) fn is_connected(&self, cx: Option<&mut Context>) -> bool {
         self.shared.lock(|s| {
             let s = &mut *s.borrow_mut();
@@ -135,12 +159,22 @@ impl<'d> Runner<'d> {
         })
     }
 
-    pub(crate) async fn wait_connection_change(&self) -> bool {
-        let old_state = self.is_connected(None);
+    pub(crate) fn wifi_state(&self, cx: Option<&mut Context>) -> WiFiState {
+        self.shared.lock(|s| {
+            let s = &mut *s.borrow_mut();
+            if let Some(cx) = cx {
+                s.connection_waker.register(cx.waker());
+            }
+            s.wifi_connection.wifi_state
+        })
+    }
+
+    pub(crate) async fn wait_for_wifi_state_change(&self) -> WiFiState {
+        let old_state = self.wifi_state(None);
 
         poll_fn(|cx| {
-            let new_state = self.is_connected(Some(cx));
-            if new_state != old_state {
+            let new_state = self.wifi_state(Some(cx));
+            if old_state != new_state {
                 return Poll::Ready(new_state);
             }
             Poll::Pending

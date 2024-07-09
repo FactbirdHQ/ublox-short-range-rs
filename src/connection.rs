@@ -1,3 +1,5 @@
+use no_std_net::{Ipv4Addr, Ipv6Addr};
+
 use crate::network::{WifiMode, WifiNetwork};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -13,6 +15,8 @@ pub enum WiFiState {
 pub struct WifiConnection {
     pub wifi_state: WiFiState,
     pub network_up: bool,
+    pub ipv4: Option<Ipv4Addr>,
+    pub ipv6: Option<Ipv6Addr>,
     pub network: Option<WifiNetwork>,
 }
 
@@ -22,6 +26,8 @@ impl WifiConnection {
             wifi_state: WiFiState::Inactive,
             network_up: false,
             network: None,
+            ipv4: None,
+            ipv6: None,
         }
     }
 

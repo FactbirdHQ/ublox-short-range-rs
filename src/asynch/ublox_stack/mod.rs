@@ -407,7 +407,10 @@ impl<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         let mut at = at_client.borrow_mut();
         match ev {
             TxEvent::Connect { socket_handle, url } => {
-                match at.send(&EdmAtCmdWrapper(ConnectPeer { url: &url })).await {
+                match at
+                    .send_retry(&EdmAtCmdWrapper(ConnectPeer { url: &url }))
+                    .await
+                {
                     Ok(ConnectPeerResponse { peer_handle }) => {
                         let mut s = socket.borrow_mut();
                         let tcp = s
@@ -423,7 +426,7 @@ impl<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             }
             TxEvent::Send { edm_channel, data } => {
                 warn!("Sending {} bytes on {}", data.len(), edm_channel);
-                at.send(&EdmDataCommand {
+                at.send_retry(&EdmDataCommand {
                     channel: edm_channel,
                     data,
                 })
@@ -431,13 +434,13 @@ impl<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
                 .ok();
             }
             TxEvent::Close { peer_handle } => {
-                at.send(&EdmAtCmdWrapper(ClosePeerConnection { peer_handle }))
+                at.send_retry(&EdmAtCmdWrapper(ClosePeerConnection { peer_handle }))
                     .await
                     .ok();
             }
             TxEvent::Dns { hostname } => {
                 match at
-                    .send(&EdmAtCmdWrapper(Ping {
+                    .send_retry(&EdmAtCmdWrapper(Ping {
                         hostname: &hostname,
                         retry_num: 1,
                     }))

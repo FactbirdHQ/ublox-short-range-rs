@@ -7,6 +7,7 @@ pub enum Error {
     Overflow,
     SetState,
     BadLength,
+    SecurityProblems,
     Network,
     Pin,
     BaudDetection,
