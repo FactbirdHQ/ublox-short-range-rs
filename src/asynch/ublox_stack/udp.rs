@@ -3,7 +3,6 @@ use core::cell::RefCell;
 
 use core::mem;
 
-use atat::asynch::AtatClient;
 use embedded_nal_async::SocketAddr;
 use ublox_sockets::{udp, SocketHandle, UdpState};
 
@@ -45,8 +44,8 @@ pub struct UdpSocket<'a> {
 
 impl<'a> UdpSocket<'a> {
     /// Create a new UDP socket using the provided stack and buffers.
-    pub fn new<AT: AtatClient, const URC_CAPACITY: usize>(
-        stack: &'a UbloxStack<AT, URC_CAPACITY>,
+    pub fn new<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>(
+        stack: &'a UbloxStack<INGRESS_BUF_SIZE, URC_CAPACITY>,
         rx_buffer: &'a mut [u8],
         tx_buffer: &'a mut [u8],
     ) -> Self {

@@ -20,6 +20,15 @@ pub enum EdmEvent {
     StartUp,
 }
 
+impl EdmEvent {
+    pub fn extract_urc(self) -> Option<Urc> {
+        match self {
+            EdmEvent::ATEvent(urc) => Some(urc),
+            _ => None,
+        }
+    }
+}
+
 impl AtatUrc for EdmEvent {
     /// The type of the response. Usually the enum this trait is implemented on.
     type Response = Self;
@@ -64,7 +73,7 @@ impl AtatUrc for EdmEvent {
         };
         let payload_len = calc_payload_len(resp);
         if resp.len() != payload_len + EDM_OVERHEAD {
-            error!("[Parse URC lenght Error] {:?}", LossyStr(resp));
+            error!("[Parse URC length Error] {:?}", LossyStr(resp));
             return None;
         }
 

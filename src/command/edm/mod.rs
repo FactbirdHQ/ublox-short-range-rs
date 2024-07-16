@@ -69,7 +69,7 @@ impl<T: AtatCmd> atat::AtatCmd for EdmAtCmdWrapper<T> {
                 return Err(atat::InternalError::InvalidResponse);
             }
 
-            // Recieved OK response code in EDM response?
+            // Received OK response code in EDM response?
             match resp
                 .windows(b"\r\nOK".len())
                 .position(|window| window == b"\r\nOK")

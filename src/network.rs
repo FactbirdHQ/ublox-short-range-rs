@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use crate::command::wifi::types::{OperationMode, ScannedWifiNetwork};
 use crate::error::WifiError;
 use crate::hex::from_hex;
@@ -6,7 +8,7 @@ use heapless::String;
 
 use core::convert::TryFrom;
 
-#[derive(PartialEq, Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WifiMode {
     Station,
     AccessPoint,

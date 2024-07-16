@@ -12,30 +12,27 @@
 
 A driver crate for AT-command based serial ublox short range modules, built on top of [atat].
 The driver aims to be compatible with the ublox short range modules:
-- odin_w2xx
-- nina_w1xx
-- nina_b1xx
-- anna_b1xx
-- nina_b2xx
-- nina_b3xx
+
+- odin-w2xx
+- nina-w1xx
+- nina-b1xx
+- anna-b1xx
+- nina-b2xx
+- nina-b3xx
 
 [atat]: https://crates.io/crates/atat
 
 ## Documentation
-Design diagram:  
-![design diagram](./Design_diagram.png "Design diagram")
-
 
 Relevant docs:
+
 - https://www.u-blox.com/en/docs/UBX-14044127
 - https://www.u-blox.com/en/docs/UBX-14044126
 - https://www.u-blox.com/en/docs/UBX-16024251
 
 Relevant repos:
-- https://github.com/u-blox/u-connectXpress-host-library
-- https://github.com/particle-iot/device-os
-- https://github.com/u-blox/ubxlib
 
+- https://github.com/u-blox/ubxlib
 
 ## Tests
 
@@ -51,12 +48,12 @@ The samples can be built using `cargo build -p linux_example --target x86_64-unk
 ## Features
 
 - device selection (must select one, and only one!):
-    - `odin_w2xx`
-    - `nina_w1xx`
-    - `nina_b1xx`
-    - `anna_b1xx`
-    - `nina_b2xx`
-    - `nina_b3xx`
+  - `odin-w2xx`
+  - `nina-w1xx`
+  - `nina-b1xx`
+  - `anna-b1xx`
+  - `nina-b2xx`
+  - `nina-b3xx`
 - `socket-tcp`: Enabled by default. Adds TCP socket capabilities, and implements [`TcpStack`] trait.
 - `socket-udp`: Enabled by default. Adds UDP socket capabilities, and implements [`UdpStack`] trait.
 - `defmt-default`: Disabled by default. Add log statements on trace (dev) or info (release) log levels to aid debugging.
@@ -66,13 +63,12 @@ The samples can be built using `cargo build -p linux_example --target x86_64-unk
 - `defmt-warn`: Disabled by default. Add log statements on warn log levels to aid debugging.
 - `defmt-error`: Disabled by default. Add log statements on error log levels to aid debugging.
 
-
 ## License
 
 Licensed under either of
 
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or
- http://www.apache.org/licenses/LICENSE-2.0)
+  http://www.apache.org/licenses/LICENSE-2.0)
 - MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
@@ -83,8 +79,8 @@ Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
 dual licensed as above, without any additional terms or conditions.
 
-
 <!-- Badges -->
+
 [no-std-badge]: https://img.shields.io/badge/no__std-yes-blue
 [test]: https://github.com/BlackbirdHQ/ublox-short-range-rs/workflows/Test/badge.svg
 [codecov-badge]: https://codecov.io/gh/BlackbirdHQ/ublox-short-range-rs/branch/master/graph/badge.svg

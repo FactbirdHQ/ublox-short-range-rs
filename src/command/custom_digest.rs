@@ -10,6 +10,12 @@ use super::edm::types::{AUTOCONNECTMESSAGE, STARTUPMESSAGE};
 #[derive(Debug, Default)]
 pub struct EdmDigester;
 
+impl EdmDigester {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
 impl Digester for EdmDigester {
     fn digest<'a>(&mut self, buf: &'a [u8]) -> (DigestResult<'a>, usize) {
         // TODO: Handle module restart, tests and set default startupmessage in client, and optimize this!
@@ -111,20 +117,6 @@ impl Digester for EdmDigester {
 //     const TEST_URC_CAPACITY: usize = 3 * TEST_RX_BUF_LEN;
 
 //     struct MockWriter;
-
-//     impl embedded_io::Io for MockWriter {
-//         type Error = ();
-//     }
-
-//     impl embedded_io::blocking::Write for MockWriter {
-//         fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
-//             Ok(buf.len())
-//         }
-
-//         fn flush(&mut self) -> Result<(), Self::Error> {
-//             Ok(())
-//         }
-//     }
 
 //     /// Removed functionality used to change OK responses to empty responses.
 //     #[test]
@@ -229,7 +221,7 @@ impl Digester for EdmDigester {
 //         assert_eq!(urc_c.read(), None);
 //     }
 
-//     /// Regular response with traling regular response..
+//     /// Regular response with trailing regular response..
 //     #[test]
 //     fn at_urc() {
 //         let mut at_pars: Ingress<

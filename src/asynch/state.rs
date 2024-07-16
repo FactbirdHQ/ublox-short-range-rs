@@ -1,142 +1,216 @@
 #![allow(dead_code)]
 
 use core::cell::RefCell;
-use core::mem::MaybeUninit;
-use core::task::Context;
+use core::future::poll_fn;
+use core::task::{Context, Poll};
 
-use atat::asynch::AtatClient;
-use atat::UrcSubscription;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::waitqueue::WakerRegistration;
 
-use crate::command::edm::urc::EdmEvent;
+use crate::connection::{WiFiState, WifiConnection};
 
 /// The link state of a network device.
 #[derive(PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum LinkState {
+    /// Device is not yet initialized.
+    Uninitialized,
     /// The link is down.
     Down,
     /// The link is up.
     Up,
 }
 
-use super::AtHandle;
-
-pub struct State {
-    inner: MaybeUninit<StateInner>,
+pub(crate) struct State {
+    shared: Mutex<NoopRawMutex, RefCell<Shared>>,
 }
 
 impl State {
-    pub const fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
-            inner: MaybeUninit::uninit(),
+            shared: Mutex::new(RefCell::new(Shared {
+                should_connect: false,
+                link_state: LinkState::Uninitialized,
+                wifi_connection: WifiConnection::new(),
+                state_waker: WakerRegistration::new(),
+                connection_waker: WakerRegistration::new(),
+            })),
         }
     }
 }
 
-struct StateInner {
-    shared: Mutex<NoopRawMutex, RefCell<Shared>>,
-}
-
 /// State of the LinkState
-pub struct Shared {
+pub(crate) struct Shared {
     link_state: LinkState,
-    waker: WakerRegistration,
+    should_connect: bool,
+    wifi_connection: WifiConnection,
+    state_waker: WakerRegistration,
+    connection_waker: WakerRegistration,
 }
 
-pub struct Runner<'d> {
-    shared: &'d Mutex<NoopRawMutex, RefCell<Shared>>,
-}
-
-#[derive(Clone, Copy)]
-pub struct StateRunner<'d> {
+#[derive(Clone)]
+pub(crate) struct Runner<'d> {
     shared: &'d Mutex<NoopRawMutex, RefCell<Shared>>,
 }
 
 impl<'d> Runner<'d> {
-    pub fn state_runner(&self) -> StateRunner<'d> {
-        StateRunner {
-            shared: self.shared,
+    pub(crate) fn new(state: &'d mut State) -> Self {
+        Self {
+            shared: &state.shared,
         }
     }
 
-    pub fn set_link_state(&mut self, state: LinkState) {
+    pub(crate) fn mark_initialized(&self) {
         self.shared.lock(|s| {
             let s = &mut *s.borrow_mut();
-            s.link_state = state;
-            s.waker.wake();
-        });
-    }
-}
-
-impl<'d> StateRunner<'d> {
-    pub fn set_link_state(&self, state: LinkState) {
-        self.shared.lock(|s| {
-            let s = &mut *s.borrow_mut();
-            s.link_state = state;
-            s.waker.wake();
-        });
+            s.link_state = LinkState::Down;
+            s.state_waker.wake();
+        })
     }
 
-    pub fn link_state(&mut self, cx: &mut Context) -> LinkState {
+    pub(crate) fn mark_uninitialized(&self) {
         self.shared.lock(|s| {
             let s = &mut *s.borrow_mut();
-            s.waker.register(cx.waker());
+            s.link_state = LinkState::Uninitialized;
+            s.state_waker.wake();
+        })
+    }
+
+    pub(crate) fn set_should_connect(&self, should_connect: bool) {
+        self.shared.lock(|s| {
+            let s = &mut *s.borrow_mut();
+            s.connection_waker.wake();
+            s.should_connect = should_connect;
+        })
+    }
+
+    pub(crate) async fn wait_for_initialized(&self) {
+        if self.link_state(None) != LinkState::Uninitialized {
+            return;
+        }
+
+        poll_fn(|cx| {
+            if self.link_state(Some(cx)) != LinkState::Uninitialized {
+                return Poll::Ready(());
+            }
+            Poll::Pending
+        })
+        .await
+    }
+
+    pub(crate) fn link_state(&self, cx: Option<&mut Context>) -> LinkState {
+        self.shared.lock(|s| {
+            let s = &mut *s.borrow_mut();
+            if let Some(cx) = cx {
+                s.state_waker.register(cx.waker());
+            }
             s.link_state
         })
     }
-}
 
-pub fn new<'d, AT: AtatClient, const URC_CAPACITY: usize>(
-    state: &'d mut State,
-    at: AtHandle<'d, AT>,
-    urc_subscription: UrcSubscription<'d, EdmEvent, URC_CAPACITY, 2>,
-) -> (Runner<'d>, Device<'d, AT, URC_CAPACITY>) {
-    // safety: this is a self-referential struct, however:
-    // - it can't move while the `'d` borrow is active.
-    // - when the borrow ends, the dangling references inside the MaybeUninit will never be used again.
-    let state_uninit: *mut MaybeUninit<StateInner> =
-        (&mut state.inner as *mut MaybeUninit<StateInner>).cast();
+    pub(crate) async fn wait_for_link_state(&self, ls: LinkState) {
+        if self.link_state(None) == ls {
+            return;
+        }
 
-    let state = unsafe { &mut *state_uninit }.write(StateInner {
-        shared: Mutex::new(RefCell::new(Shared {
-            link_state: LinkState::Down,
-            waker: WakerRegistration::new(),
-        })),
-    });
-
-    (
-        Runner {
-            shared: &state.shared,
-        },
-        Device {
-            shared: TestShared {
-                inner: &state.shared,
-            },
-            urc_subscription,
-            at,
-        },
-    )
-}
-
-pub struct TestShared<'d> {
-    inner: &'d Mutex<NoopRawMutex, RefCell<Shared>>,
-}
-
-pub struct Device<'d, AT: AtatClient, const URC_CAPACITY: usize> {
-    pub(crate) shared: TestShared<'d>,
-    pub(crate) at: AtHandle<'d, AT>,
-    pub(crate) urc_subscription: UrcSubscription<'d, EdmEvent, URC_CAPACITY, 2>,
-}
-
-impl<'d> TestShared<'d> {
-    pub fn link_state(&mut self, cx: &mut Context) -> LinkState {
-        self.inner.lock(|s| {
-            let s = &mut *s.borrow_mut();
-            s.waker.register(cx.waker());
-            s.link_state
+        poll_fn(|cx| {
+            if self.link_state(Some(cx)) == ls {
+                return Poll::Ready(());
+            }
+            Poll::Pending
         })
+        .await
+    }
+
+    pub(crate) fn update_connection_with(&self, f: impl FnOnce(&mut WifiConnection)) {
+        self.shared.lock(|s| {
+            let s = &mut *s.borrow_mut();
+            f(&mut s.wifi_connection);
+            info!(
+                "Connection status changed! Connected: {:?}",
+                s.wifi_connection.is_connected()
+            );
+
+            s.link_state = if s.wifi_connection.is_connected() {
+                LinkState::Up
+            } else {
+                LinkState::Down
+            };
+
+            s.state_waker.wake();
+            s.connection_waker.wake();
+        })
+    }
+
+    pub(crate) fn connection_down(&self, cx: Option<&mut Context>) -> bool {
+        self.shared.lock(|s| {
+            let s = &mut *s.borrow_mut();
+            if let Some(cx) = cx {
+                s.connection_waker.register(cx.waker());
+            }
+            !s.wifi_connection.ipv4_up && !s.wifi_connection.ipv6_link_local_up
+        })
+    }
+
+    pub(crate) async fn wait_connection_down(&self) {
+        if self.connection_down(None) {
+            return;
+        }
+
+        poll_fn(|cx| {
+            if self.connection_down(Some(cx)) {
+                return Poll::Ready(());
+            }
+            Poll::Pending
+        })
+        .await
+    }
+
+    pub(crate) fn is_connected(&self, cx: Option<&mut Context>) -> bool {
+        self.shared.lock(|s| {
+            let s = &mut *s.borrow_mut();
+            if let Some(cx) = cx {
+                s.connection_waker.register(cx.waker());
+            }
+            s.wifi_connection.is_connected() && s.should_connect
+        })
+    }
+
+    pub(crate) async fn wait_connected(&self) {
+        if self.is_connected(None) {
+            return;
+        }
+
+        poll_fn(|cx| {
+            if self.is_connected(Some(cx)) {
+                return Poll::Ready(());
+            }
+            Poll::Pending
+        })
+        .await
+    }
+
+    pub(crate) fn wifi_state(&self, cx: Option<&mut Context>) -> WiFiState {
+        self.shared.lock(|s| {
+            let s = &mut *s.borrow_mut();
+            if let Some(cx) = cx {
+                s.connection_waker.register(cx.waker());
+            }
+            s.wifi_connection.wifi_state
+        })
+    }
+
+    pub(crate) async fn wait_for_wifi_state_change(&self) -> WiFiState {
+        let old_state = self.wifi_state(None);
+
+        poll_fn(|cx| {
+            let new_state = self.wifi_state(Some(cx));
+            if old_state != new_state {
+                return Poll::Ready(new_state);
+            }
+            Poll::Pending
+        })
+        .await
     }
 }

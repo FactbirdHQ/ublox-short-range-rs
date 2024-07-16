@@ -23,7 +23,7 @@ pub struct SetNetworkHostName<'a> {
 ///
 /// Shows current status of the network interface id.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("+UNSTAT", NetworkStatusResponse, timeout_ms = 1000)]
+#[at_cmd("+UNSTAT", NetworkStatusResponse, attempts = 3, timeout_ms = 1000)]
 pub struct GetNetworkStatus {
     #[at_arg(position = 0)]
     pub interface_id: u8,

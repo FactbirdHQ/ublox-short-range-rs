@@ -4,9 +4,6 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
-#[path = "../common.rs"]
-mod common;
-
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_rp::gpio::{Level, Output};
@@ -64,40 +61,57 @@ async fn main(spawner: Spawner) {
 
     let p = embassy_rp::init(Default::default());
 
-    let rst = Output::new(p.PIN_26, Level::High);
+    let rst_pin = OutputOpenDrain::new(p.PIN_26.degrade(), Level::High);
 
-    let (tx_pin, rx_pin, rts_pin, cts_pin, uart) =
-        (p.PIN_24, p.PIN_25, p.PIN_23, p.PIN_22, p.UART1);
-
-    let tx_buf = &mut make_static!([0u8; 64])[..];
-    let rx_buf = &mut make_static!([0u8; 64])[..];
-    let mut config = uart::Config::default();
-    config.baudrate = 115200;
-    let uart = uart::BufferedUart::new_with_rtscts(
-        uart, Irqs, tx_pin, rx_pin, rts_pin, cts_pin, tx_buf, rx_buf, config,
+    static TX_BUF: StaticCell<[u8; 32]> = StaticCell::new();
+    static RX_BUF: StaticCell<[u8; 32]> = StaticCell::new();
+    let wifi_uart = uart::BufferedUart::new_with_rtscts(
+        p.UART1,
+        Irqs,
+        p.PIN_24,
+        p.PIN_25,
+        p.PIN_23,
+        p.PIN_22,
+        TX_BUF.init([0; 32]),
+        RX_BUF.init([0; 32]),
+        uart::Config::default(),
     );
-    let (rx, tx) = uart.split();
 
-    let buffers = &*make_static!(atat::Buffers::new());
-    let (ingress, client) = buffers.split(
-        common::TxWrap(tx),
-        EdmDigester::default(),
-        atat::Config::new(),
+    static RESOURCES: StaticCell<Resources<CMD_BUF_SIZE, INGRESS_BUF_SIZE, URC_CAPACITY>> =
+        StaticCell::new();
+
+    let mut runner = Runner::new(
+        wifi_uart.split(),
+        RESOURCES.init(Resources::new()),
+        WifiConfig { rst_pin },
     );
-    defmt::unwrap!(spawner.spawn(ingress_task(ingress, rx)));
 
-    let state = make_static!(State::new(client));
-    let (net_device, mut control, runner) = new(state, &buffers.urc_channel, rst).await;
+    static PPP_STATE: StaticCell<embassy_net_ppp::State<2, 2>> = StaticCell::new();
+    let net_device = runner.ppp_stack(PPP_STATE.init(embassy_net_ppp::State::new()));
 
-    defmt::unwrap!(spawner.spawn(wifi_task(runner)));
+    // Generate random seed
+    let seed = 0x0123_4567_89ab_cdef; // chosen by fair dice roll. guaranteed to be random.
 
     // Init network stack
-    let stack = &*make_static!(UbloxStack::new(
+    static STACK: StaticCell<Stack<embassy_net_ppp::Device<'static>>> = StaticCell::new();
+    static STACK_RESOURCES: StaticCell<StackResources<6>> = StaticCell::new();
+
+    let stack = &*STACK.init(Stack::new(
         net_device,
-        make_static!(StackResources::<4>::new()),
+        embassy_net::Config::default(),
+        STACK_RESOURCES.init(StackResources::new()),
+        seed,
     ));
 
-    defmt::unwrap!(spawner.spawn(net_task(stack)));
+    static CONTROL_RESOURCES: StaticCell<ControlResources> = StaticCell::new();
+    let mut control = runner.control(CONTROL_RESOURCES.init(ControlResources::new()), &stack);
+
+    spawner.spawn(net_task(stack)).unwrap();
+    spawner.spawn(ppp_task(runner, &stack)).unwrap();
+
+    stack.wait_config_up().await;
+
+    Timer::after(Duration::from_secs(1)).await;
 
     loop {
         match control.join_wpa2(WIFI_NETWORK, WIFI_PASSWORD).await {

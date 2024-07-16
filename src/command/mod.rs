@@ -1,8 +1,10 @@
 //! AT Commands for U-Blox short range module family\
 //! Following the [u-connect ATCommands Manual](https://www.u-blox.com/sites/default/files/u-connect-ATCommands-Manual_(UBX-14044127).pdf)
 
+#[cfg(feature = "edm")]
 pub mod custom_digest;
 pub mod data_mode;
+#[cfg(feature = "edm")]
 pub mod edm;
 pub mod ethernet;
 pub mod general;
@@ -19,7 +21,7 @@ use atat::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
 pub struct NoResponse;
 
 #[derive(Debug, Clone, AtatCmd)]
-#[at_cmd("", NoResponse, timeout_ms = 1000)]
+#[at_cmd("", NoResponse, attempts = 3, timeout_ms = 1000)]
 pub struct AT;
 
 #[derive(Debug, PartialEq, Clone, AtatUrc)]
@@ -28,9 +30,11 @@ pub enum Urc {
     #[at_urc("+STARTUP")]
     StartUp,
     /// 5.10 Peer connected +UUDPC
+    #[cfg(feature = "internal-network-stack")]
     #[at_urc("+UUDPC")]
     PeerConnected(data_mode::urc::PeerConnected),
     /// 5.11 Peer disconnected +UUDPD
+    #[cfg(feature = "internal-network-stack")]
     #[at_urc("+UUDPD")]
     PeerDisconnected(data_mode::urc::PeerDisconnected),
     /// 7.15 Wi-Fi Link connected +UUWLE

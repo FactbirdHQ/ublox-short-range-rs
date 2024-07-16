@@ -1,6 +1,5 @@
 use core::{cell::RefCell, future::poll_fn, task::Poll};
 
-use atat::asynch::AtatClient;
 use embassy_sync::waitqueue::WakerRegistration;
 use embedded_nal_async::AddrType;
 use no_std_net::IpAddr;
@@ -26,10 +25,10 @@ pub enum Error {
 /// length is 64 characters.
 /// Domain name length is 128 for NINA-W13 and NINA-W15 software version 4.0
 /// .0 or later.
-#[cfg(not(feature = "nina_w1xx"))]
+#[cfg(not(feature = "nina-w1xx"))]
 pub const MAX_DOMAIN_NAME_LENGTH: usize = 64;
 
-#[cfg(feature = "nina_w1xx")]
+#[cfg(feature = "nina-w1xx")]
 pub const MAX_DOMAIN_NAME_LENGTH: usize = 128;
 
 pub struct DnsTableEntry {
@@ -115,8 +114,8 @@ pub struct DnsSocket<'a> {
 
 impl<'a> DnsSocket<'a> {
     /// Create a new DNS socket using the provided stack.
-    pub fn new<AT: AtatClient, const URC_CAPACITY: usize>(
-        stack: &'a UbloxStack<AT, URC_CAPACITY>,
+    pub fn new<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>(
+        stack: &'a UbloxStack<INGRESS_BUF_SIZE, URC_CAPACITY>,
     ) -> Self {
         Self {
             stack: &stack.socket,

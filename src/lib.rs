@@ -1,37 +1,34 @@
-#![cfg_attr(all(not(test), not(feature = "std")), no_std)]
+#![cfg_attr(not(test), no_std)]
 #![allow(async_fn_in_trait)]
+
+#[cfg(all(feature = "ppp", feature = "internal-network-stack"))]
+compile_error!("You may not enable both `ppp` and `internal-network-stack` features.");
+
+#[cfg(not(any(
+    feature = "odin-w2xx",
+    feature = "nina-w1xx",
+    feature = "nina-b1xx",
+    feature = "anna-b1xx",
+    feature = "nina-b2xx",
+    feature = "nina-b3xx"
+)))]
+compile_error!("No module feature activated. You must activate exactly one of the following features: odin-w2xx, nina-w1xx, nina-b1xx, anna-b1xx, nina-b2xx, nina-b3xx");
 
 mod fmt;
 
 pub mod asynch;
 
-pub use embedded_nal_async;
-
-pub use ublox_sockets;
-
+mod config;
 mod connection;
 mod network;
-mod peer_builder;
 
-// mod blocking;
 mod hex;
 
 pub use atat;
 
 pub mod command;
 pub mod error;
-// pub mod wifi;
-pub use peer_builder::SecurityCredentials;
+pub use config::{Transport, WifiConfig};
 
-// TODO:
-// - UDP stack
-// - Secure sockets
-// - Network scan
-// - AP Mode (control)
-// - TCP listener stack
-// - (Blocking client?)
-// -
-//
-// FIXME:
-// - PWR/Restart stuff doesn't fully work
-// -
+use command::system::types::BaudRate;
+pub const DEFAULT_BAUD_RATE: BaudRate = BaudRate::B115200;

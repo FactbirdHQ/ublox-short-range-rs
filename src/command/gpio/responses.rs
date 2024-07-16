@@ -6,7 +6,7 @@ use atat::atat_derive::AtatResp;
 #[derive(Clone, PartialEq, AtatResp)]
 pub struct ReadGPIOResponse {
     #[at_arg(position = 0)]
-    id: GPIOId,
+    pub id: GPIOId,
     #[at_arg(position = 1)]
-    value: GPIOValue,
+    pub value: GPIOValue,
 }

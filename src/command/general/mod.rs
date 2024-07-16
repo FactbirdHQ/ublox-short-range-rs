@@ -61,8 +61,8 @@ pub struct SerialNumber2;
 ///
 /// Identificationinformation.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("I0", IdentificationInfomationTypeCodeResponse, timeout_ms = 1000)]
-pub struct IdentificationInfomationTypeCode;
+#[at_cmd("I0", IdentificationInformationTypeCodeResponse, timeout_ms = 1000)]
+pub struct IdentificationInformationTypeCode;
 
 /// 3.9 Identification information I9
 ///
@@ -70,17 +70,17 @@ pub struct IdentificationInfomationTypeCode;
 #[derive(Clone, AtatCmd)]
 #[at_cmd(
     "I9",
-    IdentificationInfomationSoftwareVersionResponse,
+    IdentificationInformationSoftwareVersionResponse,
     timeout_ms = 1000
 )]
-pub struct IdentificationInfomationSoftwareVersion;
+pub struct IdentificationInformationSoftwareVersion;
 
 /// 3.9 Identification information I10
 ///
 /// Identificationinformation.
 #[derive(Clone, AtatCmd)]
-#[at_cmd("I10", IdentificationInfomationMCUIDResponse, timeout_ms = 1000)]
-pub struct IdentificationInfomationMCUID;
+#[at_cmd("I10", IdentificationInformationMCUIDResponse, timeout_ms = 1000)]
+pub struct IdentificationInformationMCUID;
 
 /// 3.11 Set greeting text +CSGT
 ///

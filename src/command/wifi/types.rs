@@ -106,7 +106,7 @@ pub enum WifiStationConfigParameter {
     /// <param_val> is the Wi-Fi beacon listen interval in units of beacon
     /// interval. The factory default value is 0, listen on all beacons.
     /// - Valid values 0-16
-    WiFiBeaconListenInteval = 300,
+    WiFiBeaconListenInterval = 300,
     /// <param_val> Enables DTIM in power save. If the DTIM is enabled and the
     /// module is in power save, the access point sends an indication when new
     /// data is available. If disabled, the module polls for data every beacon
@@ -244,7 +244,7 @@ pub enum WifiStationConfig {
     /// interval. The factory default value is 0, listen on all beacons.
     /// - Valid values 0-16
     #[at_arg(value = 300)]
-    WiFiBeaconListenInteval(u8),
+    WiFiBeaconListenInterval(u8),
     /// <param_val> Enables DTIM in power save. If the DTIM is enabled and the
     /// module is in power save, the access point sends an indication when new
     /// data is available. If disabled, the module polls for data every beacon
@@ -384,7 +384,7 @@ pub enum WifiStationConfigR {
     /// interval. The factory default value is 0, listen on all beacons.
     /// - Valid values 0-16
     #[at_arg(value = 300)]
-    WiFiBeaconListenInteval(u8),
+    WiFiBeaconListenInterval(u8),
     /// <param_val> Enables DTIM in power save. If the DTIM is enabled and the
     /// module is in power save, the access point sends an indication when new
     /// data is available. If disabled, the module polls for data every beacon

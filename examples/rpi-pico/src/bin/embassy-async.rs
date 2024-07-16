@@ -1,18 +1,16 @@
+#![cfg(feature = "internal-network-stack")]
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
-#[path = "../common.rs"]
-mod common;
-
 use core::fmt::Write as _;
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
-use embassy_rp::gpio::{Input, Level, Output, Pull};
+use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pull};
 use embassy_rp::peripherals::{PIN_26, UART1};
-use embassy_rp::uart::BufferedInterruptHandler;
+use embassy_rp::uart::{BufferedInterruptHandler, BufferedUartTx};
 use embassy_rp::{bind_interrupts, uart};
 use embassy_time::{Duration, Timer};
 use embedded_io_async::Write;
@@ -22,25 +20,33 @@ use ublox_short_range::asynch::runner::Runner;
 use ublox_short_range::asynch::ublox_stack::dns::DnsSocket;
 use ublox_short_range::asynch::ublox_stack::tcp::TcpSocket;
 use ublox_short_range::asynch::ublox_stack::{StackResources, UbloxStack};
-use ublox_short_range::asynch::{new, State};
+use ublox_short_range::asynch::{new, Resources, State};
 use ublox_short_range::atat::{self, AtatIngress};
 use ublox_short_range::command::custom_digest::EdmDigester;
 use ublox_short_range::command::edm::urc::EdmEvent;
 use ublox_short_range::embedded_nal_async::AddrType;
 use {defmt_rtt as _, panic_probe as _};
 
-const RX_BUF_LEN: usize = 4096;
-const URC_CAPACITY: usize = 3;
+const CMD_BUF_SIZE: usize = 128;
+const INGRESS_BUF_SIZE: usize = 1024;
+const URC_CAPACITY: usize = 2;
 
 type AtClient = ublox_short_range::atat::asynch::Client<
     'static,
     uart::BufferedUartTx<'static, UART1>,
-    RX_BUF_LEN,
+    INGRESS_BUF_SIZE,
 >;
 
 #[embassy_executor::task]
 async fn wifi_task(
-    runner: Runner<'static, AtClient, Output<'static, PIN_26>, 8, URC_CAPACITY>,
+    runner: InternalRunner<
+        'a,
+        BufferedUartRx<'static, UART1>,
+        BufferedUartTx<'static, UART1>,
+        Output<'static, AnyPin>,
+        INGRESS_BUF_SIZE,
+        URC_CAPACITY,
+    >,
 ) -> ! {
     runner.run().await
 }
@@ -120,14 +126,6 @@ async fn echo_task(
     }
 }
 
-#[embassy_executor::task]
-async fn ingress_task(
-    mut ingress: atat::Ingress<'static, EdmDigester, EdmEvent, RX_BUF_LEN, URC_CAPACITY, 2>,
-    mut rx: uart::BufferedUartRx<'static, UART1>,
-) -> ! {
-    ingress.read_from(&mut rx).await
-}
-
 bind_interrupts!(struct Irqs {
     UART1_IRQ => BufferedInterruptHandler<UART1>;
 });
@@ -141,45 +139,49 @@ async fn main(spawner: Spawner) {
     let rst = Output::new(p.PIN_26, Level::High);
     let mut btn = Input::new(p.PIN_27, Pull::Up);
 
-    let (tx_pin, rx_pin, rts_pin, cts_pin, uart) =
-        (p.PIN_24, p.PIN_25, p.PIN_23, p.PIN_22, p.UART1);
+    static TX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
+    static RX_BUF: StaticCell<[u8; 16]> = StaticCell::new();
 
-    let tx_buf = &mut make_static!([0u8; 64])[..];
-    let rx_buf = &mut make_static!([0u8; 64])[..];
     let uart = uart::BufferedUart::new_with_rtscts(
-        uart,
+        p.UART1,
         Irqs,
-        tx_pin,
-        rx_pin,
-        rts_pin,
-        cts_pin,
-        tx_buf,
-        rx_buf,
+        p.PIN_24,
+        p.PIN_25,
+        p.PIN_23,
+        p.PIN_22,
+        TX_BUF.init([0; 16]),
+        RX_BUF.init([0; 16]),
         uart::Config::default(),
     );
-    let (rx, tx) = uart.split();
+    let (uart_rx, uart_tx) = uart.split();
 
-    let buffers = &*make_static!(atat::Buffers::new());
-    let (ingress, client) = buffers.split(tx, EdmDigester::default(), atat::Config::new());
-    defmt::unwrap!(spawner.spawn(ingress_task(ingress, rx)));
+    static RESOURCES: StaticCell<
+        Resources<BufferedUartTx<UART1>, CMD_BUF_SIZE, INGRESS_BUF_SIZE, URC_CAPACITY>,
+    > = StaticCell::new();
 
-    let state = make_static!(State::new(client));
-    let (net_device, mut control, runner) = new(state, &buffers.urc_channel, rst).await;
+    let (net_device, mut control, runner) = ublox_short_range::asynch::new_internal(
+        uart_rx,
+        uart_tx,
+        RESOURCES.init(Resources::new()),
+        rst,
+    );
 
-    defmt::unwrap!(spawner.spawn(wifi_task(runner)));
+    // Init network stack
+    static STACK: StaticCell<Stack<embassy_net_ppp::Device<'static>>> = StaticCell::new();
+    static STACK_RESOURCES: StaticCell<StackResources<2>> = StaticCell::new();
+
+    let stack = &*STACK.init(UbloxStack::new(
+        net_device,
+        STACK_RESOURCES.init(StackResources::new()),
+    ));
+
+    spawner.spawn(net_task(stack)).unwrap();
+    spawner.spawn(wifi_task(runner)).unwrap();
 
     control
         .set_hostname("Factbird-duo-wifi-test")
         .await
         .unwrap();
-
-    // Init network stack
-    let stack = &*make_static!(UbloxStack::new(
-        net_device,
-        make_static!(StackResources::<4>::new()),
-    ));
-
-    defmt::unwrap!(spawner.spawn(net_task(stack)));
 
     // And now we can use it!
     info!("Device initialized!");
