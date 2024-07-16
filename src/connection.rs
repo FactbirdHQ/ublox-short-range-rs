@@ -1,4 +1,4 @@
-use no_std_net::{Ipv4Addr, Ipv6Addr};
+use no_std_net::Ipv4Addr;
 
 use crate::network::{WifiMode, WifiNetwork};
 
@@ -12,11 +12,29 @@ pub enum WiFiState {
     Connected,
 }
 
+/// Static IP address configuration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaticConfigV4 {
+    /// IP address and subnet mask.
+    pub address: Ipv4Addr,
+    /// Default gateway.
+    pub gateway: Option<Ipv4Addr>,
+    /// DNS servers.
+    pub dns_servers: DnsServers,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DnsServers {
+    pub primary: Option<Ipv4Addr>,
+    pub secondary: Option<Ipv4Addr>,
+}
+
 pub struct WifiConnection {
     pub wifi_state: WiFiState,
-    pub network_up: bool,
-    pub ipv4: Option<Ipv4Addr>,
-    pub ipv6: Option<Ipv6Addr>,
+    pub ipv6_link_local_up: bool,
+    pub ipv4_up: bool,
+    #[cfg(feature = "ipv6")]
+    pub ipv6_up: bool,
     pub network: Option<WifiNetwork>,
 }
 
@@ -24,19 +42,20 @@ impl WifiConnection {
     pub(crate) const fn new() -> Self {
         WifiConnection {
             wifi_state: WiFiState::Inactive,
-            network_up: false,
+            ipv6_link_local_up: false,
             network: None,
-            ipv4: None,
-            ipv6: None,
+            ipv4_up: false,
+            #[cfg(feature = "ipv6")]
+            ipv6_up: false,
         }
     }
 
     #[allow(dead_code)]
     pub fn is_station(&self) -> bool {
-        match self.network {
-            Some(ref n) => n.mode == WifiMode::Station,
-            _ => false,
-        }
+        self.network
+            .as_ref()
+            .map(|n| n.mode == WifiMode::Station)
+            .unwrap_or_default()
     }
 
     #[allow(dead_code)]
@@ -44,7 +63,25 @@ impl WifiConnection {
         !self.is_station()
     }
 
+    /// Get whether the network stack has a valid IP configuration.
+    /// This is true if the network stack has a static IP configuration or if DHCP has completed
+    pub fn is_config_up(&self) -> bool {
+        let v6_up;
+        let v4_up = self.ipv4_up;
+
+        #[cfg(feature = "ipv6")]
+        {
+            v6_up = self.ipv6_up;
+        }
+        #[cfg(not(feature = "ipv6"))]
+        {
+            v6_up = false;
+        }
+
+        (v4_up || v6_up) && self.ipv6_link_local_up
+    }
+
     pub fn is_connected(&self) -> bool {
-        self.network_up && self.wifi_state == WiFiState::Connected
+        self.is_config_up() && self.wifi_state == WiFiState::Connected
     }
 }

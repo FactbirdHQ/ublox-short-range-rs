@@ -81,10 +81,11 @@ pub enum ModuleStartMode {
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]
 #[repr(u8)]
-pub enum InserfaceID {
-    Bluetooth = 0,
-    WiFi = 1,
-    Ethernet = 2,
+pub enum InterfaceID {
+    Bluetooth = 1,
+    WiFi = 2,
+    Ethernet = 3,
+    WiFiAP = 4,
 }
 
 #[derive(Debug, Clone, PartialEq, AtatEnum)]

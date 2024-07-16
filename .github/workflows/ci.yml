@@ -1,4 +1,4 @@
-name: Lint
+name: CI
 
 on:
   push:
@@ -9,9 +9,6 @@ on:
 defaults:
   run:
     shell: bash
-
-env:
-  CLIPPY_PARAMS: -W clippy::all -W clippy::pedantic -W clippy::nursery -W clippy::cargo
 
 jobs:
   rustfmt:
@@ -35,33 +32,6 @@ jobs:
           command: fmt
           args: --all -- --check --verbose
 
-  # tomlfmt:
-  #   name: tomlfmt
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout source code
-  #       uses: actions/checkout@v2
-
-  #     - name: Install Rust
-  #       uses: actions-rs/toolchain@v1
-  #       with:
-  #         profile: minimal
-  #         toolchain: nightly
-  #         override: true
-
-  #     - name: Install tomlfmt
-  #       uses: actions-rs/install@v0.1
-  #       with:
-  #         crate: cargo-tomlfmt
-  #         version: latest
-  #         use-tool-cache: true
-
-  #     - name: Run Tomlfmt
-  #       uses: actions-rs/cargo@v1
-  #       with:
-  #         command: tomlfmt
-  #         args: --dryrun
-
   clippy:
     name: clippy
     runs-on: ubuntu-latest
@@ -81,4 +51,31 @@ jobs:
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: -- ${{ env.CLIPPY_PARAMS }}
+          args: --features odin-w2xx,ppp
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: thumbv7m-none-eabi
+          override: true
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all --target thumbv7m-none-eabi --features odin-w2xx,ppp
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --lib --features odin-w2xx,ppp

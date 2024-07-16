@@ -7,7 +7,7 @@
     "rust-analyzer.check.allTargets": false,
     "rust-analyzer.linkedProjects": [],
     "rust-analyzer.cargo.features": [
-        "odin_w2xx",
+        "odin-w2xx",
         // "internal-network-stack"
         "ppp"
     ],

@@ -21,7 +21,7 @@ use atat::atat_derive::{AtatCmd, AtatEnum, AtatResp, AtatUrc};
 pub struct NoResponse;
 
 #[derive(Debug, Clone, AtatCmd)]
-#[at_cmd("", NoResponse, timeout_ms = 1000)]
+#[at_cmd("", NoResponse, attempts = 3, timeout_ms = 1000)]
 pub struct AT;
 
 #[derive(Debug, PartialEq, Clone, AtatUrc)]

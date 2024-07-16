@@ -175,7 +175,7 @@ pub struct ModuleStart {
 #[at_cmd("+UMLA", NoResponse, timeout_ms = 1000)]
 pub struct SetLocalAddress<'a> {
     #[at_arg(position = 0)]
-    pub interface_id: InserfaceID,
+    pub interface_id: InterfaceID,
     /// MAC address of the interface id. If the address is set to 000000000000, the local
     /// address will be restored to factory-programmed value.
     /// The least significant bit of the first octet of the <address> must be 0; that is, the
@@ -188,10 +188,10 @@ pub struct SetLocalAddress<'a> {
 ///
 /// Reads the local address of the interface id.
 #[derive(Debug, PartialEq, Clone, AtatCmd)]
-#[at_cmd("+UMSM", LocalAddressResponse, timeout_ms = 1000)]
+#[at_cmd("+UMLA", LocalAddressResponse, timeout_ms = 1000)]
 pub struct GetLocalAddress {
     #[at_arg(position = 0)]
-    pub interface_id: InserfaceID,
+    pub interface_id: InterfaceID,
 }
 
 /// 4.15 System status +UMSTAT
@@ -215,14 +215,6 @@ pub struct SystemStatus {
 pub struct SetRS232Settings {
     #[at_arg(position = 0)]
     pub baud_rate: BaudRate,
-    // #[at_arg(position = 1)]
-    // pub settings: Option<(
-    //     FlowControl,
-    //     Option<(
-    //         u8,
-    //         Option<(StopBits, Option<(Parity, Option<ChangeAfterConfirm>)>)>,
-    //     )>,
-    // )>,
     #[at_arg(position = 1)]
     pub flow_control: FlowControl,
     #[at_arg(position = 2)]

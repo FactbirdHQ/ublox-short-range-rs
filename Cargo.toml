@@ -20,7 +20,7 @@ atat = { version = "0.23", features = ["derive", "bytes"] }
 heapless = { version = "^0.8", features = ["serde"] }
 no-std-net = { version = "0.6", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
-# ublox-sockets = { version = "0.5", features = ["edm"], optional = true }
+# ublox-sockets = { version = "0.5", optional = true }
 ublox-sockets = { git = "https://github.com/BlackbirdHQ/ublox-sockets", rev = "9f7fe54", optional = true }
 portable-atomic = "1.6"
 
@@ -50,6 +50,8 @@ default = ["socket-tcp", "socket-udp"]
 internal-network-stack = ["dep:ublox-sockets", "edm"]
 edm = ["ublox-sockets?/edm"]
 
+ipv6 = ["embassy-net?/proto-ipv6"]
+
 # PPP mode requires UDP sockets enabled, to be able to do AT commands over UDP port 23
 ppp = ["dep:embassy-net-ppp", "dep:embassy-net", "socket-udp"]
 
@@ -66,12 +68,13 @@ defmt = [
 ]
 log = ["dep:log", "ublox-sockets?/log", "atat/log"]
 
-odin_w2xx = []
-nina_w1xx = []
-nina_b1xx = []
-anna_b1xx = []
-nina_b2xx = []
-nina_b3xx = []
+# Supported Ublox modules
+odin-w2xx = []
+nina-w1xx = []
+nina-b1xx = []
+anna-b1xx = []
+nina-b2xx = []
+nina-b3xx = []
 
 [workspace]
 members = []
@@ -81,4 +84,5 @@ exclude = ["examples"]
 
 [patch.crates-io]
 no-std-net = { git = "https://github.com/rushmorem/no-std-net", branch = "issue-15" }
-atat = { path = "../atat/atat" }
+atat = { git = "https://github.com/BlackbirdHQ/atat", rev = "a466836" }
+# atat = { path = "../atat/atat" }

@@ -1,6 +1,6 @@
 //! Responses for System Commands
 use super::types::*;
-use atat::atat_derive::AtatResp;
+use atat::{atat_derive::AtatResp, serde_at::HexStr};
 use heapless::String;
 
 /// 4.11 Software update +UFWUPD
@@ -17,7 +17,7 @@ pub struct LocalAddressResponse {
     /// MAC address of the interface id. If the address is set to 000000000000, the local
     /// address will be restored to factory-programmed value.
     #[at_arg(position = 0)]
-    pub mac: String<64>,
+    pub mac: HexStr<u64>,
 }
 
 /// 4.15 System status +UMSTAT

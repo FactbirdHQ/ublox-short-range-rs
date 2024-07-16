@@ -11,7 +11,7 @@ pub struct Resources<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize> {
 
     pub(crate) res_slot: ResponseSlot<INGRESS_BUF_SIZE>,
     pub(crate) req_slot: Channel<NoopRawMutex, heapless::Vec<u8, MAX_CMD_LEN>, 1>,
-    pub(crate) urc_channel: UrcChannel<UbloxUrc, URC_CAPACITY, URC_SUBSCRIBERS>,
+    pub(crate) urc_channel: UrcChannel<UbloxUrc, URC_CAPACITY, { URC_SUBSCRIBERS }>,
     pub(crate) ingress_buf: [u8; INGRESS_BUF_SIZE],
 }
 

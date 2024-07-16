@@ -30,6 +30,7 @@ impl State {
     pub(crate) const fn new() -> Self {
         Self {
             shared: Mutex::new(RefCell::new(Shared {
+                should_connect: false,
                 link_state: LinkState::Uninitialized,
                 wifi_connection: WifiConnection::new(),
                 state_waker: WakerRegistration::new(),
@@ -42,6 +43,7 @@ impl State {
 /// State of the LinkState
 pub(crate) struct Shared {
     link_state: LinkState,
+    should_connect: bool,
     wifi_connection: WifiConnection,
     state_waker: WakerRegistration,
     connection_waker: WakerRegistration,
@@ -64,6 +66,22 @@ impl<'d> Runner<'d> {
             let s = &mut *s.borrow_mut();
             s.link_state = LinkState::Down;
             s.state_waker.wake();
+        })
+    }
+
+    pub(crate) fn mark_uninitialized(&self) {
+        self.shared.lock(|s| {
+            let s = &mut *s.borrow_mut();
+            s.link_state = LinkState::Uninitialized;
+            s.state_waker.wake();
+        })
+    }
+
+    pub(crate) fn set_should_connect(&self, should_connect: bool) {
+        self.shared.lock(|s| {
+            let s = &mut *s.borrow_mut();
+            s.connection_waker.wake();
+            s.should_connect = should_connect;
         })
     }
 
@@ -131,7 +149,7 @@ impl<'d> Runner<'d> {
             if let Some(cx) = cx {
                 s.connection_waker.register(cx.waker());
             }
-            s.wifi_connection.ipv4.is_none() && s.wifi_connection.ipv6.is_none()
+            !s.wifi_connection.ipv4_up && !s.wifi_connection.ipv6_link_local_up
         })
     }
 
@@ -155,8 +173,22 @@ impl<'d> Runner<'d> {
             if let Some(cx) = cx {
                 s.connection_waker.register(cx.waker());
             }
-            s.wifi_connection.is_connected()
+            s.wifi_connection.is_connected() && s.should_connect
         })
+    }
+
+    pub(crate) async fn wait_connected(&self) {
+        if self.is_connected(None) {
+            return;
+        }
+
+        poll_fn(|cx| {
+            if self.is_connected(Some(cx)) {
+                return Poll::Ready(());
+            }
+            Poll::Pending
+        })
+        .await
     }
 
     pub(crate) fn wifi_state(&self, cx: Option<&mut Context>) -> WiFiState {

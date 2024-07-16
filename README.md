@@ -13,12 +13,12 @@
 A driver crate for AT-command based serial ublox short range modules, built on top of [atat].
 The driver aims to be compatible with the ublox short range modules:
 
-- odin_w2xx
-- nina_w1xx
-- nina_b1xx
-- anna_b1xx
-- nina_b2xx
-- nina_b3xx
+- odin-w2xx
+- nina-w1xx
+- nina-b1xx
+- anna-b1xx
+- nina-b2xx
+- nina-b3xx
 
 [atat]: https://crates.io/crates/atat
 
@@ -48,12 +48,12 @@ The samples can be built using `cargo build -p linux_example --target x86_64-unk
 ## Features
 
 - device selection (must select one, and only one!):
-  - `odin_w2xx`
-  - `nina_w1xx`
-  - `nina_b1xx`
-  - `anna_b1xx`
-  - `nina_b2xx`
-  - `nina_b3xx`
+  - `odin-w2xx`
+  - `nina-w1xx`
+  - `nina-b1xx`
+  - `anna-b1xx`
+  - `nina-b2xx`
+  - `nina-b3xx`
 - `socket-tcp`: Enabled by default. Adds TCP socket capabilities, and implements [`TcpStack`] trait.
 - `socket-udp`: Enabled by default. Adds UDP socket capabilities, and implements [`UdpStack`] trait.
 - `defmt-default`: Disabled by default. Add log statements on trace (dev) or info (release) log levels to aid debugging.

@@ -1,6 +1,8 @@
 use embassy_net::{udp::UdpSocket, Ipv4Address};
 use embedded_io_async::{Read, Write};
 
+use crate::config::Transport;
+
 pub struct AtUdpSocket<'a>(pub(crate) UdpSocket<'a>);
 
 impl<'a> AtUdpSocket<'a> {
@@ -29,6 +31,16 @@ impl<'a> Write for &AtUdpSocket<'a> {
             .unwrap();
 
         Ok(buf.len())
+    }
+}
+
+impl<'a> Transport for AtUdpSocket<'a> {
+    fn set_baudrate(&mut self, _baudrate: u32) {
+        // Nothing to do here
+    }
+
+    fn split_ref(&mut self) -> (impl Write, impl Read) {
+        (&*self, &*self)
     }
 }
 

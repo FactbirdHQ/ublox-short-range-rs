@@ -5,7 +5,7 @@ edition = "2021"
 
 
 [dependencies]
-ublox-short-range-rs = { path = "../../", features = ["odin_w2xx", "defmt"] }
+ublox-short-range-rs = { path = "../../", features = ["odin-w2xx", "defmt"] }
 embassy-executor = { version = "0.5", features = [
     "defmt",
     "integrated-timers",

@@ -25,10 +25,10 @@ pub enum Error {
 /// length is 64 characters.
 /// Domain name length is 128 for NINA-W13 and NINA-W15 software version 4.0
 /// .0 or later.
-#[cfg(not(feature = "nina_w1xx"))]
+#[cfg(not(feature = "nina-w1xx"))]
 pub const MAX_DOMAIN_NAME_LENGTH: usize = 64;
 
-#[cfg(feature = "nina_w1xx")]
+#[cfg(feature = "nina-w1xx")]
 pub const MAX_DOMAIN_NAME_LENGTH: usize = 128;
 
 pub struct DnsTableEntry {

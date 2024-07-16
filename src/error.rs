@@ -43,6 +43,12 @@ impl From<atat::Error> for Error {
     }
 }
 
+impl From<embassy_time::TimeoutError> for Error {
+    fn from(_: embassy_time::TimeoutError) -> Self {
+        Error::Timeout
+    }
+}
+
 #[cfg(feature = "internal-network-stack")]
 impl From<ublox_sockets::Error> for Error {
     fn from(e: ublox_sockets::Error) -> Self {
