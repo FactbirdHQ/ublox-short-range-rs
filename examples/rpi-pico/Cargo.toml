@@ -1,0 +1,113 @@
+[package]
+name = "ublox-short-range-examples-rpi-pico"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+ublox-short-range-rs = { path = "../../", features = ["odin-w2xx", "defmt"] }
+embassy-executor = { version = "0.5", features = [
+    "defmt",
+    "integrated-timers",
+    "nightly",
+    "arch-cortex-m",
+    "executor-thread",
+] }
+embassy-time = { version = "0.3", features = [
+    "defmt",
+    "defmt-timestamp-uptime",
+] }
+embassy-sync = { version = "0.6" }
+embassy-rp = { version = "0.1.0", features = [
+    "defmt",
+    "unstable-pac",
+    "time-driver",
+] }
+embassy-futures = { version = "0.1.0" }
+no-std-net = { version = "0.6", features = ["serde"] }
+
+static_cell = { version = "2", features = ["nightly"] }
+defmt = "0.3.4"
+defmt-rtt = "0.4"
+panic-probe = { version = "0.3", features = ["print-defmt"] }
+
+cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7.0"
+futures = { version = "0.3.17", default-features = false, features = [
+    "async-await",
+    "cfg-target-has-atomic",
+    "unstable",
+] }
+
+embedded-io-async = { version = "0.6" }
+heapless = "0.8"
+portable-atomic = { version = "*", features = ["unsafe-assume-single-core"] }
+
+embassy-net = { version = "0.4", optional = true, features = [
+    "defmt",
+    "proto-ipv4",
+    "medium-ip",
+    "tcp",
+    "udp",
+    "dns"
+] }
+embassy-net-ppp = { version = "0.1", optional = true, features = ["defmt"] }
+reqwless = { git = "https://github.com/drogue-iot/reqwless", features = ["defmt"] }
+smoltcp = { version = "*", default-features = false, features = ["dns-max-server-count-4"]}
+rand_chacha = { version = "0.3", default-features = false }
+embedded-tls = { path = "../../../embedded-tls", default-features = false, features = ["defmt"] }
+
+
+[features]
+internal-network-stack = ["ublox-short-range-rs/internal-network-stack"]
+ppp = ["dep:embassy-net", "dep:embassy-net-ppp", "ublox-short-range-rs/ppp"]
+
+[patch.crates-io]
+# embassy-executor = { git = "https://github.com/embassy-rs/embassy", rev = "03d6363d5af5dcaf21b52734994a466ca593d2b6" }
+# embassy-time = { git = "https://github.com/embassy-rs/embassy", rev = "03d6363d5af5dcaf21b52734994a466ca593d2b6" }
+# embassy-futures = { git = "https://github.com/embassy-rs/embassy", rev = "03d6363d5af5dcaf21b52734994a466ca593d2b6" }
+# embassy-sync = { git = "https://github.com/embassy-rs/embassy", rev = "03d6363d5af5dcaf21b52734994a466ca593d2b6" }
+# embassy-rp = { git = "https://github.com/embassy-rs/embassy", rev = "03d6363d5af5dcaf21b52734994a466ca593d2b6" }
+# embassy-net-driver-channel = { git = "https://github.com/embassy-rs/embassy", rev = "03d6363d5af5dcaf21b52734994a466ca593d2b6" }
+
+
+embassy-rp = { path = "../../../embassy/embassy-rp" }
+embassy-time = { path = "../../../embassy/embassy-time" }
+embassy-sync = { path = "../../../embassy/embassy-sync" }
+embassy-net = { path = "../../../embassy/embassy-net" }
+embassy-net-ppp = { path = "../../../embassy/embassy-net-ppp" }
+embassy-futures = { path = "../../../embassy/embassy-futures" }
+embassy-executor = { path = "../../../embassy/embassy-executor" }
+ublox-sockets = { path = "../../../ublox-sockets" }
+no-std-net = { path = "../../../no-std-net" }
+atat = { path = "../../../atat/atat" }
+
+[profile.dev]
+debug = 2
+debug-assertions = true
+opt-level = 1
+overflow-checks = true
+
+[profile.release]
+codegen-units = 1
+debug = 2
+debug-assertions = false
+incremental = false
+lto = 'fat'
+opt-level = 'z'
+overflow-checks = false
+
+# do not optimize proc-macro crates = faster builds from scratch
+[profile.dev.build-override]
+codegen-units = 8
+debug = false
+debug-assertions = false
+opt-level = 0
+overflow-checks = false
+
+[profile.release.build-override]
+codegen-units = 8
+debug = false
+debug-assertions = false
+opt-level = 0
+overflow-checks = false

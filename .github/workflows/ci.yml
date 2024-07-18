@@ -1,56 +1,81 @@
+name: CI
+
 on:
   push:
     branches:
       - master
   pull_request:
 
-name: CI
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  test:
-    name: Build & Test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout source code
-        uses: actions/checkout@v3
-      - uses: dsherret/rust-toolchain-file@v1
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all --target thumbv7em-none-eabihf
-
-      - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --lib
-        env: 
-          DEFMT_LOG: off
-
   rustfmt:
     name: rustfmt
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v3
-      - uses: dsherret/rust-toolchain-file@v1
-      - name: Rustfmt
-        run: cargo fmt -- --check
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rustfmt
+
+      - name: Run rustfmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check --verbose
 
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v3
-      - uses: dsherret/rust-toolchain-file@v1
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: clippy
+
       - name: Run clippy
         uses: actions-rs/clippy-check@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          args: -- ${{ env.CLIPPY_PARAMS }}
+          args: --features odin-w2xx,ppp
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          target: thumbv7m-none-eabi
+          override: true
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --all --target thumbv7m-none-eabi --features odin-w2xx,ppp
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --lib --features odin-w2xx,ppp
