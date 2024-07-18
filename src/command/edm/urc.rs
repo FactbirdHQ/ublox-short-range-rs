@@ -7,6 +7,7 @@ use heapless::Vec;
 use no_std_net::{Ipv4Addr, Ipv6Addr};
 use ublox_sockets::ChannelId;
 
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum EdmEvent {
     BluetoothConnectEvent(BluetoothConnectEvent),
@@ -48,10 +49,10 @@ impl AtatUrc for EdmEvent {
                 || resp.len() == AUTOCONNECTMESSAGE.len() + 1
             {
                 let mut urc = resp;
-                match urc.iter().position(|x| !x.is_ascii_whitespace()) {
-                    Some(i) => urc = &urc[i..],
-                    None => (),
+                if let Some(i) = urc.iter().position(|x| !x.is_ascii_whitespace()) {
+                    urc = &urc[i..];
                 };
+
                 let cmd = Urc::parse(urc)?;
                 return EdmEvent::ATEvent(cmd).into();
             }
@@ -80,9 +81,8 @@ impl AtatUrc for EdmEvent {
         match resp[4].into() {
             PayloadType::ATEvent => {
                 let mut urc = &resp[AT_COMMAND_POSITION..PAYLOAD_POSITION + payload_len];
-                match urc.iter().position(|x| !x.is_ascii_whitespace()) {
-                    Some(i) => urc = &urc[i..],
-                    None => (),
+                if let Some(i) = urc.iter().position(|x| !x.is_ascii_whitespace()) {
+                    urc = &urc[i..];
                 };
                 let cmd = Urc::parse(urc)?;
                 EdmEvent::ATEvent(cmd).into()
@@ -193,9 +193,9 @@ mod test {
             handle: PeerHandle(2),
             connection_type: crate::command::data_mode::types::ConnectionType::IPv4,
             protocol: crate::command::data_mode::types::IPProtocol::UDP,
-            local_address: Bytes::from_slice(&"0.0.0.0".as_bytes()).unwrap(),
+            local_address: Bytes::from_slice("0.0.0.0".as_bytes()).unwrap(),
             local_port: 0,
-            remote_address: Bytes::from_slice(&"162.159.200.1".as_bytes()).unwrap(),
+            remote_address: Bytes::from_slice("162.159.200.1".as_bytes()).unwrap(),
             remote_port: 123,
         }));
         let parsed_urc = EdmEvent::parse(resp);
