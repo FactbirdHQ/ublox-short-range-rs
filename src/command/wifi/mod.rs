@@ -34,14 +34,29 @@ impl<'a> atat::AtatLen for SetWifiStationConfig<'a> {
 const ATAT_SETWIFISTATIONCONFIG_LEN: usize =
     <WifiStationConfig<'_> as atat::AtatLen>::LEN + <u8 as atat::AtatLen>::LEN + 1usize;
 #[automatically_derived]
-impl<'a> atat::AtatCmd<{ ATAT_SETWIFISTATIONCONFIG_LEN + 12usize }> for SetWifiStationConfig<'a> {
+impl<'a> atat::AtatCmd for SetWifiStationConfig<'a> {
     type Response = NoResponse;
     const MAX_TIMEOUT_MS: u32 = 1000u32;
     #[inline]
-    fn as_bytes(&self) -> atat::heapless::Vec<u8, { ATAT_SETWIFISTATIONCONFIG_LEN + 12usize }> {
-        match atat::serde_at::to_vec(
+    fn parse(
+        &self,
+        res: Result<&[u8], atat::InternalError>,
+    ) -> core::result::Result<Self::Response, atat::Error> {
+        match res {
+            Ok(resp) => {
+                atat::serde_at::from_slice::<NoResponse>(resp).map_err(|_e| atat::Error::Parse)
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    const MAX_LEN: usize = ATAT_SETWIFISTATIONCONFIG_LEN + 12usize;
+
+    fn write(&self, buf: &mut [u8]) -> usize {
+        match atat::serde_at::to_slice(
             self,
             "+UWSC",
+            buf,
             atat::serde_at::SerializeOptions {
                 value_sep: true,
                 cmd_prefix: "AT",
@@ -51,18 +66,6 @@ impl<'a> atat::AtatCmd<{ ATAT_SETWIFISTATIONCONFIG_LEN + 12usize }> for SetWifiS
         ) {
             Ok(s) => s,
             Err(_) => panic!("Failed to serialize command"),
-        }
-    }
-    #[inline]
-    fn parse(
-        &self,
-        res: Result<&[u8], atat::InternalError>,
-    ) -> core::result::Result<Self::Response, atat::Error> {
-        match res {
-            Ok(resp) => {
-                atat::serde_at::from_slice::<NoResponse>(resp).map_err(|e| atat::Error::Parse)
-            }
-            Err(e) => Err(e.into()),
         }
     }
 }

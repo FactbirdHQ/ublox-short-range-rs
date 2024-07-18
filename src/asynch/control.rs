@@ -307,7 +307,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         Ok(())
     }
 
-    async fn start_ap(&self, ssid: &str) -> Result<(), Error> {
+    async fn start_ap(&self, ssid: &str, _channel: u8) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
         // Deactivate network id 0
@@ -432,13 +432,18 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
     }
 
     /// Start open access point.
-    pub async fn start_ap_open(&mut self, ssid: &str, channel: u8) {
-        todo!()
+    pub async fn start_ap_open(&mut self, ssid: &str, channel: u8) -> Result<(), Error> {
+        self.start_ap(ssid, channel).await
     }
 
     /// Start WPA2 protected access point.
-    pub async fn start_ap_wpa2(&mut self, ssid: &str, passphrase: &str, channel: u8) {
-        todo!()
+    pub async fn start_ap_wpa2(
+        &mut self,
+        ssid: &str,
+        _passphrase: &str,
+        channel: u8,
+    ) -> Result<(), Error> {
+        self.start_ap(ssid, channel).await
     }
 
     /// Closes access point.
@@ -477,9 +482,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         (&self.at_client)
             .send_retry(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
-                config_param: WifiStationConfig::SSID(
-                    heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
-                ),
+                config_param: WifiStationConfig::SSID(ssid),
             })
             .await?;
 
@@ -503,26 +506,25 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
                 (&self.at_client)
                     .send_retry(&SetWifiStationConfig {
                         config_id: CONFIG_ID,
-                        config_param: WifiStationConfig::WpaPskOrPassphrase(
-                            heapless::String::try_from(passphrase).map_err(|_| Error::Overflow)?,
-                        ),
+                        config_param: WifiStationConfig::WpaPskOrPassphrase(passphrase),
                     })
                     .await?;
             }
-            WifiAuthentication::Wpa2Psk(psk) => {
-                (&self.at_client)
-                    .send_retry(&SetWifiStationConfig {
-                        config_id: CONFIG_ID,
-                        config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
-                    })
-                    .await?;
+            WifiAuthentication::Wpa2Psk(_psk) => {
+                unimplemented!()
+                // (&self.at_client)
+                //     .send_retry(&SetWifiStationConfig {
+                //         config_id: CONFIG_ID,
+                //         config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
+                //     })
+                //     .await?;
 
-                (&self.at_client)
-                    .send_retry(&SetWifiStationConfig {
-                        config_id: CONFIG_ID,
-                        config_param: WifiStationConfig::WpaPskOrPassphrase(todo!("hex values?!")),
-                    })
-                    .await?;
+                // (&self.at_client)
+                //     .send_retry(&SetWifiStationConfig {
+                //         config_id: CONFIG_ID,
+                //         config_param: WifiStationConfig::WpaPskOrPassphrase(todo!("hex values?!")),
+                //     })
+                //     .await?;
             }
         }
 

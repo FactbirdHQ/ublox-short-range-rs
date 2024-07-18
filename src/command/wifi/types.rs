@@ -426,7 +426,8 @@ pub enum WifiStationAction {
     Deactivate = 4,
 }
 
-#[derive(Debug, Clone, PartialEq, AtatEnum, defmt::Format)]
+#[derive(Debug, Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum OperationMode {
     Infrastructure = 1,
@@ -434,6 +435,7 @@ pub enum OperationMode {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 #[repr(u8)]
 pub enum StatusId {
     SSID = 0,

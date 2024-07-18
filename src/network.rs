@@ -14,9 +14,10 @@ pub enum WifiMode {
     AccessPoint,
 }
 
-#[derive(Debug, defmt::Format)]
+#[derive(Debug)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct WifiNetwork {
-    #[defmt(Debug2Format)]
+    #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
     pub bssid: Bytes<20>,
     pub op_mode: OperationMode,
     pub ssid: String<64>,
