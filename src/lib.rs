@@ -17,6 +17,7 @@ compile_error!("No module feature activated. You must activate exactly one of th
 mod fmt;
 
 pub mod asynch;
+pub mod options;
 
 mod config;
 mod connection;

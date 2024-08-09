@@ -211,13 +211,83 @@ pub struct GetWatchdogConfig {
 /// be activated (Wi-Fi Access Point Configuration Action +UWAPCA) before using.
 /// The command will generate an error if the configuration id is active. See "Wi-Fi Access Point Configuration
 /// Action +UWAPCA" for instructions on how to deactivate a configuration.
-#[derive(Clone, AtatCmd)]
-#[at_cmd("+UWAPC", NoResponse, timeout_ms = 1000)]
-pub struct SetWifiAPConfig {
-    #[at_arg(position = 0)]
+#[derive(Clone)]
+// #[at_cmd("+UWAPC", NoResponse, timeout_ms = 1000)]
+pub struct SetWifiAPConfig<'a> {
+    // #[at_arg(position = 0)]
     pub ap_config_id: AccessPointId,
-    #[at_arg(position = 1)]
-    pub ap_config_param: AccessPointConfig,
+    // #[at_arg(position = 1)]
+    pub ap_config_param: AccessPointConfig<'a>,
+}
+
+// FIXME:
+#[automatically_derived]
+impl<'a> atat::AtatLen for SetWifiAPConfig<'a> {
+    const LEN: usize =
+        <AccessPointConfig<'a> as atat::AtatLen>::LEN + <u8 as atat::AtatLen>::LEN + 1usize;
+}
+const ATAT_SETWIFIAPCONFIG_LEN: usize =
+    <AccessPointConfig<'_> as atat::AtatLen>::LEN + <u8 as atat::AtatLen>::LEN + 1usize;
+#[automatically_derived]
+impl<'a> atat::AtatCmd for SetWifiAPConfig<'a> {
+    type Response = NoResponse;
+    const MAX_TIMEOUT_MS: u32 = 1000u32;
+    #[inline]
+    fn parse(
+        &self,
+        res: Result<&[u8], atat::InternalError>,
+    ) -> core::result::Result<Self::Response, atat::Error> {
+        match res {
+            Ok(resp) => {
+                atat::serde_at::from_slice::<NoResponse>(resp).map_err(|_e| atat::Error::Parse)
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    const MAX_LEN: usize = ATAT_SETWIFIAPCONFIG_LEN + 12usize;
+
+    fn write(&self, buf: &mut [u8]) -> usize {
+        match atat::serde_at::to_slice(
+            self,
+            "+UWAPC",
+            buf,
+            atat::serde_at::SerializeOptions {
+                value_sep: true,
+                cmd_prefix: "AT",
+                termination: "\r\n",
+                quote_escape_strings: true,
+            },
+        ) {
+            Ok(s) => s,
+            Err(_) => panic!("Failed to serialize command"),
+        }
+    }
+}
+#[automatically_derived]
+impl<'a> atat::serde_at::serde::Serialize for SetWifiAPConfig<'a> {
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: atat::serde_at::serde::Serializer,
+    {
+        let mut serde_state = atat::serde_at::serde::Serializer::serialize_struct(
+            serializer,
+            "SetWifiAPConfig",
+            2usize,
+        )?;
+        atat::serde_at::serde::ser::SerializeStruct::serialize_field(
+            &mut serde_state,
+            "ap_config_id",
+            &self.ap_config_id,
+        )?;
+        atat::serde_at::serde::ser::SerializeStruct::serialize_field(
+            &mut serde_state,
+            "ap_config_param",
+            &self.ap_config_param,
+        )?;
+        atat::serde_at::serde::ser::SerializeStruct::end(serde_state)
+    }
 }
 
 /// 7.8 Wi-Fi Access point configuration +UWAPC
