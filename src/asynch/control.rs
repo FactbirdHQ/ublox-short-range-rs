@@ -21,6 +21,7 @@ use crate::command::ping::Ping;
 use crate::command::system::responses::LocalAddressResponse;
 use crate::command::system::types::InterfaceID;
 use crate::command::system::GetLocalAddress;
+use crate::command::wifi::types::{IPv4Mode, PasskeyR};
 use crate::command::wifi::{ExecWifiStationAction, GetWifiStatus, SetWifiStationConfig};
 use crate::command::OnOff;
 use crate::command::{
@@ -47,16 +48,11 @@ use crate::command::{
 };
 use crate::connection::{DnsServers, StaticConfigV4, WiFiState};
 use crate::error::Error;
+use crate::options::{ConnectionOptions, HotspotOptions, WifiAuthentication};
 
 use super::runner::{MAX_CMD_LEN, URC_SUBSCRIBERS};
 use super::state::LinkState;
 use super::{state, UbloxUrc};
-
-enum WifiAuthentication<'a> {
-    None,
-    Wpa2Passphrase(&'a str),
-    Wpa2Psk(&'a [u8; 32]),
-}
 
 const CONFIG_ID: u8 = 0;
 
@@ -96,12 +92,12 @@ impl<'a, const INGRESS_BUF_SIZE: usize> atat::asynch::AtatClient
         let len = cmd.write(&mut buf);
 
         if len < 50 {
-            debug!(
+            trace!(
                 "Sending command: {:?}",
                 atat::helpers::LossyStr(&buf[..len])
             );
         } else {
-            debug!("Sending command with long payload ({} bytes)", len);
+            trace!("Sending command with long payload ({} bytes)", len);
         }
 
         if let Some(cooldown) = self.cooldown_timer.take() {
@@ -307,7 +303,11 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         Ok(())
     }
 
-    async fn start_ap(&self, ssid: &str, _channel: u8) -> Result<(), Error> {
+    pub async fn start_ap(
+        &self,
+        options: ConnectionOptions<'_>,
+        configuration: HotspotOptions,
+    ) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
         // Deactivate network id 0
@@ -325,101 +325,118 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             })
             .await?;
 
-        // // Disable DHCP Server (static IP address will be used)
-        // if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
-        //     (&self.at_client)
-        //         .send_retry(&SetWifiAPConfig {
-        //             ap_config_id: AccessPointId::Id0,
-        //             ap_config_param: AccessPointConfig::IPv4Mode(IPv4Mode::Static),
-        //         })
-        //         .await?;
-        // }
+        // Disable DHCP Server (static IP address will be used)
+        if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
+            (&self.at_client)
+                .send_retry(&SetWifiAPConfig {
+                    ap_config_id: AccessPointId::Id0,
+                    ap_config_param: AccessPointConfig::IPv4Mode(IPv4Mode::Static),
+                })
+                .await?;
+        }
 
-        // // Network IP address
-        // if let Some(ip) = options.ip {
-        //     (&self.at_client)
-        //         .send_retry(&SetWifiAPConfig {
-        //             ap_config_id: AccessPointId::Id0,
-        //             ap_config_param: AccessPointConfig::IPv4Address(ip),
-        //         })
-        //         .await?;
-        // }
-        // // Network Subnet mask
-        // if let Some(subnet) = options.subnet {
-        //     (&self.at_client)
-        //         .send_retry(&SetWifiAPConfig {
-        //             ap_config_id: AccessPointId::Id0,
-        //             ap_config_param: AccessPointConfig::SubnetMask(subnet),
-        //         })
-        //         .await?;
-        // }
-        // // Network Default gateway
-        // if let Some(gateway) = options.gateway {
-        //     (&self.at_client)
-        //         .send_retry(&SetWifiAPConfig {
-        //             ap_config_id: AccessPointId::Id0,
-        //             ap_config_param: AccessPointConfig::DefaultGateway(gateway),
-        //         })
-        //         .await?;
-        // }
+        // Network IP address
+        if let Some(ip) = options.ip {
+            (&self.at_client)
+                .send_retry(&SetWifiAPConfig {
+                    ap_config_id: AccessPointId::Id0,
+                    ap_config_param: AccessPointConfig::IPv4Address(ip),
+                })
+                .await?;
+        }
+        // Network Subnet mask
+        if let Some(subnet) = options.subnet {
+            (&self.at_client)
+                .send_retry(&SetWifiAPConfig {
+                    ap_config_id: AccessPointId::Id0,
+                    ap_config_param: AccessPointConfig::SubnetMask(subnet),
+                })
+                .await?;
+        }
+        // Network Default gateway
+        if let Some(gateway) = options.gateway {
+            (&self.at_client)
+                .send_retry(&SetWifiAPConfig {
+                    ap_config_id: AccessPointId::Id0,
+                    ap_config_param: AccessPointConfig::DefaultGateway(gateway),
+                })
+                .await?;
+        }
 
-        // (&self.at_client)
-        //     .send_retry(&SetWifiAPConfig {
-        //         ap_config_id: AccessPointId::Id0,
-        //         ap_config_param: AccessPointConfig::DHCPServer(true.into()),
-        //     })
-        //     .await?;
+        (&self.at_client)
+            .send_retry(&SetWifiAPConfig {
+                ap_config_id: AccessPointId::Id0,
+                ap_config_param: AccessPointConfig::DHCPServer(configuration.dhcp_server.into()),
+            })
+            .await?;
 
-        // Wifi part
         // Set the Network SSID to connect to
         (&self.at_client)
             .send_retry(&SetWifiAPConfig {
                 ap_config_id: AccessPointId::Id0,
-                ap_config_param: AccessPointConfig::SSID(
-                    heapless::String::try_from(ssid).map_err(|_| Error::Overflow)?,
-                ),
+                ap_config_param: AccessPointConfig::SSID(options.ssid),
             })
             .await?;
 
-        // if let Some(pass) = options.password.clone() {
-        //     // Use WPA2 as authentication type
-        //     (&self.at_client)
-        //         .send_retry(&SetWifiAPConfig {
-        //             ap_config_id: AccessPointId::Id0,
-        //             ap_config_param: AccessPointConfig::SecurityMode(
-        //                 SecurityMode::Wpa2AesCcmp,
-        //                 SecurityModePSK::PSK,
-        //             ),
-        //         })
-        //         .await?;
+        match options.auth {
+            WifiAuthentication::None => {
+                (&self.at_client)
+                    .send_retry(&SetWifiAPConfig {
+                        ap_config_id: AccessPointId::Id0,
+                        ap_config_param: AccessPointConfig::SecurityMode(
+                            SecurityMode::Open,
+                            SecurityModePSK::Open,
+                        ),
+                    })
+                    .await?;
+            }
+            WifiAuthentication::Wpa2Passphrase(passphrase) => {
+                (&self.at_client)
+                    .send_retry(&SetWifiAPConfig {
+                        ap_config_id: AccessPointId::Id0,
+                        ap_config_param: AccessPointConfig::SecurityMode(
+                            SecurityMode::Wpa2AesCcmp,
+                            SecurityModePSK::PSK,
+                        ),
+                    })
+                    .await?;
 
-        //     // Input passphrase
-        //     (&self.at_client)
-        //         .send_retry(&SetWifiAPConfig {
-        //             ap_config_id: AccessPointId::Id0,
-        //             ap_config_param: AccessPointConfig::PSKPassphrase(PasskeyR::Passphrase(pass)),
-        //         })
-        //         .await?;
-        // } else {
-        (&self.at_client)
-            .send_retry(&SetWifiAPConfig {
-                ap_config_id: AccessPointId::Id0,
-                ap_config_param: AccessPointConfig::SecurityMode(
-                    SecurityMode::Open,
-                    SecurityModePSK::Open,
-                ),
-            })
-            .await?;
-        // }
+                // Input passphrase
+                (&self.at_client)
+                    .send_retry(&SetWifiAPConfig {
+                        ap_config_id: AccessPointId::Id0,
+                        ap_config_param: AccessPointConfig::PSKPassphrase(PasskeyR::Passphrase(
+                            // FIXME:
+                            heapless::String::try_from(passphrase).unwrap(),
+                        )),
+                    })
+                    .await?;
+            } // WifiAuthentication::Wpa2Psk(_psk) => {
+              //     unimplemented!()
+              //     // (&self.at_client)
+              //     //     .send_retry(&SetWifiStationConfig {
+              //     //         config_id: CONFIG_ID,
+              //     //         config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
+              //     //     })
+              //     //     .await?;
 
-        // if let Some(channel) = configuration.channel {
-        //     (&self.at_client)
-        //         .send_retry(&SetWifiAPConfig {
-        //             ap_config_id: AccessPointId::Id0,
-        //             ap_config_param: AccessPointConfig::Channel(channel as u8),
-        //         })
-        //         .await?;
-        // }
+              //     // (&self.at_client)
+              //     //     .send_retry(&SetWifiStationConfig {
+              //     //         config_id: CONFIG_ID,
+              //     //         config_param: WifiStationConfig::WpaPskOrPassphrase(todo!("hex values?!")),
+              //     //     })
+              //     //     .await?;
+              // }
+        }
+
+        if let Some(channel) = configuration.channel {
+            (&self.at_client)
+                .send_retry(&SetWifiAPConfig {
+                    ap_config_id: AccessPointId::Id0,
+                    ap_config_param: AccessPointConfig::Channel(channel as u8),
+                })
+                .await?;
+        }
 
         (&self.at_client)
             .send_retry(&WifiAPAction {
@@ -431,40 +448,18 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         Ok(())
     }
 
-    /// Start open access point.
-    pub async fn start_ap_open(&mut self, ssid: &str, channel: u8) -> Result<(), Error> {
-        self.start_ap(ssid, channel).await
-    }
-
-    /// Start WPA2 protected access point.
-    pub async fn start_ap_wpa2(
-        &mut self,
-        ssid: &str,
-        _passphrase: &str,
-        channel: u8,
-    ) -> Result<(), Error> {
-        self.start_ap(ssid, channel).await
-    }
-
     /// Closes access point.
     pub async fn close_ap(&self) -> Result<(), Error> {
-        todo!()
+        (&self.at_client)
+            .send_retry(&WifiAPAction {
+                ap_config_id: AccessPointId::Id0,
+                ap_action: AccessPointAction::Deactivate,
+            })
+            .await?;
+        Ok(())
     }
 
-    async fn join_sta(&self, ssid: &str, auth: WifiAuthentication<'_>) -> Result<(), Error> {
-        self.state_ch.wait_for_initialized().await;
-
-        if matches!(self.get_wifi_status().await?, WifiStatusVal::Connected) {
-            // Wifi already connected. Check if the SSID is the same
-            let current_ssid = self.get_connected_ssid().await?;
-            if current_ssid.as_str() == ssid {
-                self.state_ch.set_should_connect(true);
-                return Ok(());
-            } else {
-                self.leave().await?;
-            };
-        }
-
+    pub async fn peek_join_sta(&self, options: ConnectionOptions<'_>) -> Result<(), Error> {
         (&self.at_client)
             .send_retry(&ExecWifiStationAction {
                 config_id: CONFIG_ID,
@@ -482,11 +477,11 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         (&self.at_client)
             .send_retry(&SetWifiStationConfig {
                 config_id: CONFIG_ID,
-                config_param: WifiStationConfig::SSID(ssid),
+                config_param: WifiStationConfig::SSID(options.ssid),
             })
             .await?;
 
-        match auth {
+        match options.auth {
             WifiAuthentication::None => {
                 (&self.at_client)
                     .send_retry(&SetWifiStationConfig {
@@ -509,23 +504,59 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
                         config_param: WifiStationConfig::WpaPskOrPassphrase(passphrase),
                     })
                     .await?;
-            }
-            WifiAuthentication::Wpa2Psk(_psk) => {
-                unimplemented!()
-                // (&self.at_client)
-                //     .send_retry(&SetWifiStationConfig {
-                //         config_id: CONFIG_ID,
-                //         config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
-                //     })
-                //     .await?;
+            } // WifiAuthentication::Wpa2Psk(_psk) => {
+              //     unimplemented!()
+              //     // (&self.at_client)
+              //     //     .send_retry(&SetWifiStationConfig {
+              //     //         config_id: CONFIG_ID,
+              //     //         config_param: WifiStationConfig::Authentication(Authentication::WpaWpa2Psk),
+              //     //     })
+              //     //     .await?;
 
-                // (&self.at_client)
-                //     .send_retry(&SetWifiStationConfig {
-                //         config_id: CONFIG_ID,
-                //         config_param: WifiStationConfig::WpaPskOrPassphrase(todo!("hex values?!")),
-                //     })
-                //     .await?;
-            }
+              //     // (&self.at_client)
+              //     //     .send_retry(&SetWifiStationConfig {
+              //     //         config_id: CONFIG_ID,
+              //     //         config_param: WifiStationConfig::WpaPskOrPassphrase(todo!("hex values?!")),
+              //     //     })
+              //     //     .await?;
+              // }
+        }
+
+        if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
+            (&self.at_client)
+                .send_retry(&SetWifiStationConfig {
+                    config_id: CONFIG_ID,
+                    config_param: WifiStationConfig::IPv4Mode(IPv4Mode::Static),
+                })
+                .await?;
+        }
+
+        // Network IP address
+        if let Some(ip) = options.ip {
+            (&self.at_client)
+                .send_retry(&SetWifiStationConfig {
+                    config_id: CONFIG_ID,
+                    config_param: WifiStationConfig::IPv4Address(ip),
+                })
+                .await?;
+        }
+        // Network Subnet mask
+        if let Some(subnet) = options.subnet {
+            (&self.at_client)
+                .send_retry(&SetWifiStationConfig {
+                    config_id: CONFIG_ID,
+                    config_param: WifiStationConfig::SubnetMask(subnet),
+                })
+                .await?;
+        }
+        // Network Default gateway
+        if let Some(gateway) = options.gateway {
+            (&self.at_client)
+                .send_retry(&SetWifiStationConfig {
+                    config_id: CONFIG_ID,
+                    config_param: WifiStationConfig::DefaultGateway(gateway),
+                })
+                .await?;
         }
 
         (&self.at_client)
@@ -535,26 +566,31 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             })
             .await?;
 
-        self.wait_for_join(ssid, Duration::from_secs(20)).await?;
-        self.state_ch.set_should_connect(true);
+        self.wait_for_join(options.ssid, Duration::from_secs(20))
+            .await?;
 
         Ok(())
     }
 
-    /// Join an unprotected network with the provided ssid.
-    pub async fn join_open(&self, ssid: &str) -> Result<(), Error> {
-        self.join_sta(ssid, WifiAuthentication::None).await
-    }
+    pub async fn join_sta(&self, options: ConnectionOptions<'_>) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
 
-    /// Join a protected network with the provided ssid and passphrase.
-    pub async fn join_wpa2(&self, ssid: &str, passphrase: &str) -> Result<(), Error> {
-        self.join_sta(ssid, WifiAuthentication::Wpa2Passphrase(passphrase))
-            .await
-    }
+        if matches!(self.get_wifi_status().await?, WifiStatusVal::Connected) {
+            // Wifi already connected. Check if the SSID is the same
+            let current_ssid = self.get_connected_ssid().await?;
+            if current_ssid.as_str() == options.ssid {
+                self.state_ch.set_should_connect(true);
+                return Ok(());
+            } else {
+                self.leave().await?;
+            };
+        }
 
-    /// Join a protected network with the provided ssid and precomputed PSK.
-    pub async fn join_wpa2_psk(&mut self, ssid: &str, psk: &[u8; 32]) -> Result<(), Error> {
-        self.join_sta(ssid, WifiAuthentication::Wpa2Psk(psk)).await
+        self.peek_join_sta(options).await?;
+
+        self.state_ch.set_should_connect(true);
+
+        Ok(())
     }
 
     /// Leave the wifi, with which we are currently associated.

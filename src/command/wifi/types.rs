@@ -889,7 +889,7 @@ pub enum AccessPointId {
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]
-pub enum AccessPointConfig {
+pub enum AccessPointConfig<'a> {
     /// <param_val1> decides if the access point is active on start up.
     /// - 0 (default): Inactive
     /// - 1: active
@@ -898,7 +898,7 @@ pub enum AccessPointConfig {
     /// SSID - <param_val1> is the Service Set identification of the access
     /// point. The factory-programmed value is ("UBXWifi").
     #[at_arg(value = 2)]
-    SSID(String<64>),
+    SSID(#[at_arg(len = 64)] &'a str),
     /// <param_val1> is the channel. Factory programmed value is 6.
     #[at_arg(value = 4)]
     Channel(u8),
@@ -982,12 +982,20 @@ pub enum AccessPointConfig {
     /// stations that is allowed to connect or 0 to allow all. The factory
     /// default is 0.
     #[at_arg(value = 19)]
-    WhiteList(String<20>, String<20>, String<20>),
+    WhiteList(
+        #[at_arg(len = 20)] &'a str,
+        #[at_arg(len = 20)] &'a str,
+        #[at_arg(len = 20)] &'a str,
+    ),
     /// Black List - <param_val1>...<param_val10> List of MAC addresses of
     /// stations that will be rejected or 0 to not reject any. The factory
     /// default is 0.
     #[at_arg(value = 20)]
-    BlackList(String<20>, String<20>, String<20>),
+    BlackList(
+        #[at_arg(len = 20)] &'a str,
+        #[at_arg(len = 20)] &'a str,
+        #[at_arg(len = 20)] &'a str,
+    ),
     /// IPv4 Mode - <param_val1> to set the way to retrieve an IP address
     /// - 1:(default) Static
     #[at_arg(value = 100)]
