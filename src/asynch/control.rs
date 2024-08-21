@@ -362,6 +362,15 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
                 })
                 .await?;
         }
+        // Network Primary DNS
+        if let Some(dns) = options.dns {
+            (&self.at_client)
+                .send_retry(&SetWifiAPConfig {
+                    ap_config_id: AccessPointId::Id0,
+                    ap_config_param: AccessPointConfig::PrimaryDNS(dns),
+                })
+                .await?;
+        }
 
         (&self.at_client)
             .send_retry(&SetWifiAPConfig {
@@ -445,11 +454,16 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             })
             .await?;
 
+        self.state_ch.set_should_connect(true);
+
         Ok(())
     }
 
     /// Closes access point.
     pub async fn close_ap(&self) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+        self.state_ch.set_should_connect(false);
+
         (&self.at_client)
             .send_retry(&WifiAPAction {
                 ap_config_id: AccessPointId::Id0,

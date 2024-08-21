@@ -109,8 +109,14 @@ where
                     }
                 })
             }
-            Urc::WifiAPUp(_) => warn!("Not yet implemented [WifiAPUp]"),
-            Urc::WifiAPDown(_) => warn!("Not yet implemented [WifiAPDown]"),
+            Urc::WifiAPUp(_) => self.ch.update_connection_with(|con| {
+                con.wifi_state = WiFiState::Connected;
+                con.network.replace(WifiNetwork::new_ap());
+            }),
+            Urc::WifiAPDown(_) => self.ch.update_connection_with(|con| {
+                con.network.take();
+                con.wifi_state = WiFiState::Inactive;
+            }),
             Urc::WifiAPStationConnected(_) => warn!("Not yet implemented [WifiAPStationConnected]"),
             Urc::WifiAPStationDisconnected(_) => {
                 warn!("Not yet implemented [WifiAPStationDisconnected]")
@@ -118,7 +124,16 @@ where
             Urc::EthernetLinkUp(_) => warn!("Not yet implemented [EthernetLinkUp]"),
             Urc::EthernetLinkDown(_) => warn!("Not yet implemented [EthernetLinkDown]"),
             Urc::NetworkUp(NetworkUp { interface_id }) => {
-                self.network_status_callback(interface_id).await?;
+                //self.network_status_callback(interface_id).await?;
+                self.ch.update_connection_with(|con| {
+                    con.ipv6_link_local_up = true;
+                    con.ipv4_up = true;
+
+                    #[cfg(feature = "ipv6")]
+                    {
+                        con.ipv6_up = ipv6_up
+                    }
+                });
             }
             Urc::NetworkDown(NetworkDown { interface_id }) => {
                 self.network_status_callback(interface_id).await?;
@@ -139,7 +154,11 @@ where
         // also ok.
         let NetworkStatusResponse {
             status:
-                NetworkStatus::InterfaceType(InterfaceType::WifiStation | InterfaceType::Unknown),
+                NetworkStatus::InterfaceType(
+                    InterfaceType::WifiStation
+                    | InterfaceType::Unknown
+                    | InterfaceType::WifiAccessPoint,
+                ),
             ..
         } = self
             .at_client

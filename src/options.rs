@@ -88,6 +88,8 @@ pub struct ConnectionOptions<'a> {
     pub subnet: Option<Ipv4Addr>,
     #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
     pub gateway: Option<Ipv4Addr>,
+    #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
+    pub dns: Option<Ipv4Addr>,
 }
 
 impl<'a> ConnectionOptions<'a> {
@@ -121,6 +123,12 @@ impl<'a> ConnectionOptions<'a> {
         } else {
             Some(Ipv4Addr::new(192, 168, 2, 1))
         };
+        self.dns = if let Some(dns) = self.dns {
+            Some(dns)
+        } else {
+            Some(Ipv4Addr::new(192, 168, 2, 1))
+        };
+
         self
     }
 
@@ -135,6 +143,11 @@ impl<'a> ConnectionOptions<'a> {
 
         self.gateway = if let Some(gateway) = self.gateway {
             Some(gateway)
+        } else {
+            Some(Ipv4Addr::new(192, 168, 2, 1))
+        };
+        self.dns = if let Some(dns) = self.dns {
+            Some(dns)
         } else {
             Some(Ipv4Addr::new(192, 168, 2, 1))
         };
@@ -156,6 +169,37 @@ impl<'a> ConnectionOptions<'a> {
         } else {
             Some(Ipv4Addr::new(192, 168, 2, 1))
         };
+
+        self.dns = if let Some(dns) = self.dns {
+            Some(dns)
+        } else {
+            Some(Ipv4Addr::new(192, 168, 2, 1))
+        };
+
+        self
+    }
+
+    pub fn dns_server(mut self, dns_serv: Ipv4Addr) -> Self {
+        self.dns = Some(dns_serv);
+
+        self.subnet = if let Some(subnet) = self.subnet {
+            Some(subnet)
+        } else {
+            Some(Ipv4Addr::new(255, 255, 255, 0))
+        };
+
+        self.ip = if let Some(ip) = self.ip {
+            Some(ip)
+        } else {
+            Some(Ipv4Addr::new(192, 168, 2, 1))
+        };
+
+        self.gateway = if let Some(gateway) = self.gateway {
+            Some(gateway)
+        } else {
+            Some(Ipv4Addr::new(192, 168, 2, 1))
+        };
+
         self
     }
 }
