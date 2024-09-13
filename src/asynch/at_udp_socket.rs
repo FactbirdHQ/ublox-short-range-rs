@@ -7,6 +7,7 @@ pub struct AtUdpSocket<'a>(pub(crate) UdpSocket<'a>);
 
 impl<'a> AtUdpSocket<'a> {
     pub(crate) const PPP_AT_PORT: u16 = 23;
+    pub(crate) const PPP_AT_IP: Ipv4Address = Ipv4Address::new(172, 30, 0, 251);
 }
 
 impl<'a> embedded_io_async::ErrorType for &AtUdpSocket<'a> {
@@ -23,10 +24,7 @@ impl<'a> Read for &AtUdpSocket<'a> {
 impl<'a> Write for &AtUdpSocket<'a> {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         self.0
-            .send_to(
-                buf,
-                (Ipv4Address::new(172, 30, 0, 251), AtUdpSocket::PPP_AT_PORT),
-            )
+            .send_to(buf, (AtUdpSocket::PPP_AT_IP, AtUdpSocket::PPP_AT_PORT))
             .await
             .unwrap();
 
@@ -58,10 +56,7 @@ impl<'a> Read for AtUdpSocket<'a> {
 impl<'a> Write for AtUdpSocket<'a> {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         self.0
-            .send_to(
-                buf,
-                (Ipv4Address::new(172, 30, 0, 251), AtUdpSocket::PPP_AT_PORT),
-            )
+            .send_to(buf, (AtUdpSocket::PPP_AT_IP, AtUdpSocket::PPP_AT_PORT))
             .await
             .unwrap();
 

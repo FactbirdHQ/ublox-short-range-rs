@@ -144,7 +144,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         Self {
             state_ch,
             at_client: ProxyClient::new(req_sender, res_slot),
-            urc_channel: urc_channel,
+            urc_channel,
         }
     }
 

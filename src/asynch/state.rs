@@ -11,7 +11,7 @@ use embassy_sync::waitqueue::WakerRegistration;
 use crate::connection::{WiFiState, WifiConnection};
 
 /// The link state of a network device.
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub enum LinkState {
     /// Device is not yet initialized.
