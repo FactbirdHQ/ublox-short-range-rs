@@ -80,6 +80,6 @@ impl WifiConnection {
     }
 
     pub fn is_connected(&self) -> bool {
-        (self.is_config_up() || self.is_access_point()) && self.wifi_state == WiFiState::Connected
+        self.is_config_up() && self.wifi_state == WiFiState::Connected
     }
 }

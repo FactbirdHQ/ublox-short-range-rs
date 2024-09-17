@@ -121,6 +121,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize> atat::asynch::AtatClient
                 .wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
                 .await?;
             let response: &atat::Response<INGRESS_BUF_SIZE> = &response.borrow();
+            info!("response: {:?}", defmt::Debug2Format(&response));
             cmd.parse(response.into())
         }
     }
@@ -182,7 +183,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         Ok(mac.to_be_bytes()[2..].try_into().unwrap())
     }
 
-    async fn get_wifi_status(&self) -> Result<WifiStatusVal, Error> {
+    pub async fn get_wifi_status(&self) -> Result<WifiStatusVal, Error> {
         match (&self.at_client)
             .send_retry(&GetWifiStatus {
                 status_id: StatusId::Status,
@@ -333,41 +334,56 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
                     ap_config_param: AccessPointConfig::IPv4Mode(IPv4Mode::Static),
                 })
                 .await?;
+
+            (&self.at_client)
+                .send_retry(&SetWifiAPConfig {
+                    ap_config_id: AccessPointId::Id0,
+                    ap_config_param: AccessPointConfig::IPv4Address(
+                        options.ip.unwrap_or(Ipv4Addr::new(192, 168, 2, 1)),
+                    ),
+                })
+                .await?;
+
+            (&self.at_client)
+                .send_retry(&SetWifiAPConfig {
+                    ap_config_id: AccessPointId::Id0,
+                    ap_config_param: AccessPointConfig::SubnetMask(
+                        options.subnet.unwrap_or(Ipv4Addr::new(255, 255, 255, 0)),
+                    ),
+                })
+                .await?;
+
+            (&self.at_client)
+                .send_retry(&SetWifiAPConfig {
+                    ap_config_id: AccessPointId::Id0,
+                    ap_config_param: AccessPointConfig::DefaultGateway(
+                        options.gateway.unwrap_or(Ipv4Addr::new(192, 168, 2, 1)),
+                    ),
+                })
+                .await?;
         }
 
-        // Network IP address
-        if let Some(ip) = options.ip {
+        // Network Primary + Secondary DNS
+        let primary = match options.dns.as_slice() {
+            &[primary] => Some(primary),
+            &[primary, secondary] => {
+                (&self.at_client)
+                    .send_retry(&SetWifiAPConfig {
+                        ap_config_id: AccessPointId::Id0,
+                        ap_config_param: AccessPointConfig::SecondaryDNS(secondary),
+                    })
+                    .await?;
+
+                Some(primary)
+            }
+            _ => None,
+        };
+
+        if let Some(primary) = primary {
             (&self.at_client)
                 .send_retry(&SetWifiAPConfig {
                     ap_config_id: AccessPointId::Id0,
-                    ap_config_param: AccessPointConfig::IPv4Address(ip),
-                })
-                .await?;
-        }
-        // Network Subnet mask
-        if let Some(subnet) = options.subnet {
-            (&self.at_client)
-                .send_retry(&SetWifiAPConfig {
-                    ap_config_id: AccessPointId::Id0,
-                    ap_config_param: AccessPointConfig::SubnetMask(subnet),
-                })
-                .await?;
-        }
-        // Network Default gateway
-        if let Some(gateway) = options.gateway {
-            (&self.at_client)
-                .send_retry(&SetWifiAPConfig {
-                    ap_config_id: AccessPointId::Id0,
-                    ap_config_param: AccessPointConfig::DefaultGateway(gateway),
-                })
-                .await?;
-        }
-        // Network Primary DNS
-        if let Some(dns) = options.dns {
-            (&self.at_client)
-                .send_retry(&SetWifiAPConfig {
-                    ap_config_id: AccessPointId::Id0,
-                    ap_config_param: AccessPointConfig::PrimaryDNS(dns),
+                    ap_config_param: AccessPointConfig::PrimaryDNS(primary),
                 })
                 .await?;
         }
