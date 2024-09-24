@@ -355,10 +355,7 @@ where
     }
 
     #[cfg(feature = "ppp")]
-    pub async fn run<D: embassy_net::driver::Driver>(
-        &mut self,
-        stack: &embassy_net::Stack<D>,
-    ) -> ! {
+    pub async fn run(&mut self, stack: embassy_net::Stack<'_>) -> ! {
         loop {
             if self.init().await.is_err() {
                 continue;
