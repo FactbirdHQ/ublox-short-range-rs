@@ -169,7 +169,6 @@ where
         else {
             return Err(Error::Network);
         };
-        info!("Network status changed");
 
         let NetworkStatusResponse {
             status: NetworkStatus::IPv4Address(ipv4),

@@ -121,7 +121,6 @@ impl<'a, const INGRESS_BUF_SIZE: usize> atat::asynch::AtatClient
                 .wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
                 .await?;
             let response: &atat::Response<INGRESS_BUF_SIZE> = &response.borrow();
-            info!("response: {:?}", defmt::Debug2Format(&response));
             cmd.parse(response.into())
         }
     }
