@@ -44,6 +44,20 @@ impl WifiNetwork {
             mode: WifiMode::Station,
         }
     }
+
+    pub fn new_ap() -> Self {
+        Self {
+            bssid: Bytes::new(),
+            op_mode: OperationMode::Infrastructure,
+            ssid: String::new(),
+            channel: 0,
+            rssi: 1,
+            authentication_suites: 0,
+            unicast_ciphers: 0,
+            group_ciphers: 0,
+            mode: WifiMode::AccessPoint,
+        }
+    }
 }
 
 impl TryFrom<ScannedWifiNetwork> for WifiNetwork {

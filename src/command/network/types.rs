@@ -8,6 +8,39 @@ use heapless::String;
 use crate::command::OnOff;
 
 #[derive(Clone, PartialEq, AtatEnum)]
+pub enum APStatus {
+    // 0: The <status_val> is the currently used SSID.
+    #[at_arg(value = 0)]
+    SSID(String<64>),
+    // 1: The <status_val> is the currently used BSSID.
+    #[at_arg(value = 1)]
+    BSSID(#[at_arg(len = 20)] Bytes<20>),
+    // 2: The <status_val> is the currently used channel.
+    #[at_arg(value = 2)]
+    Channel(u8),
+    // 3: The <status_val> is the current status of the access point.
+    // - 0: disabled
+    // - 1: enabled
+    #[at_arg(value = 3)]
+    Status(OnOff),
+}
+
+#[derive(Clone, PartialEq, AtatEnum)]
+#[repr(u8)]
+pub enum APStatusParameter {
+    // 0: The <status_val> is the currently used SSID.
+    SSID = 0,
+    // 1: The <status_val> is the currently used BSSID.
+    BSSID = 1,
+    // 2: The <status_val> is the currently used channel.
+    Channel = 2,
+    // 3: The <status_val> is the current status of the access point.
+    // • 0: disabled
+    // • 1: enabled
+    Status = 3,
+}
+
+#[derive(Clone, PartialEq, AtatEnum)]
 pub enum NetworkStatus {
     /// 0: The <status_val> is the interface hardware address (displayed only if applicable).
     #[at_arg(value = 0)]

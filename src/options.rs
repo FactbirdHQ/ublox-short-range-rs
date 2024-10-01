@@ -1,3 +1,4 @@
+use heapless::Vec;
 use no_std_net::Ipv4Addr;
 
 #[allow(dead_code)]
@@ -75,7 +76,7 @@ impl<'a> From<&'a str> for WifiAuthentication<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]
 
 pub struct ConnectionOptions<'a> {
@@ -88,6 +89,8 @@ pub struct ConnectionOptions<'a> {
     pub subnet: Option<Ipv4Addr>,
     #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
     pub gateway: Option<Ipv4Addr>,
+    #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
+    pub dns: Vec<Ipv4Addr, 2>,
 }
 
 impl<'a> ConnectionOptions<'a> {
@@ -110,34 +113,11 @@ impl<'a> ConnectionOptions<'a> {
 
     pub fn ip_address(mut self, ip_addr: Ipv4Addr) -> Self {
         self.ip = Some(ip_addr);
-        self.subnet = if let Some(subnet) = self.subnet {
-            Some(subnet)
-        } else {
-            Some(Ipv4Addr::new(255, 255, 255, 0))
-        };
-
-        self.gateway = if let Some(gateway) = self.gateway {
-            Some(gateway)
-        } else {
-            Some(Ipv4Addr::new(192, 168, 2, 1))
-        };
         self
     }
 
     pub fn subnet_address(mut self, subnet_addr: Ipv4Addr) -> Self {
         self.subnet = Some(subnet_addr);
-
-        self.ip = if let Some(ip) = self.ip {
-            Some(ip)
-        } else {
-            Some(Ipv4Addr::new(192, 168, 2, 1))
-        };
-
-        self.gateway = if let Some(gateway) = self.gateway {
-            Some(gateway)
-        } else {
-            Some(Ipv4Addr::new(192, 168, 2, 1))
-        };
 
         self
     }
@@ -145,17 +125,11 @@ impl<'a> ConnectionOptions<'a> {
     pub fn gateway_address(mut self, gateway_addr: Ipv4Addr) -> Self {
         self.gateway = Some(gateway_addr);
 
-        self.subnet = if let Some(subnet) = self.subnet {
-            Some(subnet)
-        } else {
-            Some(Ipv4Addr::new(255, 255, 255, 0))
-        };
+        self
+    }
 
-        self.ip = if let Some(ip) = self.ip {
-            Some(ip)
-        } else {
-            Some(Ipv4Addr::new(192, 168, 2, 1))
-        };
+    pub fn dns_server(mut self, dns_serv: Vec<Ipv4Addr, 2>) -> Self {
+        self.dns = dns_serv;
         self
     }
 }

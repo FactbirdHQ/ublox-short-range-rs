@@ -9,6 +9,16 @@ use types::*;
 
 use super::NoResponse;
 
+/// 7.10 Wi-Fi Acess point status +UWAPSTAT
+///
+/// Read status of Wi-Fi interface id.
+#[derive(Clone, AtatCmd)]
+#[at_cmd("+UWAPSTAT", APStatusResponse, attempts = 3, timeout_ms = 1000)]
+pub struct GetAPStatus {
+    #[at_arg(position = 0)]
+    pub status_id: APStatusParameter,
+}
+
 /// 10.1 Network host name +UNHN
 ///
 /// Sets a new host name.

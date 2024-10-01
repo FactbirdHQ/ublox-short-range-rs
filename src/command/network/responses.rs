@@ -1,6 +1,14 @@
 //! Responses for Network Commands
+use crate::command::wifi::types::AccessPointStatus;
+
 use super::types::*;
 use atat::atat_derive::AtatResp;
+
+/// 7.10 WiFi AP status +UWAPSTAT
+#[derive(Clone, AtatResp)]
+pub struct APStatusResponse {
+    pub status_val: AccessPointStatus,
+}
 
 /// 10.2 Network status +UNSTAT
 #[derive(Clone, AtatResp)]

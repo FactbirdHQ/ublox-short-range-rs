@@ -1,6 +1,5 @@
-use core::str::FromStr as _;
-
 use atat::{asynch::AtatClient, UrcChannel, UrcSubscription};
+use core::str::FromStr as _;
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_hal::digital::OutputPin as _;
 use no_std_net::{Ipv4Addr, Ipv6Addr};
@@ -8,14 +7,14 @@ use no_std_net::{Ipv4Addr, Ipv6Addr};
 use crate::{
     command::{
         network::{
-            responses::NetworkStatusResponse,
-            types::{InterfaceType, NetworkStatus, NetworkStatusParameter},
+            responses::{APStatusResponse, NetworkStatusResponse},
+            types::{APStatusParameter, InterfaceType, NetworkStatus, NetworkStatusParameter},
             urc::{NetworkDown, NetworkUp},
-            GetNetworkStatus,
+            GetAPStatus, GetNetworkStatus,
         },
         system::{RebootDCE, StoreCurrentConfig},
         wifi::{
-            types::DisconnectReason,
+            types::{AccessPointStatus, DisconnectReason},
             urc::{WifiLinkConnected, WifiLinkDisconnected},
         },
         Urc,
@@ -88,12 +87,16 @@ where
                 connection_id: _,
                 bssid,
                 channel,
-            }) => self.ch.update_connection_with(|con| {
-                con.wifi_state = WiFiState::Connected;
-                con.network
-                    .replace(WifiNetwork::new_station(bssid, channel));
-            }),
+            }) => {
+                info!("wifi link connected");
+                self.ch.update_connection_with(|con| {
+                    con.wifi_state = WiFiState::Connected;
+                    con.network
+                        .replace(WifiNetwork::new_station(bssid, channel));
+                })
+            }
             Urc::WifiLinkDisconnected(WifiLinkDisconnected { reason, .. }) => {
+                info!("Wifi link disconnected");
                 self.ch.update_connection_with(|con| {
                     con.wifi_state = match reason {
                         DisconnectReason::NetworkDisabled => {
@@ -109,8 +112,14 @@ where
                     }
                 })
             }
-            Urc::WifiAPUp(_) => warn!("Not yet implemented [WifiAPUp]"),
-            Urc::WifiAPDown(_) => warn!("Not yet implemented [WifiAPDown]"),
+            Urc::WifiAPUp(_) => self.ch.update_connection_with(|con| {
+                con.wifi_state = WiFiState::Connected;
+                con.network.replace(WifiNetwork::new_ap());
+            }),
+            Urc::WifiAPDown(_) => self.ch.update_connection_with(|con| {
+                con.network.take();
+                con.wifi_state = WiFiState::Inactive;
+            }),
             Urc::WifiAPStationConnected(_) => warn!("Not yet implemented [WifiAPStationConnected]"),
             Urc::WifiAPStationDisconnected(_) => {
                 warn!("Not yet implemented [WifiAPStationDisconnected]")
@@ -118,10 +127,18 @@ where
             Urc::EthernetLinkUp(_) => warn!("Not yet implemented [EthernetLinkUp]"),
             Urc::EthernetLinkDown(_) => warn!("Not yet implemented [EthernetLinkDown]"),
             Urc::NetworkUp(NetworkUp { interface_id }) => {
-                self.network_status_callback(interface_id).await?;
+                if interface_id > 10 {
+                    self.ap_status_callback().await?;
+                } else {
+                    self.network_status_callback(interface_id).await?;
+                }
             }
             Urc::NetworkDown(NetworkDown { interface_id }) => {
-                self.network_status_callback(interface_id).await?;
+                if interface_id > 10 {
+                    self.ap_status_callback().await?;
+                } else {
+                    self.network_status_callback(interface_id).await?;
+                }
             }
             Urc::NetworkError(_) => warn!("Not yet implemented [NetworkError]"),
             _ => {}
@@ -137,6 +154,7 @@ where
         // credentials have been restored from persistent memory. This although
         // the wifi station has been started. So we assume that this type is
         // also ok.
+        info!("Entered network_status_callback");
         let NetworkStatusResponse {
             status:
                 NetworkStatus::InterfaceType(InterfaceType::WifiStation | InterfaceType::Unknown),
@@ -165,12 +183,17 @@ where
         else {
             return Err(Error::Network);
         };
+        info!(
+            "Network status callback ipv4: {:?}",
+            core::str::from_utf8(&ipv4).ok()
+        );
 
         let ipv4_up = core::str::from_utf8(ipv4.as_slice())
             .ok()
             .and_then(|s| Ipv4Addr::from_str(s).ok())
             .map(|ip| !ip.is_unspecified())
             .unwrap_or_default();
+        info!("Network status callback ipv4: {:?}", ipv4_up);
 
         #[cfg(feature = "ipv6")]
         let ipv6_up = {
@@ -208,12 +231,18 @@ where
         else {
             return Err(Error::Network);
         };
+        info!(
+            "Network status callback ipv6: {:?}",
+            core::str::from_utf8(&ipv6_link_local).ok()
+        );
 
         let ipv6_link_local_up = core::str::from_utf8(ipv6_link_local.as_slice())
             .ok()
             .and_then(|s| Ipv6Addr::from_str(s).ok())
             .map(|ip| !ip.is_unspecified())
             .unwrap_or_default();
+
+        info!("Network status callback ipv6: {:?}", ipv6_link_local_up);
 
         // Use `ipv4_addr` & `ipv6_addr` to determine link state
         self.ch.update_connection_with(|con| {
@@ -223,6 +252,36 @@ where
             #[cfg(feature = "ipv6")]
             {
                 con.ipv6_up = ipv6_up
+            }
+        });
+
+        Ok(())
+    }
+
+    async fn ap_status_callback(&mut self) -> Result<(), Error> {
+        let APStatusResponse {
+            status_val: AccessPointStatus::Status(ap_status),
+            ..
+        } = self
+            .at_client
+            .send_retry(&GetAPStatus {
+                status_id: APStatusParameter::Status,
+            })
+            .await?
+        else {
+            return Err(Error::Network);
+        };
+        info!("AP status callback Status: {:?}", ap_status);
+
+        let ap_status = ap_status.into();
+
+        self.ch.update_connection_with(|con| {
+            con.ipv6_link_local_up = ap_status;
+            con.ipv4_up = ap_status;
+
+            #[cfg(feature = "ipv6")]
+            {
+                con.ipv6_up = ap_status;
             }
         });
 
