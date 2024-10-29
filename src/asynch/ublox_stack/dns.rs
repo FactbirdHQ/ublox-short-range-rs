@@ -1,8 +1,8 @@
 use core::{cell::RefCell, future::poll_fn, task::Poll};
 
+use core::net::IpAddr;
 use embassy_sync::waitqueue::WakerRegistration;
 use embedded_nal_async::AddrType;
-use no_std_net::IpAddr;
 
 use crate::command::ping::types::PingError;
 

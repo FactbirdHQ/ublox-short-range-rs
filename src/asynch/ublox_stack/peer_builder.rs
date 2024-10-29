@@ -1,7 +1,7 @@
 use crate::error::Error;
 use core::fmt::Write;
+use core::net::{IpAddr, SocketAddr};
 use heapless::String;
-use no_std_net::{IpAddr, SocketAddr};
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "defmt", derive(defmt::Format))]

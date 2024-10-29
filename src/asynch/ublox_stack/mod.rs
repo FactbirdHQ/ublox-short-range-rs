@@ -32,11 +32,11 @@ use self::dns::{DnsSocket, DnsState, DnsTable};
 
 use super::control::ProxyClient;
 
+use core::net::IpAddr;
 use embassy_futures::select;
 use embassy_sync::waitqueue::WakerRegistration;
 use embassy_time::{Duration, Ticker};
 use embedded_nal_async::SocketAddr;
-use no_std_net::IpAddr;
 use portable_atomic::{AtomicBool, AtomicU8, Ordering};
 use ublox_sockets::{
     AnySocket, ChannelId, PeerHandle, Socket, SocketHandle, SocketSet, SocketStorage,

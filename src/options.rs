@@ -1,5 +1,5 @@
+use core::net::Ipv4Addr;
 use heapless::Vec;
-use no_std_net::Ipv4Addr;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]

@@ -1,7 +1,7 @@
 //! Argument and parameter types used by Ethernet Commands and Responses
 
 use atat::atat_derive::AtatEnum;
-use no_std_net::Ipv4Addr;
+use core::net::Ipv4Addr;
 
 use crate::command::OnOff;
 

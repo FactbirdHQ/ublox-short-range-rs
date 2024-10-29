@@ -10,72 +10,87 @@ defaults:
   run:
     shell: bash
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  rustfmt:
-    name: rustfmt
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-          components: rustfmt
+      - uses: dsherret/rust-toolchain-file@v1
 
-      - name: Run rustfmt
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check --verbose
+      - name: Build (library)
+        run: cargo build --all --target thumbv7em-none-eabihf --features "odin-w2xx,ppp"
 
-  clippy:
-    name: clippy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout source code
-        uses: actions/checkout@v2
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-          components: clippy
-
-      - name: Run clippy
-        uses: actions-rs/clippy-check@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          args: --features odin-w2xx,ppp
+      # - name: Build (examples)
+      #   run: |
+      #     for EXAMPLE in $(ls examples);
+      #     do
+      #       (cd examples/$EXAMPLE && cargo build)
+      #     done
 
   test:
     name: Test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout source code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          target: thumbv7m-none-eabi
-          override: true
-
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --all --target thumbv7m-none-eabi --features odin-w2xx,ppp
+      - uses: dsherret/rust-toolchain-file@v1
 
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --lib --features odin-w2xx,ppp
+        run: cargo test --features "odin-w2xx,ppp"
+
+      - name: Install Miri
+        run: |
+          rustup toolchain install nightly --component miri
+          rustup override set nightly
+          cargo miri setup
+
+      - name: Test (Miri)
+        run: cargo miri test --lib --features "odin-w2xx,ppp"
+
+  rustfmt:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+
+        uses: actions/checkout@v4
+      - uses: dsherret/rust-toolchain-file@v1
+
+      - name: Run rustfmt (library)
+        run: cargo fmt --all -- --check --verbose
+
+      - name: Run rustfmt (examples)
+        run: |
+          for EXAMPLE in $(ls examples);
+          do
+            (cd examples/$EXAMPLE && cargo fmt --all -- --check --verbose)
+          done
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    env:
+      CLIPPY_PARAMS: -W clippy::all -W clippy::pedantic -W clippy::nursery -W clippy::cargo
+    steps:
+      - name: Checkout source code
+
+        uses: actions/checkout@v4
+      - uses: dsherret/rust-toolchain-file@v1
+
+      - name: Run clippy (library)
+        run: cargo clippy --features "odin-w2xx,ppp" -- ${{ env.CLIPPY_PARAMS }}
+
+      # - name: Run clippy (examples)
+      #   run: |
+      #     for EXAMPLE in $(ls examples);
+      #     do
+      #       (cd examples/$EXAMPLE && cargo clippy -- ${{ env.CLIPPY_PARAMS }})
+      #     done

@@ -4,6 +4,7 @@
 #![feature(async_fn_in_trait)]
 #![allow(incomplete_features)]
 
+use core::net::Ipv4Addr;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_rp::gpio::{Level, Output};
@@ -11,7 +12,6 @@ use embassy_rp::peripherals::{PIN_26, UART1};
 use embassy_rp::uart::BufferedInterruptHandler;
 use embassy_rp::{bind_interrupts, uart};
 use embassy_time::{with_timeout, Duration, Timer};
-use no_std_net::Ipv4Addr;
 use static_cell::make_static;
 use ublox_short_range::asynch::runner::Runner;
 use ublox_short_range::asynch::ublox_stack::tcp::TcpSocket;

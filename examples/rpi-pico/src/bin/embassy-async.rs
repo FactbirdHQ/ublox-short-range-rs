@@ -6,6 +6,7 @@
 #![allow(incomplete_features)]
 
 use core::fmt::Write as _;
+use core::net::{Ipv4Addr, SocketAddr};
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, Either};
 use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pull};
@@ -14,7 +15,6 @@ use embassy_rp::uart::{BufferedInterruptHandler, BufferedUartTx};
 use embassy_rp::{bind_interrupts, uart};
 use embassy_time::{Duration, Timer};
 use embedded_io_async::Write;
-use no_std_net::{Ipv4Addr, SocketAddr};
 use static_cell::make_static;
 use ublox_short_range::asynch::runner::Runner;
 use ublox_short_range::asynch::ublox_stack::dns::DnsSocket;
