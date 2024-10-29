@@ -3,8 +3,8 @@ use super::types::*;
 use super::Urc;
 use atat::helpers::LossyStr;
 use atat::AtatUrc;
+use core::net::{Ipv4Addr, Ipv6Addr};
 use heapless::Vec;
-use no_std_net::{Ipv4Addr, Ipv6Addr};
 use ublox_sockets::ChannelId;
 
 #[allow(clippy::large_enum_variant)]

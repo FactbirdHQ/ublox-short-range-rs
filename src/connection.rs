@@ -1,4 +1,4 @@
-use no_std_net::Ipv4Addr;
+use core::net::Ipv4Addr;
 
 use crate::network::{WifiMode, WifiNetwork};
 
@@ -50,6 +50,7 @@ impl WifiConnection {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_station(&self) -> bool {
         self.network
             .as_ref()
@@ -57,6 +58,7 @@ impl WifiConnection {
             .unwrap_or_default()
     }
 
+    #[allow(dead_code)]
     pub fn is_access_point(&self) -> bool {
         !self.is_station()
     }

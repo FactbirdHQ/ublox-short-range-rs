@@ -419,15 +419,11 @@ where
                             };
                             let mut dns_servers = heapless::Vec::new();
                             for s in ipv4.dns_servers.iter().flatten() {
-                                let _ =
-                                    dns_servers.push(embassy_net::Ipv4Address::from_bytes(&s.0));
+                                let _ = dns_servers.push(s.clone());
                             }
                             let config =
                                 embassy_net::ConfigV4::Static(embassy_net::StaticConfigV4 {
-                                    address: embassy_net::Ipv4Cidr::new(
-                                        embassy_net::Ipv4Address::from_bytes(&addr.0),
-                                        0,
-                                    ),
+                                    address: embassy_net::Ipv4Cidr::new(addr, 0),
                                     gateway: None,
                                     dns_servers,
                                 });

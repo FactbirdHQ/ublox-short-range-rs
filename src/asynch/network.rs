@@ -1,8 +1,8 @@
 use atat::{asynch::AtatClient, UrcChannel, UrcSubscription};
+use core::net::{Ipv4Addr, Ipv6Addr};
 use core::str::FromStr as _;
 use embassy_time::{with_timeout, Duration, Timer};
 use embedded_hal::digital::OutputPin as _;
-use no_std_net::{Ipv4Addr, Ipv6Addr};
 
 use crate::{
     command::{

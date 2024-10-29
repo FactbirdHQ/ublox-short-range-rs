@@ -3,8 +3,8 @@
 use crate::command::OnOff;
 use atat::atat_derive::AtatEnum;
 use atat::heapless_bytes::Bytes;
+use core::net::{Ipv4Addr, Ipv6Addr};
 use heapless::{String, Vec};
-use no_std_net::{Ipv4Addr, Ipv6Addr};
 use serde::Deserialize;
 
 #[derive(Clone, PartialEq, AtatEnum)]

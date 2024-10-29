@@ -1,4 +1,5 @@
 use core::cell::Cell;
+use core::net::Ipv4Addr;
 use core::str::FromStr as _;
 
 use atat::AtatCmd;
@@ -6,7 +7,6 @@ use atat::{asynch::AtatClient, response_slot::ResponseSlotGuard, UrcChannel};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Sender};
 use embassy_time::{with_timeout, Duration, Timer};
 use heapless::Vec;
-use no_std_net::Ipv4Addr;
 
 use crate::command::general::responses::SoftwareVersionResponse;
 use crate::command::general::types::FirmwareVersion;

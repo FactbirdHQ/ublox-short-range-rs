@@ -1,5 +1,5 @@
+use core::net::SocketAddr;
 use embassy_time::Duration;
-use no_std_net::SocketAddr;
 use ublox_sockets::TcpState as State;
 
 use super::peer_builder::SecurityCredentials;
@@ -301,13 +301,13 @@ pub mod client {
             &self,
             host: &str,
             addr_type: embedded_nal_async::AddrType,
-        ) -> Result<no_std_net::IpAddr, Self::Error> {
+        ) -> Result<core::net::IpAddr, Self::Error> {
             DnsSocket::new(self.stack).query(host, addr_type).await
         }
 
         async fn get_host_by_address(
             &self,
-            _addr: no_std_net::IpAddr,
+            _addr: core::net::IpAddr,
             _result: &mut [u8],
         ) -> Result<usize, Self::Error> {
             unimplemented!()

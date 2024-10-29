@@ -1,5 +1,5 @@
+use core::net::{Ipv4Addr, Ipv6Addr};
 use heapless::Vec;
-use no_std_net::{Ipv4Addr, Ipv6Addr};
 use serde::{Deserialize, Serialize};
 use ublox_sockets::ChannelId;
 
