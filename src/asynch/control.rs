@@ -195,6 +195,19 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         }
     }
 
+    pub async fn get_signal_strength(&self) -> Result<i16, Error> {
+        match (&self.at_client)
+            .send_retry(&GetWifiStatus {
+                status_id: StatusId::Rssi,
+            })
+            .await?
+            .status_id
+        {
+            WifiStatus::Rssi(s) => Ok(s),
+            _ => Err(Error::AT(atat::Error::InvalidResponse)),
+        }
+    }
+
     pub async fn wait_for_link_state(&self, link_state: LinkState) {
         self.state_ch.wait_for_link_state(link_state).await
     }

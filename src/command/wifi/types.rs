@@ -499,7 +499,7 @@ pub enum WifiStatus {
     /// The <status_val> is the RSSI value of the current connection; will
     /// return-32768, if not connected.
     #[at_arg(value = 6)]
-    Rssi(u32),
+    Rssi(i16),
     /// The <status_val> is the mobility domain of the last or current
     /// connection This tag is supported by ODIN-W2 from software version 6.0.0
     /// onwards only.
