@@ -34,6 +34,7 @@ pub enum Error {
     Timeout,
     ShadowStoreBug,
     AlreadyConnected,
+    NotConnected,
     _Unknown,
 }
 
