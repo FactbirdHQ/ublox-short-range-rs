@@ -15,7 +15,7 @@ name = "ublox_short_range"
 doctest = false
 
 [dependencies]
-atat = { version = "0.23", features = ["derive", "bytes"] }
+atat = { version = "0.24", features = ["derive", "bytes"] }
 
 heapless = { version = "^0.8", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
@@ -78,8 +78,3 @@ nina-b3xx = []
 members = []
 default-members = ["."]
 exclude = ["examples"]
-
-
-[patch.crates-io]
-atat = { git = "https://github.com/FactbirdHQ/atat", rev = "c31f700" }
-# atat = { path = "../atat/atat" }
