@@ -195,6 +195,19 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         }
     }
 
+    pub async fn get_wifi_channel(&self) -> Result<u8, Error> {
+        match (&self.at_client)
+            .send_retry(&GetWifiStatus {
+                status_id: StatusId::Channel,
+            })
+            .await?
+            .status_id
+        {
+            WifiStatus::Channel(c) => Ok(c),
+            _ => Err(Error::AT(atat::Error::InvalidResponse)),
+        }
+    }
+
     pub async fn get_signal_strength(&self) -> Result<i8, Error> {
         match (&self.at_client)
             .send_retry(&GetWifiStatus {
