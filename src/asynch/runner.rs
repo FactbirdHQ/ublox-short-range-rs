@@ -212,7 +212,6 @@ where
                 Ok(())
             }
             Either::First(r) => r.map(drop),
-            Either::Second(_) => unreachable!(),
         }
     }
 
@@ -325,7 +324,6 @@ where
         .await
         {
             Either::First(r) => r?,
-            Either::Second(_) => unreachable!(),
         }
 
         self.ch.mark_initialized();

@@ -698,7 +698,10 @@ pub mod client {
         for TcpClient<'d, INGRESS_BUF_SIZE, URC_CAPACITY, N, TX_SZ, RX_SZ>
     {
         type Error = Error;
-        type Connection<'m> = TcpConnection<'m, N, TX_SZ, RX_SZ> where Self: 'm;
+        type Connection<'m>
+            = TcpConnection<'m, N, TX_SZ, RX_SZ>
+        where
+            Self: 'm;
 
         async fn connect<'a>(
             &'a self,

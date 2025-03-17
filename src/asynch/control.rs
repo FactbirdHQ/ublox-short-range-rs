@@ -443,7 +443,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
                     })
                     .await?;
             }
-            WifiAuthentication::Wpa2Passphrase(passphrase) => {
+            WifiAuthentication::WpaPsk(passphrase) => {
                 (&self.at_client)
                     .send_retry(&SetWifiAPConfig {
                         ap_config_id: AccessPointId::Id0,
@@ -548,7 +548,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
                     })
                     .await?;
             }
-            WifiAuthentication::Wpa2Passphrase(passphrase) => {
+            WifiAuthentication::WpaPsk(passphrase) => {
                 (&self.at_client)
                     .send_retry(&SetWifiStationConfig {
                         config_id: CONFIG_ID,

@@ -66,13 +66,13 @@ impl HotspotOptions {
 pub enum WifiAuthentication<'a> {
     #[default]
     None,
-    Wpa2Passphrase(&'a str),
-    // Wpa2Psk(&'a [u8; 32]),
+    WpaPsk(&'a str),
+    // WpaEap(todo!()),
 }
 
 impl<'a> From<&'a str> for WifiAuthentication<'a> {
     fn from(s: &'a str) -> Self {
-        Self::Wpa2Passphrase(s)
+        Self::WpaPsk(s)
     }
 }
 
@@ -106,8 +106,8 @@ impl<'a> ConnectionOptions<'a> {
         self
     }
 
-    pub fn wpa2_passphrase(mut self, password: &'a str) -> Self {
-        self.auth = WifiAuthentication::Wpa2Passphrase(password);
+    pub fn wpa_psk(mut self, passphrase: &'a str) -> Self {
+        self.auth = WifiAuthentication::WpaPsk(passphrase);
         self
     }
 
