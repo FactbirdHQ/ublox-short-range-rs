@@ -227,6 +227,9 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
     pub async fn wait_for_link_state(&self, link_state: LinkState) {
         self.state_ch.wait_for_link_state(link_state).await
     }
+    pub fn is_connected(&self) -> bool {
+        self.state_ch.link_state(None) == LinkState::Up
+    }
 
     pub async fn config_v4(&self) -> Result<Option<StaticConfigV4>, Error> {
         let NetworkStatusResponse {
@@ -640,7 +643,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
                 self.state_ch.set_should_connect(true);
                 return Ok(());
             } else {
-                self.leave().await?;
+                self.wait_leave().await?;
             };
         }
 
@@ -651,8 +654,8 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         Ok(())
     }
 
-    /// Leave the wifi, with which we are currently associated.
-    pub async fn leave(&self) -> Result<(), Error> {
+    /// Leave the wifi and wait, with which we are currently associated.
+    pub async fn wait_leave(&self) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
         self.state_ch.set_should_connect(false);
 
@@ -676,6 +679,10 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
         .map_err(|_| Error::Timeout)?;
 
         Ok(())
+    }
+    /// Leave the wifi, with which we are currently associated.
+    pub fn leave(&self) {
+        self.state_ch.set_should_connect(false);
     }
 
     pub async fn wait_for_join(&self, ssid: &str, timeout: Duration) -> Result<(), Error> {
