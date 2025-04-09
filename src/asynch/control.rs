@@ -334,6 +334,13 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
 
         Ok(())
     }
+    pub async fn reboot(&self) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+
+        (&self.at_client).send_retry(&RebootDCE).await?;
+
+        Ok(())
+    }
 
     pub async fn start_ap(
         &self,
