@@ -528,6 +528,8 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
     }
 
     pub async fn peek_join_sta(&self, options: ConnectionOptions<'_>) -> Result<(), Error> {
+        self.state_ch.wait_for_initialized().await;
+
         (&self.at_client)
             .send_retry(&ExecWifiStationAction {
                 config_id: CONFIG_ID,
