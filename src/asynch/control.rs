@@ -646,30 +646,34 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
     pub async fn join_sta(&self, options: ConnectionOptions<'_>) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
-        // FIXME: We sometimes can end in a state where sending cmd to the module doesn't work.
-        // Setting should join to false and wifistate to inactive will trigger a reboot.
-        // This is a quick fix as I don't know how to properly fix the issue.
-        let drop = OnDrop::new(|| {
-            error!("Failed to join wifi, set wifi state to inactive to trigger reboot");
-            self.state_ch
-                .update_connection_with(|con| con.wifi_state = WiFiState::Inactive);
-        });
-        if matches!(self.get_wifi_status().await?, WifiStatusVal::Connected) {
-            // Wifi already connected. Check if the SSID is the same
-            let current_ssid = self.get_connected_ssid().await?;
-            if current_ssid.as_str() == options.ssid {
-                self.state_ch.set_should_connect(true);
-                drop.defuse();
-                return Ok(());
-            } else {
-                self.wait_leave().await?;
-            };
+        let status = self.get_wifi_status().await?;
+
+        match status {
+            WifiStatusVal::Disabled => {}
+            WifiStatusVal::Disconnected => {
+                // Wifi is disabled. Enable it
+                (&self.at_client)
+                    .send_retry(&ExecWifiStationAction {
+                        config_id: CONFIG_ID,
+                        action: WifiStationAction::Deactivate,
+                    })
+                    .await?;
+            }
+            WifiStatusVal::Connected => {
+                // Wifi already connected. Check if the SSID is the same
+                let current_ssid = self.get_connected_ssid().await?;
+                if current_ssid.as_str() == options.ssid {
+                    self.state_ch.set_should_connect(true);
+                    return Ok(());
+                } else {
+                    self.wait_leave().await?;
+                };
+            }
         }
 
         self.peek_join_sta(options).await?;
 
         self.state_ch.set_should_connect(true);
-        drop.defuse();
         Ok(())
     }
 
