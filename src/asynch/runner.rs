@@ -18,6 +18,9 @@ use crate::{
     error::Error,
     WifiConfig, DEFAULT_BAUD_RATE,
 };
+
+use crate::asynch::OnDrop;
+
 use atat::{
     asynch::{AtatClient as _, SimpleClient},
     AtatIngress as _, UrcChannel,
@@ -404,6 +407,13 @@ where
                         .await;
                     }
 
+                    let ondrop = OnDrop::new(|| {
+                        warn!("ppp connection dropped");
+                        // Set stack to None might not be needed, but it will just be set again
+                        // when we get a new connection
+                        stack.set_config_v4(embassy_net::ConfigV4::None);
+                    });
+
                     info!("RUNNING PPP");
                     let _ = self
                         .ppp_runner
@@ -429,6 +439,8 @@ where
                             stack.set_config_v4(config);
                         })
                         .await;
+                    error!("ppp connection returned");
+                    drop(ondrop);
 
                     info!("ppp failed");
                 };

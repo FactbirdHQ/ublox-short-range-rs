@@ -154,7 +154,7 @@ where
         // credentials have been restored from persistent memory. This although
         // the wifi station has been started. So we assume that this type is
         // also ok.
-        info!("Entered network_status_callback");
+        debug!("Entered network_status_callback");
         let NetworkStatusResponse {
             status:
                 NetworkStatus::InterfaceType(InterfaceType::WifiStation | InterfaceType::Unknown),
@@ -183,7 +183,7 @@ where
         else {
             return Err(Error::Network);
         };
-        info!(
+        debug!(
             "Network status callback ipv4: {:?}",
             core::str::from_utf8(&ipv4).ok()
         );
@@ -193,7 +193,7 @@ where
             .and_then(|s| Ipv4Addr::from_str(s).ok())
             .map(|ip| !ip.is_unspecified())
             .unwrap_or_default();
-        info!("Network status callback ipv4: {:?}", ipv4_up);
+        debug!("Network status callback ipv4: {:?}", ipv4_up);
 
         #[cfg(feature = "ipv6")]
         let ipv6_up = {
@@ -231,7 +231,7 @@ where
         else {
             return Err(Error::Network);
         };
-        info!(
+        debug!(
             "Network status callback ipv6: {:?}",
             core::str::from_utf8(&ipv6_link_local).ok()
         );
@@ -242,7 +242,7 @@ where
             .map(|ip| !ip.is_unspecified())
             .unwrap_or_default();
 
-        info!("Network status callback ipv6: {:?}", ipv6_link_local_up);
+        debug!("Network status callback ipv6: {:?}", ipv6_link_local_up);
 
         // Use `ipv4_addr` & `ipv6_addr` to determine link state
         self.ch.update_connection_with(|con| {
