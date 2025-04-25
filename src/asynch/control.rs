@@ -8,6 +8,7 @@ use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Sender};
 use embassy_time::{with_timeout, Duration, Timer};
 use heapless::Vec;
 
+use crate::asynch::OnDrop;
 use crate::command::general::responses::SoftwareVersionResponse;
 use crate::command::general::types::FirmwareVersion;
 use crate::command::general::SoftwareVersion;
@@ -645,21 +646,34 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
     pub async fn join_sta(&self, options: ConnectionOptions<'_>) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
-        if matches!(self.get_wifi_status().await?, WifiStatusVal::Connected) {
-            // Wifi already connected. Check if the SSID is the same
-            let current_ssid = self.get_connected_ssid().await?;
-            if current_ssid.as_str() == options.ssid {
-                self.state_ch.set_should_connect(true);
-                return Ok(());
-            } else {
-                self.wait_leave().await?;
-            };
+        let status = self.get_wifi_status().await?;
+
+        match status {
+            WifiStatusVal::Disabled => {}
+            WifiStatusVal::Disconnected => {
+                // Wifi is disabled. Enable it
+                (&self.at_client)
+                    .send_retry(&ExecWifiStationAction {
+                        config_id: CONFIG_ID,
+                        action: WifiStationAction::Deactivate,
+                    })
+                    .await?;
+            }
+            WifiStatusVal::Connected => {
+                // Wifi already connected. Check if the SSID is the same
+                let current_ssid = self.get_connected_ssid().await?;
+                if current_ssid.as_str() == options.ssid {
+                    self.state_ch.set_should_connect(true);
+                    return Ok(());
+                } else {
+                    self.wait_leave().await?;
+                };
+            }
         }
 
         self.peek_join_sta(options).await?;
 
         self.state_ch.set_should_connect(true);
-
         Ok(())
     }
 
