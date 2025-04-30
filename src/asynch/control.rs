@@ -338,7 +338,9 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
     pub async fn reboot(&self) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
 
-        (&self.at_client).send_retry(&RebootDCE).await?;
+        // Setting wifi state to inactive will trigger network runner to reboot device.
+        self.state_ch
+            .update_connection_with(|con| con.wifi_state = WiFiState::Inactive);
 
         Ok(())
     }
