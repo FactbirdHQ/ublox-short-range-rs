@@ -84,4 +84,14 @@ impl WifiConnection {
     pub fn is_connected(&self) -> bool {
         self.is_config_up() && self.wifi_state == WiFiState::Connected
     }
+    pub fn reset(&mut self) {
+        self.wifi_state = WiFiState::Inactive;
+        self.ipv6_link_local_up = false;
+        self.network = None;
+        self.ipv4_up = false;
+        #[cfg(feature = "ipv6")]
+        {
+            self.ipv6_up = false;
+        }
+    }
 }

@@ -101,6 +101,8 @@ where
                     con.wifi_state = match reason {
                         DisconnectReason::NetworkDisabled => {
                             con.network.take();
+                            con.ipv4_up = false;
+                            con.ipv6_link_local_up = false;
                             warn!("Wifi network disabled!");
                             WiFiState::Inactive
                         }
