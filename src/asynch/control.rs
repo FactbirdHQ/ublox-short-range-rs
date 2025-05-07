@@ -681,18 +681,9 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
     pub async fn wait_leave(&self) -> Result<(), Error> {
         self.state_ch.wait_for_initialized().await;
         self.state_ch.set_should_connect(false);
-
-        match self.get_wifi_status().await? {
-            WifiStatusVal::Disabled => {}
-            WifiStatusVal::Disconnected | WifiStatusVal::Connected => {
-                (&self.at_client)
-                    .send_retry(&ExecWifiStationAction {
-                        config_id: CONFIG_ID,
-                        action: WifiStationAction::Deactivate,
-                    })
-                    .await?;
-            }
-        }
+        self.state_ch.update_connection_with(|con| {
+            con.reset();
+        });
 
         with_timeout(
             Duration::from_secs(10),
@@ -706,6 +697,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
     /// Leave the wifi, with which we are currently associated.
     pub fn leave(&self) {
         self.state_ch.set_should_connect(false);
+        self.state_ch.update_connection_with(|con| con.reset());
     }
 
     pub async fn wait_for_join(&self, ssid: &str, timeout: Duration) -> Result<(), Error> {

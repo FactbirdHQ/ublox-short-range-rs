@@ -375,8 +375,6 @@ where
 
                 #[cfg(feature = "ppp")]
                 let ppp_fut = async {
-                    self.ch.wait_for_link_state(state::LinkState::Up).await;
-
                     {
                         let mut buf = [0u8; 8];
                         let mut at_client = SimpleClient::new(
@@ -412,6 +410,9 @@ where
                         // Set stack to None might not be needed, but it will just be set again
                         // when we get a new connection
                         stack.set_config_v4(embassy_net::ConfigV4::None);
+                        self.ch.update_connection_with(|con| {
+                            con.reset();
+                        });
                     });
 
                     info!("RUNNING PPP");
