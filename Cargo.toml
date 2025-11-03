@@ -17,7 +17,7 @@ doctest = false
 [dependencies]
 atat = { version = "0.24", features = ["derive", "bytes"] }
 
-heapless = { version = "^0.8", features = ["serde"] }
+heapless = { version = "^0.9", features = ["serde"] }
 serde = { version = "^1", default-features = false, features = ["derive"] }
 ublox-sockets = { git = "https://github.com/FactbirdHQ/ublox-sockets", rev = "0b0d186", optional = true }
 portable-atomic = "1.6"
@@ -58,7 +58,7 @@ socket-udp = ["ublox-sockets?/socket-udp", "embassy-net?/udp"]
 
 defmt = [
     "dep:defmt",
-    "heapless/defmt-03",
+    "heapless/defmt",
     "atat/defmt",
     "ublox-sockets?/defmt",
     "embassy-net-ppp?/defmt",
