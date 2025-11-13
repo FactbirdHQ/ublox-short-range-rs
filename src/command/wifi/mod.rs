@@ -61,7 +61,7 @@ impl<'a> atat::AtatCmd for SetWifiStationConfig<'a> {
                 value_sep: true,
                 cmd_prefix: "AT",
                 termination: "\r\n",
-                quote_escape_strings: true,
+                escape_strings: true,
             },
         ) {
             Ok(s) => s,
@@ -256,7 +256,7 @@ impl<'a> atat::AtatCmd for SetWifiAPConfig<'a> {
                 value_sep: true,
                 cmd_prefix: "AT",
                 termination: "\r\n",
-                quote_escape_strings: true,
+                escape_strings: true,
             },
         ) {
             Ok(s) => s,

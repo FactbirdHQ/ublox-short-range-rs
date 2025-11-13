@@ -78,3 +78,6 @@ nina-b3xx = []
 members = []
 default-members = ["."]
 exclude = ["examples"]
+
+[patch.crates-io]
+atat = { path = "../atat/atat"}
