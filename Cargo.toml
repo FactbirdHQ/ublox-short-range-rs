@@ -80,4 +80,4 @@ default-members = ["."]
 exclude = ["examples"]
 
 [patch.crates-io]
-atat = { git = "git@github.com:FactbirdHQ/atat", branch = "fix/escape_characters" }
+atat = { git = "ssh://git@github.com/FactbirdHQ/atat", branch = "fix/escape_characters" }
