@@ -1,5 +1,5 @@
 use core::cell::RefCell;
-use core::future::poll_fn;
+use core::future::{poll_fn, Future};
 use core::mem;
 use core::task::Poll;
 
@@ -65,19 +65,19 @@ impl<'a> TcpReader<'a> {
     ///
     /// Returns how many bytes were read, or an error. If no data is available, it waits
     /// until there is at least one byte available.
-    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        self.io.read(buf).await
+    pub fn read<'b>(&'b mut self, buf: &'b mut [u8]) -> impl Future<Output = Result<usize, Error>> + use<'b, 'a> {
+        self.io.read(buf)
     }
 
     /// Call `f` with the largest contiguous slice of octets in the receive buffer,
     /// and dequeue the amount of elements returned by `f`.
     ///
     /// If no data is available, it waits until there is at least one byte available.
-    pub async fn read_with<F, R>(&mut self, f: F) -> Result<R, Error>
+    pub fn read_with<'b, F: 'b, R: 'b>(&'b mut self, f: F) -> impl Future<Output = Result<R, Error>> + use<'b, 'a, F, R>
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
-        self.io.read_with(f).await
+        self.io.read_with(f)
     }
 
     /// Return the maximum number of bytes inside the transmit buffer.
@@ -91,27 +91,27 @@ impl<'a> TcpWriter<'a> {
     ///
     /// Returns how many bytes were written, or an error. If the socket is not ready to
     /// accept data, it waits until it is.
-    pub async fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        self.io.write(buf).await
+    pub fn write<'b>(&'b mut self, buf: &'b [u8]) -> impl Future<Output = Result<usize, Error>> + use<'b, 'a> {
+        self.io.write(buf)
     }
 
     /// Flushes the written data to the socket.
     ///
     /// This waits until all data has been sent, and ACKed by the remote host. For a connection
     /// closed with [`abort()`](TcpSocket::abort) it will wait for the TCP RST packet to be sent.
-    pub async fn flush(&mut self) -> Result<(), Error> {
-        self.io.flush().await
+    pub fn flush(&mut self) -> impl Future<Output = Result<(), Error>> + use<'_, 'a> {
+        self.io.flush()
     }
 
     /// Call `f` with the largest contiguous slice of octets in the transmit buffer,
     /// and enqueue the amount of elements returned by `f`.
     ///
     /// If the socket is not ready to accept data, it waits until it is.
-    pub async fn write_with<F, R>(&mut self, f: F) -> Result<R, Error>
+    pub fn write_with<'b, F: 'b, R: 'b>(&'b mut self, f: F) -> impl Future<Output = Result<R, Error>> + use<'b, 'a, F, R>
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
-        self.io.write_with(f).await
+        self.io.write_with(f)
     }
 
     /// Return the maximum number of bytes inside the transmit buffer.
@@ -157,22 +157,22 @@ impl<'a> TcpSocket<'a> {
     /// and enqueue the amount of elements returned by `f`.
     ///
     /// If the socket is not ready to accept data, it waits until it is.
-    pub async fn write_with<F, R>(&mut self, f: F) -> Result<R, Error>
+    pub fn write_with<'b, F: 'b, R: 'b>(&'b mut self, f: F) -> impl Future<Output = Result<R, Error>> + use<'b, 'a, F, R>
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
-        self.io.write_with(f).await
+        self.io.write_with(f)
     }
 
     /// Call `f` with the largest contiguous slice of octets in the receive buffer,
     /// and dequeue the amount of elements returned by `f`.
     ///
     /// If no data is available, it waits until there is at least one byte available.
-    pub async fn read_with<F, R>(&mut self, f: F) -> Result<R, Error>
+    pub fn read_with<'b, F: 'b, R: 'b>(&'b mut self, f: F) -> impl Future<Output = Result<R, Error>> + use<'b, 'a, F, R>
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
-        self.io.read_with(f).await
+        self.io.read_with(f)
     }
 
     /// Split the socket into reader and a writer halves.
@@ -235,24 +235,24 @@ impl<'a> TcpSocket<'a> {
     ///
     /// Returns how many bytes were read, or an error. If no data is available, it waits
     /// until there is at least one byte available.
-    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        self.io.read(buf).await
+    pub fn read<'b>(&'b mut self, buf: &'b mut [u8]) -> impl Future<Output = Result<usize, Error>> + use<'b, 'a> {
+        self.io.read(buf)
     }
 
     /// Write data to the socket.
     ///
     /// Returns how many bytes were written, or an error. If the socket is not ready to
     /// accept data, it waits until it is.
-    pub async fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        self.io.write(buf).await
+    pub fn write<'b>(&'b mut self, buf: &'b [u8]) -> impl Future<Output = Result<usize, Error>> + use<'b, 'a> {
+        self.io.write(buf)
     }
 
     /// Flushes the written data to the socket.
     ///
     /// This waits until all data has been sent, and ACKed by the remote host. For a connection
     /// closed with [`abort()`](TcpSocket::abort) it will wait for the TCP RST packet to be sent.
-    pub async fn flush(&mut self) -> Result<(), Error> {
-        self.io.flush().await
+    pub fn flush(&mut self) -> impl Future<Output = Result<(), Error>> + use<'_, 'a> {
+        self.io.flush()
     }
 
     /// Set the timeout for the socket.
@@ -388,7 +388,7 @@ impl<'d> TcpIo<'d> {
         res
     }
 
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
+    fn read<'a>(&'a mut self, buf: &'a mut [u8]) -> impl Future<Output = Result<usize, Error>> + use<'a, 'd> {
         poll_fn(move |cx| {
             // CAUTION: smoltcp semantics around EOF are different to what you'd expect
             // from posix-like IO, so we have to tweak things here.
@@ -415,10 +415,9 @@ impl<'d> TcpIo<'d> {
                 // Err(tcp::RecvError::InvalidState) => Poll::Ready(Err(Error::ConnectionReset)),
             })
         })
-        .await
     }
 
-    async fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
+    fn write<'a>(&'a mut self, buf: &'a [u8]) -> impl Future<Output = Result<usize, Error>> + use<'a, 'd> {
         poll_fn(move |cx| {
             self.with_mut(|s| match s.send_slice(buf) {
                 // Not ready to send (no space in the tx buffer)
@@ -434,12 +433,11 @@ impl<'d> TcpIo<'d> {
                 // Err(tcp::SendError::InvalidState) => Poll::Ready(Err(Error::ConnectionReset)),
             })
         })
-        .await
     }
 
-    async fn write_with<F, R>(&mut self, f: F) -> Result<R, Error>
+    fn write_with<'a, F, R>(&'a mut self, f: F) -> impl Future<Output = Result<R, Error>> + use<'a, 'd, F, R>
     where
-        F: FnOnce(&mut [u8]) -> (usize, R),
+        F: FnOnce(&mut [u8]) -> (usize, R) + 'a,
     {
         let mut f = Some(f);
 
@@ -464,12 +462,11 @@ impl<'d> TcpIo<'d> {
                 }
             })
         })
-        .await
     }
 
-    async fn read_with<F, R>(&mut self, f: F) -> Result<R, Error>
+    fn read_with<'a, F, R>(&'a mut self, f: F) -> impl Future<Output = Result<R, Error>> + use<'a, 'd, F, R>
     where
-        F: FnOnce(&mut [u8]) -> (usize, R),
+        F: FnOnce(&mut [u8]) -> (usize, R) + 'a,
     {
         let mut f = Some(f);
         poll_fn(move |cx| {
@@ -495,10 +492,9 @@ impl<'d> TcpIo<'d> {
                 }
             })
         })
-        .await
     }
 
-    async fn flush(&mut self) -> Result<(), Error> {
+    fn flush(&mut self) -> impl Future<Output = Result<(), Error>> + use<'_, 'd> {
         poll_fn(move |cx| {
             self.with_mut(|s| {
                 // If there are outstanding send operations, register for wake up and wait
@@ -512,7 +508,6 @@ impl<'d> TcpIo<'d> {
                 }
             })
         })
-        .await
     }
 
     fn recv_capacity(&self) -> usize {

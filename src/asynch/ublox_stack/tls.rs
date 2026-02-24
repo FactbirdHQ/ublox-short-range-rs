@@ -1,3 +1,4 @@
+use core::future::Future;
 use core::net::SocketAddr;
 use embassy_time::Duration;
 use ublox_sockets::TcpState as State;
@@ -46,22 +47,22 @@ impl<'a> TlsSocket<'a> {
     /// and enqueue the amount of elements returned by `f`.
     ///
     /// If the socket is not ready to accept data, it waits until it is.
-    pub async fn write_with<F, R>(&mut self, f: F) -> Result<R, Error>
+    pub fn write_with<'b, F: 'b, R: 'b>(&'b mut self, f: F) -> impl Future<Output = Result<R, Error>> + use<'b, 'a, F, R>
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
-        self.inner.write_with(f).await
+        self.inner.write_with(f)
     }
 
     /// Call `f` with the largest contiguous slice of octets in the receive buffer,
     /// and dequeue the amount of elements returned by `f`.
     ///
     /// If no data is available, it waits until there is at least one byte available.
-    pub async fn read_with<F, R>(&mut self, f: F) -> Result<R, Error>
+    pub fn read_with<'b, F: 'b, R: 'b>(&'b mut self, f: F) -> impl Future<Output = Result<R, Error>> + use<'b, 'a, F, R>
     where
         F: FnOnce(&mut [u8]) -> (usize, R),
     {
-        self.inner.read_with(f).await
+        self.inner.read_with(f)
     }
 
     /// Split the socket into reader and a writer halves.
@@ -73,11 +74,11 @@ impl<'a> TlsSocket<'a> {
     }
 
     /// Connect to a remote host.
-    pub async fn connect<T>(&mut self, remote_endpoint: T) -> Result<(), ConnectError>
+    pub fn connect<T>(&mut self, remote_endpoint: T) -> impl Future<Output = Result<(), ConnectError>> + use<'_, 'a, T>
     where
         T: Into<SocketAddr>,
     {
-        self.inner.connect(remote_endpoint).await
+        self.inner.connect(remote_endpoint)
     }
 
     // /// Accept a connection from a remote host.
@@ -110,24 +111,24 @@ impl<'a> TlsSocket<'a> {
     ///
     /// Returns how many bytes were read, or an error. If no data is available, it waits
     /// until there is at least one byte available.
-    pub async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
-        self.inner.read(buf).await
+    pub fn read<'b>(&'b mut self, buf: &'b mut [u8]) -> impl Future<Output = Result<usize, Error>> + use<'b, 'a> {
+        self.inner.read(buf)
     }
 
     /// Write data to the socket.
     ///
     /// Returns how many bytes were written, or an error. If the socket is not ready to
     /// accept data, it waits until it is.
-    pub async fn write(&mut self, buf: &[u8]) -> Result<usize, Error> {
-        self.inner.write(buf).await
+    pub fn write<'b>(&'b mut self, buf: &'b [u8]) -> impl Future<Output = Result<usize, Error>> + use<'b, 'a> {
+        self.inner.write(buf)
     }
 
     /// Flushes the written data to the socket.
     ///
     /// This waits until all data has been sent, and ACKed by the remote host. For a connection
     /// closed with [`abort()`](TlsSocket::abort) it will wait for the TCP RST packet to be sent.
-    pub async fn flush(&mut self) -> Result<(), Error> {
-        self.inner.flush().await
+    pub fn flush(&mut self) -> impl Future<Output = Result<(), Error>> + use<'_, 'a> {
+        self.inner.flush()
     }
 
     /// Set the timeout for the socket.
