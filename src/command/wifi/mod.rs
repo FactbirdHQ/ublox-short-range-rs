@@ -30,6 +30,8 @@ pub struct SetWifiStationConfig<'a> {
 impl<'a> atat::AtatLen for SetWifiStationConfig<'a> {
     const LEN: usize =
         <WifiStationConfig<'a> as atat::AtatLen>::LEN + <u8 as atat::AtatLen>::LEN + 1usize;
+    const ESCAPED_LEN: usize =
+        <WifiStationConfig<'a> as atat::AtatLen>::ESCAPED_LEN + <u8 as atat::AtatLen>::ESCAPED_LEN + 1usize;
 }
 const ATAT_SETWIFISTATIONCONFIG_LEN: usize =
     <WifiStationConfig<'_> as atat::AtatLen>::LEN + <u8 as atat::AtatLen>::LEN + 1usize;
@@ -225,6 +227,8 @@ pub struct SetWifiAPConfig<'a> {
 impl<'a> atat::AtatLen for SetWifiAPConfig<'a> {
     const LEN: usize =
         <AccessPointConfig<'a> as atat::AtatLen>::LEN + <u8 as atat::AtatLen>::LEN + 1usize;
+    const ESCAPED_LEN: usize =
+        <AccessPointConfig<'a> as atat::AtatLen>::ESCAPED_LEN + <u8 as atat::AtatLen>::ESCAPED_LEN + 1usize;
 }
 const ATAT_SETWIFIAPCONFIG_LEN: usize =
     <AccessPointConfig<'_> as atat::AtatLen>::LEN + <u8 as atat::AtatLen>::LEN + 1usize;

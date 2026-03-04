@@ -38,7 +38,7 @@ futures = { version = "0.3.17", default-features = false, features = [
 ] }
 
 embedded-io-async = { version = "0.6" }
-heapless = "0.8"
+heapless = "0.9"
 portable-atomic = { version = "*", features = ["unsafe-assume-single-core"] }
 
 embassy-net = { version = "0.6", optional = true, features = [
