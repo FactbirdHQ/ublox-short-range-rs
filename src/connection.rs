@@ -15,8 +15,10 @@ pub enum WiFiState {
 /// Static IP address configuration.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StaticConfigV4 {
-    /// IP address and subnet mask.
+    /// IP address.
     pub address: Ipv4Addr,
+    /// Subnet mask.
+    pub subnet_mask: Option<Ipv4Addr>,
     /// Default gateway.
     pub gateway: Option<Ipv4Addr>,
     /// DNS servers.
