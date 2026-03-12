@@ -252,6 +252,24 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
             .and_then(|ip| (!ip.is_unspecified()).then_some(ip));
 
         let NetworkStatusResponse {
+            status: NetworkStatus::SubnetMask(subnet),
+            ..
+        } = (&self.at_client)
+            .send_retry(&GetNetworkStatus {
+                interface_id: 0,
+                status: NetworkStatusParameter::SubnetMask,
+            })
+            .await?
+        else {
+            return Err(Error::Network);
+        };
+
+        let subnet_mask = core::str::from_utf8(subnet.as_slice())
+            .ok()
+            .and_then(|s| Ipv4Addr::from_str(s).ok())
+            .and_then(|ip| (!ip.is_unspecified()).then_some(ip));
+
+        let NetworkStatusResponse {
             status: NetworkStatus::Gateway(gateway),
             ..
         } = (&self.at_client)
@@ -307,6 +325,7 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
 
         Ok(ipv4_addr.map(|address| StaticConfigV4 {
             address,
+            subnet_mask,
             gateway: gateway_addr,
             dns_servers: DnsServers { primary, secondary },
         }))
