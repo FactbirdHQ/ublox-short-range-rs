@@ -4,11 +4,11 @@ use core::str::FromStr as _;
 
 use atat::AtatCmd;
 use atat::{asynch::AtatClient, response_slot::ResponseSlotGuard, UrcChannel};
+use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Sender};
 use embassy_time::{with_timeout, Duration, Timer};
 use heapless::Vec;
 
-use crate::asynch::OnDrop;
 use crate::command::general::responses::SoftwareVersionResponse;
 use crate::command::general::types::FirmwareVersion;
 use crate::command::general::SoftwareVersion;
@@ -722,15 +722,47 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
     }
 
     pub async fn wait_for_join(&self, ssid: &str, timeout: Duration) -> Result<(), Error> {
-        match with_timeout(timeout, self.state_ch.wait_for_link_state(LinkState::Up)).await {
-            Ok(_) => {
-                // Check that SSID matches
+        // Race link-up against security problems detection.
+        // SecurityProblems wifi_state can be overwritten by subsequent disconnect URCs
+        // (e.g. OutOfRange), so we must detect it as soon as it appears rather than
+        // only checking after timeout.
+        let wait_for_security_error = async {
+            // Only watch for state *changes* - don't check initial state,
+            // as it could be stale SecurityProblems from a previous attempt.
+            loop {
+                let new_state = self.state_ch.wait_for_wifi_state_change().await;
+                if new_state == WiFiState::SecurityProblems {
+                    return;
+                }
+            }
+        };
+
+        match with_timeout(
+            timeout,
+            select(
+                self.state_ch.wait_for_link_state(LinkState::Up),
+                wait_for_security_error,
+            ),
+        )
+        .await
+        {
+            Ok(Either::First(_)) => {
+                // Link is up - check that SSID matches
                 let current_ssid = self.get_connected_ssid().await?;
                 if ssid != current_ssid.as_str() {
                     return Err(Error::Network);
                 }
-
                 Ok(())
+            }
+            Ok(Either::Second(_)) => {
+                // SecurityProblems detected early - deactivate and report
+                let _ = (&self.at_client)
+                    .send_retry(&ExecWifiStationAction {
+                        config_id: CONFIG_ID,
+                        action: WifiStationAction::Deactivate,
+                    })
+                    .await;
+                Err(Error::SecurityProblems)
             }
             Err(_) if self.state_ch.wifi_state(None) == WiFiState::SecurityProblems => {
                 let _ = (&self.at_client)
