@@ -6,42 +6,36 @@ edition = "2021"
 
 [dependencies]
 ublox-short-range-rs = { path = "../../", features = ["odin-w2xx", "defmt"] }
-embassy-executor = { version = "0.7", features = [
+embassy-executor = { version = "0.10", features = [
     "defmt",
-    "nightly",
-    "arch-cortex-m",
+    "platform-cortex-m",
     "executor-thread",
 ] }
-embassy-time = { version = "0.4", features = [
+embassy-time = { version = "0.5", features = [
     "defmt",
     "defmt-timestamp-uptime",
 ] }
-embassy-sync = { version = "0.6" }
-embassy-rp = { version = "0.3", features = [
+embassy-sync = { version = "0.8" }
+embassy-rp = { version = "0.10", features = [
     "defmt",
-    "unstable-pac",
     "time-driver",
+    "rp2040",
 ] }
-embassy-futures = { version = "0.1.0" }
+embassy-futures = { version = "0.1" }
 
-static_cell = { version = "2", features = ["nightly"] }
-defmt = "0.3.4"
-defmt-rtt = "0.4"
-panic-probe = { version = "0.3", features = ["print-defmt"] }
+static_cell = "2"
+defmt = "1"
+defmt-rtt = "1"
+panic-probe = { version = "1", features = ["print-defmt"] }
 
-cortex-m = { version = "0.7.6", features = ["critical-section-single-core"] }
-cortex-m-rt = "0.7.0"
-futures = { version = "0.3.17", default-features = false, features = [
-    "async-await",
-    "cfg-target-has-atomic",
-    "unstable",
-] }
+cortex-m = { version = "0.7", features = ["critical-section-single-core"] }
+cortex-m-rt = "0.7"
 
-embedded-io-async = { version = "0.6" }
+embedded-io-async = "0.7"
 heapless = "0.9"
-portable-atomic = { version = "*", features = ["unsafe-assume-single-core"] }
+portable-atomic = { version = "1", features = ["unsafe-assume-single-core"] }
 
-embassy-net = { version = "0.6", optional = true, features = [
+embassy-net = { version = "0.9", optional = true, features = [
     "defmt",
     "proto-ipv4",
     "medium-ip",
@@ -49,19 +43,12 @@ embassy-net = { version = "0.6", optional = true, features = [
     "udp",
     "dns"
 ] }
-embassy-net-ppp = { version = "0.1", optional = true, features = ["defmt"] }
-reqwless = { git = "https://github.com/drogue-iot/reqwless", features = ["defmt"] }
-smoltcp = { version = "*", default-features = false, features = ["dns-max-server-count-4"]}
-rand_chacha = { version = "0.3", default-features = false }
-embedded-tls = { path = "../../../embedded-tls", default-features = false, features = ["defmt"] }
+embassy-net-ppp = { version = "0.3", optional = true, features = ["defmt"] }
 
 
 [features]
 internal-network-stack = ["ublox-short-range-rs/internal-network-stack"]
 ppp = ["dep:embassy-net", "dep:embassy-net-ppp", "ublox-short-range-rs/ppp"]
-
-[patch.crates-io]
-ublox-sockets = { path = "../../../ublox-sockets" }
 
 [profile.dev]
 debug = 2

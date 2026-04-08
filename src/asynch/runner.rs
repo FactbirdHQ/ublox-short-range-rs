@@ -2,7 +2,6 @@ use super::{control::Control, network::NetDevice, state, Resources, UbloxUrc};
 use crate::{
     asynch::control::ProxyClient,
     command::{
-        data_mode::{self, ChangeMode},
         general::SoftwareVersion,
         system::{
             types::{BaudRate, ChangeAfterConfirm, EchoOn, FlowControl, Parity, StopBits},
@@ -19,15 +18,19 @@ use crate::{
     WifiConfig, DEFAULT_BAUD_RATE,
 };
 
+#[cfg(feature = "ppp")]
 use crate::asynch::OnDrop;
+#[cfg(feature = "ppp")]
+use crate::command::data_mode::{self, ChangeMode};
 
-use atat::{
-    asynch::{AtatClient as _, SimpleClient},
-    AtatIngress as _, UrcChannel,
-};
+#[cfg(feature = "ppp")]
+use atat::asynch::SimpleClient;
+use atat::{asynch::AtatClient as _, AtatIngress as _, UrcChannel};
 use embassy_futures::select::Either;
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Channel};
-use embassy_time::{Duration, Timer};
+#[cfg(feature = "ppp")]
+use embassy_time::Duration;
+use embassy_time::Timer;
 use embedded_io_async::{BufRead, Write};
 
 #[cfg(feature = "ppp")]

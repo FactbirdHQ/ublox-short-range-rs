@@ -1,7 +1,5 @@
 #![no_std]
 #![no_main]
-#![feature(type_alias_impl_trait)]
-#![feature(impl_trait_in_assoc_type)]
 
 #[cfg(not(feature = "ppp"))]
 compile_error!("You must enable the `ppp` feature flag to build this example");
@@ -9,31 +7,65 @@ compile_error!("You must enable the `ppp` feature flag to build this example");
 use defmt::*;
 use embassy_executor::Spawner;
 use embassy_net::tcp::TcpSocket;
-use embassy_net::{Ipv4Address, Stack, StackResources};
-use embassy_rp::gpio::{AnyPin, Level, Output, OutputOpenDrain, Pin};
-use embassy_rp::peripherals::UART1;
-use embassy_rp::uart::{BufferedInterruptHandler, BufferedUart, BufferedUartRx, BufferedUartTx};
-use embassy_rp::{bind_interrupts, uart};
+use embassy_net::StackResources;
+use embassy_rp::gpio::{Level, OutputOpenDrain};
+use embassy_rp::uart::{self, BufferedInterruptHandler, BufferedUart};
+use embassy_rp::{bind_interrupts, peripherals::UART1};
 use embassy_time::{Duration, Timer};
-use embedded_tls::TlsConfig;
-use embedded_tls::TlsConnection;
-use embedded_tls::TlsContext;
-use embedded_tls::UnsecureProvider;
-use embedded_tls::{Aes128GcmSha256, MaxFragmentLength};
-use rand_chacha::rand_core::SeedableRng;
-use rand_chacha::ChaCha8Rng;
-use reqwless::headers::ContentType;
-use reqwless::request::Request;
-use reqwless::request::RequestBuilder as _;
-use reqwless::response::Response;
+use embedded_io_async::{BufRead, Read, Write};
 use static_cell::StaticCell;
-use ublox_short_range::asynch::control::ControlResources;
 use ublox_short_range::asynch::{Resources, Runner};
+use ublox_short_range::options::ConnectionOptions;
+use ublox_short_range::Transport;
 use {defmt_rtt as _, panic_probe as _};
 
-const CMD_BUF_SIZE: usize = 128;
 const INGRESS_BUF_SIZE: usize = 512;
 const URC_CAPACITY: usize = 2;
+
+/// Wrapper around BufferedUart that implements the Transport trait
+struct UartTransport {
+    inner: BufferedUart,
+}
+
+impl embedded_io_async::ErrorType for UartTransport {
+    type Error = embassy_rp::uart::Error;
+}
+
+impl Read for UartTransport {
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        self.inner.read(buf).await
+    }
+}
+
+impl BufRead for UartTransport {
+    async fn fill_buf(&mut self) -> Result<&[u8], Self::Error> {
+        self.inner.fill_buf().await
+    }
+
+    fn consume(&mut self, amt: usize) {
+        self.inner.consume(amt)
+    }
+}
+
+impl Write for UartTransport {
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        self.inner.write(buf).await
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        self.inner.flush().await
+    }
+}
+
+impl Transport for UartTransport {
+    fn set_baudrate(&mut self, baudrate: u32) {
+        self.inner.set_baudrate(baudrate);
+    }
+
+    fn split_ref(&mut self) -> (impl Write, impl Read) {
+        self.inner.split_ref()
+    }
+}
 
 pub struct WifiConfig {
     pub rst_pin: OutputOpenDrain<'static>,
@@ -53,21 +85,14 @@ impl<'a> ublox_short_range::WifiConfig<'a> for WifiConfig {
 }
 
 #[embassy_executor::task]
-async fn net_task(stack: &'static Stack<embassy_net_ppp::Device<'static>>) -> ! {
-    stack.run().await
+async fn net_task(mut runner: embassy_net::Runner<'static, embassy_net_ppp::Device<'static>>) -> ! {
+    runner.run().await
 }
 
 #[embassy_executor::task]
 async fn ppp_task(
-    mut runner: Runner<
-        'static,
-        BufferedUartRx<'static, UART1>,
-        BufferedUartTx<'static, UART1>,
-        WifiConfig,
-        INGRESS_BUF_SIZE,
-        URC_CAPACITY,
-    >,
-    stack: &'static embassy_net::Stack<embassy_net_ppp::Device<'static>>,
+    mut runner: Runner<'static, UartTransport, WifiConfig, INGRESS_BUF_SIZE, URC_CAPACITY>,
+    stack: embassy_net::Stack<'static>,
 ) -> ! {
     runner.run(stack).await
 }
@@ -80,27 +105,28 @@ bind_interrupts!(struct Irqs {
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
 
-    let rst_pin = OutputOpenDrain::new(p.PIN_26.degrade(), Level::High);
+    let rst_pin = OutputOpenDrain::new(p.PIN_26, Level::High);
 
     static TX_BUF: StaticCell<[u8; 32]> = StaticCell::new();
     static RX_BUF: StaticCell<[u8; 32]> = StaticCell::new();
     let wifi_uart = uart::BufferedUart::new_with_rtscts(
         p.UART1,
-        Irqs,
         p.PIN_24,
         p.PIN_25,
         p.PIN_23,
         p.PIN_22,
+        Irqs,
         TX_BUF.init([0; 32]),
         RX_BUF.init([0; 32]),
         uart::Config::default(),
     );
 
-    static RESOURCES: StaticCell<Resources<CMD_BUF_SIZE, INGRESS_BUF_SIZE, URC_CAPACITY>> =
-        StaticCell::new();
+    let transport = UartTransport { inner: wifi_uart };
 
-    let mut runner = Runner::new(
-        wifi_uart.split(),
+    static RESOURCES: StaticCell<Resources<INGRESS_BUF_SIZE, URC_CAPACITY>> = StaticCell::new();
+
+    let (mut runner, control) = Runner::new(
+        transport,
         RESOURCES.init(Resources::new()),
         WifiConfig { rst_pin },
     );
@@ -112,21 +138,17 @@ async fn main(spawner: Spawner) {
     let seed = 0x0123_4567_89ab_cdef; // chosen by fair dice roll. guaranteed to be random.
 
     // Init network stack
-    static STACK: StaticCell<Stack<embassy_net_ppp::Device<'static>>> = StaticCell::new();
     static STACK_RESOURCES: StaticCell<StackResources<6>> = StaticCell::new();
 
-    let stack = &*STACK.init(Stack::new(
+    let (stack, net_runner) = embassy_net::new(
         net_device,
         embassy_net::Config::default(),
         STACK_RESOURCES.init(StackResources::new()),
         seed,
-    ));
+    );
 
-    static CONTROL_RESOURCES: StaticCell<ControlResources> = StaticCell::new();
-    let mut control = runner.control(CONTROL_RESOURCES.init(ControlResources::new()), &stack);
-
-    spawner.spawn(net_task(stack)).unwrap();
-    spawner.spawn(ppp_task(runner, &stack)).unwrap();
+    spawner.spawn(net_task(net_runner).unwrap());
+    spawner.spawn(ppp_task(runner, stack).unwrap());
 
     stack.wait_config_up().await;
 
@@ -134,7 +156,8 @@ async fn main(spawner: Spawner) {
 
     control.set_hostname("Ublox-wifi-test").await.ok();
 
-    control.join_wpa2("MyAccessPoint", "12345678").await;
+    let options = ConnectionOptions::new("MyAccessPoint").wpa_psk("12345678");
+    control.join_sta(options).await.unwrap();
 
     info!("We have network!");
 
@@ -143,13 +166,8 @@ async fn main(spawner: Spawner) {
     let mut socket = TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
     socket.set_timeout(Some(Duration::from_secs(10)));
 
-    let hostname = "ecdsa-test.germancoding.com";
-
-    let mut remote = stack
-        .dns_query(hostname, smoltcp::wire::DnsQueryType::A)
-        .await
-        .unwrap();
-    let remote_endpoint = (remote.pop().unwrap(), 443);
+    let remote_endpoint =
+        embassy_net::IpEndpoint::new(embassy_net::IpAddress::v4(93, 184, 216, 34), 80);
     info!("connecting to {:?}...", remote_endpoint);
     let r = socket.connect(remote_endpoint).await;
     if let Err(e) = r {
@@ -158,39 +176,24 @@ async fn main(spawner: Spawner) {
     }
     info!("TCP connected!");
 
-    let mut read_record_buffer = [0; 16384];
-    let mut write_record_buffer = [0; 16384];
-    let config = TlsConfig::new()
-        // .with_max_fragment_length(MaxFragmentLength::Bits11)
-        .with_server_name(hostname);
-    let mut tls = TlsConnection::new(socket, &mut read_record_buffer, &mut write_record_buffer);
+    let request = b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
+    socket.write_all(request).await.unwrap();
+    info!("Request sent");
 
-    tls.open(TlsContext::new(
-        &config,
-        UnsecureProvider::new::<Aes128GcmSha256>(ChaCha8Rng::seed_from_u64(seed)),
-    ))
-    .await
-    .expect("error establishing TLS connection");
-
-    info!("TLS Established!");
-
-    let request = Request::get("/")
-        .host(hostname)
-        .content_type(ContentType::TextPlain)
-        .build();
-    request.write(&mut tls).await.unwrap();
-
-    let mut rx_buf = [0; 1024];
-    let mut body_buf = [0; 8192];
-    let response = Response::read(&mut tls, reqwless::request::Method::GET, &mut rx_buf)
-        .await
-        .unwrap();
-    let len = response
-        .body()
-        .reader()
-        .read_to_end(&mut body_buf)
-        .await
-        .unwrap();
-
-    info!("{=[u8]:a}", &body_buf[..len]);
+    let mut buf = [0; 1024];
+    loop {
+        match socket.read(&mut buf).await {
+            Ok(0) => {
+                info!("Connection closed");
+                break;
+            }
+            Ok(n) => {
+                info!("Received {} bytes", n);
+            }
+            Err(e) => {
+                warn!("Read error: {:?}", e);
+                break;
+            }
+        }
+    }
 }

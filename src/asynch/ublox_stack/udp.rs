@@ -3,7 +3,7 @@ use core::cell::RefCell;
 
 use core::mem;
 
-use embedded_nal_async::SocketAddr;
+use core::net::SocketAddr;
 use ublox_sockets::{udp, SocketHandle, UdpState};
 
 use super::{SocketStack, UbloxStack};
