@@ -18,6 +18,7 @@ use crate::command::gpio::ConfigureGPIO;
 use crate::command::network::responses::NetworkStatusResponse;
 use crate::command::network::types::{NetworkStatus, NetworkStatusParameter};
 use crate::command::network::GetNetworkStatus;
+#[cfg(feature = "ppp")]
 use crate::command::ping::Ping;
 use crate::command::system::responses::LocalAddressResponse;
 use crate::command::system::types::InterfaceID;

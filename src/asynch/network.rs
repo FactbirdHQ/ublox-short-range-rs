@@ -62,7 +62,7 @@ where
             .await
             {
                 embassy_futures::select::Either::First(event) => {
-                    #[cfg(feature = "edm")]
+                    #[cfg(feature = "internal-network-stack")]
                     let Some(event) = event.extract_urc() else {
                         continue;
                     };
@@ -295,7 +295,7 @@ where
             loop {
                 let event = self.urc_subscription.next_message_pure().await;
 
-                #[cfg(feature = "edm")]
+                #[cfg(feature = "internal-network-stack")]
                 let Some(event) = event.extract_urc() else {
                     continue;
                 };
@@ -324,7 +324,7 @@ where
 
         self.wait_startup(Duration::from_secs(5)).await?;
 
-        #[cfg(feature = "edm")]
+        #[cfg(feature = "internal-network-stack")]
         self.enter_edm(Duration::from_secs(4)).await?;
 
         Ok(())
@@ -344,13 +344,13 @@ where
         self.wait_startup(Duration::from_secs(5)).await?;
 
         info!("Module started again");
-        #[cfg(feature = "edm")]
+        #[cfg(feature = "internal-network-stack")]
         self.enter_edm(Duration::from_secs(4)).await?;
 
         Ok(())
     }
 
-    #[cfg(feature = "edm")]
+    #[cfg(feature = "internal-network-stack")]
     pub async fn enter_edm(&mut self, timeout: Duration) -> Result<(), Error> {
         info!("Entering EDM mode");
 

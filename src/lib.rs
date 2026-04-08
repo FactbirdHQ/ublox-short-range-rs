@@ -4,6 +4,9 @@
 #[cfg(all(feature = "ppp", feature = "internal-network-stack"))]
 compile_error!("You may not enable both `ppp` and `internal-network-stack` features.");
 
+#[cfg(not(any(feature = "ppp", feature = "internal-network-stack")))]
+compile_error!("You must enable either `ppp` or `internal-network-stack`.");
+
 #[cfg(not(any(
     feature = "odin-w2xx",
     feature = "nina-w1xx",

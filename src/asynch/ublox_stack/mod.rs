@@ -13,7 +13,7 @@ pub use device::Device;
 
 use core::cell::RefCell;
 use core::future::poll_fn;
-use core::ops::{DerefMut, Rem};
+use core::ops::DerefMut;
 use core::task::Poll;
 
 use crate::command::data_mode::responses::ConnectPeerResponse;
@@ -33,10 +33,10 @@ use self::dns::{DnsSocket, DnsState, DnsTable};
 use super::control::ProxyClient;
 
 use core::net::IpAddr;
+use core::net::SocketAddr;
 use embassy_futures::select;
 use embassy_sync::waitqueue::WakerRegistration;
 use embassy_time::{Duration, Ticker};
-use embedded_nal_async::SocketAddr;
 use portable_atomic::{AtomicBool, AtomicU8, Ordering};
 use ublox_sockets::{
     AnySocket, ChannelId, PeerHandle, Socket, SocketHandle, SocketSet, SocketStorage,
@@ -80,7 +80,7 @@ pub(crate) struct SocketStack {
     waker: WakerRegistration,
     dns_table: DnsTable,
     dropped_sockets: heapless::Vec<PeerHandle, 3>,
-    credential_map: heapless::FnvIndexMap<SocketHandle, SecurityCredentials, 2>,
+    credential_map: heapless::index_map::FnvIndexMap<SocketHandle, SecurityCredentials, 2>,
 }
 
 impl<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
@@ -404,7 +404,8 @@ impl<const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
     ) {
         use atat::asynch::AtatClient;
 
-        let mut at = at_client.borrow_mut();
+        let at_guard = at_client.borrow();
+        let mut at = &*at_guard;
         match ev {
             TxEvent::Connect { socket_handle, url } => {
                 match at

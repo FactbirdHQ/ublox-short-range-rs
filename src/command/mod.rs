@@ -1,10 +1,10 @@
 //! AT Commands for U-Blox short range module family\
 //! Following the [u-connect ATCommands Manual](https://www.u-blox.com/sites/default/files/u-connect-ATCommands-Manual_(UBX-14044127).pdf)
 
-#[cfg(feature = "edm")]
+#[cfg(feature = "internal-network-stack")]
 pub mod custom_digest;
 pub mod data_mode;
-#[cfg(feature = "edm")]
+#[cfg(feature = "internal-network-stack")]
 pub mod edm;
 pub mod ethernet;
 pub mod general;

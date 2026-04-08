@@ -30,6 +30,10 @@ impl<'a> Write for &AtUdpSocket<'a> {
 
         Ok(buf.len())
     }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }
 
 impl<'a> Transport for AtUdpSocket<'a> {
@@ -61,5 +65,9 @@ impl<'a> Write for AtUdpSocket<'a> {
             .unwrap();
 
         Ok(buf.len())
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
     }
 }
