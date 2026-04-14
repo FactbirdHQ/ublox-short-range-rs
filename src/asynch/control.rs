@@ -701,7 +701,6 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
 
     /// Leave the wifi and wait, with which we are currently associated.
     pub async fn wait_leave(&self) -> Result<(), Error> {
-        self.state_ch.wait_for_initialized().await;
         self.state_ch.set_should_connect(false);
         self.state_ch.update_connection_with(|con| {
             con.reset();
