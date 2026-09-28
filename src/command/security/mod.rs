@@ -24,7 +24,7 @@ pub struct PrepareSecurityDataImport<'a> {
     pub data_type: SecurityDataType,
     /// Unique identifier of an imported certificate or private key. If an existing name is
     /// used, the data will be overridden. The maximum length is 32 characters.
-    #[at_arg(position = 1, len = 32)]
+    #[at_arg(position = 1)]
     pub internal_name: &'a str,
     /// Size in bytes of a certificate or private key being imported. The maximum allowed
     /// size is 8192 bytes.
@@ -32,7 +32,7 @@ pub struct PrepareSecurityDataImport<'a> {
     pub data_size: usize,
     /// Decryption password; applicable only for PKCS8 encrypted client private keys.
     /// The maximum length is 64 characters.
-    #[at_arg(position = 3, len = 64)]
+    #[at_arg(position = 3)]
     pub password: Option<&'a str>,
 }
 
@@ -46,7 +46,7 @@ pub struct PrepareSecurityDataImport<'a> {
     termination = ""
 )]
 pub struct SendSecurityDataImport<'a> {
-    #[at_arg(position = 0, len = 2048)]
+    #[at_arg(position = 0)]
     pub data: &'a atat::serde_bytes::Bytes,
 }
 
@@ -62,7 +62,7 @@ pub struct SendSecurityDataImport<'a> {
 pub struct RemoveSecurityData<'a> {
     #[at_arg(position = 0)]
     pub types: SecurityDataType,
-    #[at_arg(position = 1, len = 32)]
+    #[at_arg(position = 1)]
     pub name: &'a str,
 }
 

@@ -28,8 +28,6 @@ pub(crate) struct EdmAtCmdWrapper<T: AtatCmd>(pub T);
 impl<T: AtatCmd> atat::AtatCmd for EdmAtCmdWrapper<T> {
     type Response = T::Response;
 
-    const MAX_LEN: usize = T::MAX_LEN + 6;
-
     const MAX_TIMEOUT_MS: u32 = T::MAX_TIMEOUT_MS;
 
     fn write(&self, buf: &mut [u8]) -> usize {
@@ -91,11 +89,8 @@ pub struct EdmDataCommand<'a> {
     pub channel: ChannelId,
     pub data: &'a [u8],
 }
-// wifi::socket::EGRESS_CHUNK_SIZE + PAYLOAD_OVERHEAD = 512 + 6 + 1 = 519
 impl<'a> atat::AtatCmd for EdmDataCommand<'a> {
     type Response = NoResponse;
-
-    const MAX_LEN: usize = DATA_PACKAGE_SIZE + 7;
 
     const EXPECTS_RESPONSE_CODE: bool = false;
 
@@ -130,8 +125,6 @@ pub struct EdmResendConnectEventsCommand;
 impl atat::AtatCmd for EdmResendConnectEventsCommand {
     type Response = NoResponse;
 
-    const MAX_LEN: usize = 6;
-
     fn write(&self, buf: &mut [u8]) -> usize {
         buf[0..6].copy_from_slice(&[
             STARTBYTE,
@@ -158,8 +151,6 @@ pub struct SwitchToEdmCommand;
 
 impl atat::AtatCmd for SwitchToEdmCommand {
     type Response = NoResponse;
-
-    const MAX_LEN: usize = 6;
 
     const MAX_TIMEOUT_MS: u32 = 2000;
 
@@ -193,16 +184,17 @@ mod test {
     };
     use atat::{heapless::Vec, AtatCmd, Error};
 
+    const BUF_LEN: usize = 64;
+
     #[test]
     fn parse_at_commands() {
         let parse = EdmAtCmdWrapper(AT);
         let correct_response = NoResponse;
 
-        // AT-command: "AT"
-        let correct_cmd = Vec::<u8, 10>::from_slice(&[
-            0xAA, 0x00, 0x06, 0x00, 0x44, 0x41, 0x54, 0x0D, 0x0a, 0x55,
-        ])
-        .unwrap();
+        // AT-command: "AT\r"
+        let correct_cmd =
+            Vec::<u8, 10>::from_slice(&[0xAA, 0x00, 0x05, 0x00, 0x44, 0x41, 0x54, 0x0D, 0x55])
+                .unwrap();
         // AT-response: NoResponse
         let response = &[
             0xAA,
@@ -213,7 +205,7 @@ mod test {
             0x55,
         ];
 
-        let mut buf = [0u8; <EdmAtCmdWrapper<AT> as AtatCmd>::MAX_LEN];
+        let mut buf = [0u8; BUF_LEN];
         let len = parse.write(&mut buf);
 
         assert_eq!(buf[..len], correct_cmd);
@@ -226,10 +218,10 @@ mod test {
             status_id: StatusID::SavedStatus,
             status_val: 100,
         };
-        // AT-command: "at+umstat=1"
+        // AT-command: "AT+UMSTAT=1\r"
         let correct = Vec::<u8, 19>::from_slice(&[
-            0xAA, 0x00, 0x0F, 0x00, 0x44, 0x41, 0x54, 0x2b, 0x55, 0x4d, 0x53, 0x54, 0x41, 0x54,
-            0x3d, 0x31, 0x0D, 0x0A, 0x55,
+            0xAA, 0x00, 0x0E, 0x00, 0x44, 0x41, 0x54, 0x2b, 0x55, 0x4d, 0x53, 0x54, 0x41, 0x54,
+            0x3d, 0x31, 0x0D, 0x55,
         ])
         .unwrap();
         // AT-response: "at+umstat:1,100"
@@ -256,7 +248,7 @@ mod test {
             0x0A,
             0x55,
         ];
-        let mut buf = [0u8; <EdmAtCmdWrapper<SystemStatus> as AtatCmd>::MAX_LEN];
+        let mut buf = [0u8; BUF_LEN];
         let len = parse.write(&mut buf);
 
         assert_eq!(buf[..len], correct);
@@ -390,9 +382,9 @@ mod test {
     #[test]
     fn change_to_edm_cmd() {
         let resp = &[0xAA, 0x00, 0x02, 0x00, 0x71, 0x55];
-        let correct = Vec::<_, 6>::from_slice(b"ATO2\r\n").unwrap();
+        let correct = Vec::<_, 6>::from_slice(b"ATO2\r").unwrap();
 
-        let mut buf = [0u8; SwitchToEdmCommand::MAX_LEN];
+        let mut buf = [0u8; BUF_LEN];
         let len = SwitchToEdmCommand.write(&mut buf);
 
         assert_eq!(buf[..len], correct);

@@ -18,7 +18,7 @@ use super::NoResponse;
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UETHC", NoResponse, timeout_ms = 1000)]
 pub struct SetEthernetConfiguration {
-    #[at_arg(position = 0, len = 40)]
+    #[at_arg(position = 0)]
     pub param_tag: EthernetConfig,
 }
 

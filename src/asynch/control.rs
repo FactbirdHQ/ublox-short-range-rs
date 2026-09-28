@@ -7,6 +7,7 @@ use atat::{asynch::AtatClient, response_slot::ResponseSlotGuard, UrcChannel};
 use embassy_futures::select::{select, Either};
 use embassy_sync::{blocking_mutex::raw::NoopRawMutex, channel::Sender};
 use embassy_time::{with_timeout, Duration, Timer};
+use embedded_io_async::Write as _;
 use heapless::Vec;
 
 use crate::command::general::responses::SoftwareVersionResponse;
@@ -76,6 +77,12 @@ impl<'a, const INGRESS_BUF_SIZE: usize> ProxyClient<'a, INGRESS_BUF_SIZE> {
         }
     }
 
+    async fn wait_cooldown(&self) {
+        if let Some(cooldown) = self.cooldown_timer.take() {
+            cooldown.await
+        }
+    }
+
     async fn wait_response(
         &self,
         timeout: Duration,
@@ -84,12 +91,77 @@ impl<'a, const INGRESS_BUF_SIZE: usize> ProxyClient<'a, INGRESS_BUF_SIZE> {
             .await
             .map_err(|_| atat::Error::Timeout)
     }
+
+    async fn parse_response<Cmd: AtatCmd>(&self, cmd: &Cmd) -> Result<Cmd::Response, atat::Error> {
+        self.cooldown_timer.set(Some(Timer::after_millis(20)));
+
+        if !Cmd::EXPECTS_RESPONSE_CODE {
+            return cmd.parse(Ok(&[]));
+        }
+
+        let response = self
+            .wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
+            .await?;
+        cmd.parse((&*response).into())
+    }
+}
+
+impl<const INGRESS_BUF_SIZE: usize> embedded_io_async::ErrorType
+    for &ProxyClient<'_, INGRESS_BUF_SIZE>
+{
+    type Error = atat::Error;
+}
+
+/// Every write is forwarded to the bridge task as one request channel message,
+/// so payloads larger than the channel item size are delivered in chunks.
+impl<const INGRESS_BUF_SIZE: usize> embedded_io_async::Write
+    for &ProxyClient<'_, INGRESS_BUF_SIZE>
+{
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
+        let chunk = &buf[..buf.len().min(MAX_CMD_LEN)];
+
+        // TODO: Guard against race condition!
+        with_timeout(
+            Duration::from_secs(1),
+            self.req_sender.send(Vec::from_slice(chunk).unwrap()),
+        )
+        .await
+        .map_err(|_| atat::Error::Timeout)?;
+
+        Ok(chunk.len())
+    }
+
+    /// The transport is driven by the bridge task, so there is nothing to
+    /// flush here beyond handing the message over.
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }
 
 impl<'a, const INGRESS_BUF_SIZE: usize> atat::asynch::AtatClient
     for &ProxyClient<'a, INGRESS_BUF_SIZE>
 {
-    async fn send<Cmd: atat::AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, atat::Error> {
+    type Writer = Self;
+
+    fn inner(&mut self) -> &mut Self::Writer {
+        self
+    }
+
+    async fn send_with<Cmd: AtatCmd>(
+        &mut self,
+        cmd: &Cmd,
+        write: impl AsyncFnOnce(&mut Self::Writer) -> Result<(), atat::Error>,
+    ) -> Result<Cmd::Response, atat::Error> {
+        self.wait_cooldown().await;
+        write(self).await?;
+        self.parse_response(cmd).await
+    }
+
+    async fn send<Cmd: AtatCmd>(&mut self, cmd: &Cmd) -> Result<Cmd::Response, atat::Error> {
         let mut buf = [0u8; MAX_CMD_LEN];
         let len = cmd.write(&mut buf);
 
@@ -102,29 +174,8 @@ impl<'a, const INGRESS_BUF_SIZE: usize> atat::asynch::AtatClient
             trace!("Sending command with long payload ({} bytes)", len);
         }
 
-        if let Some(cooldown) = self.cooldown_timer.take() {
-            cooldown.await
-        }
-
-        // TODO: Guard against race condition!
-        with_timeout(
-            Duration::from_secs(1),
-            self.req_sender.send(Vec::try_from(&buf[..len]).unwrap()),
-        )
-        .await
-        .map_err(|_| atat::Error::Timeout)?;
-
-        self.cooldown_timer.set(Some(Timer::after_millis(20)));
-
-        if !Cmd::EXPECTS_RESPONSE_CODE {
-            cmd.parse(Ok(&[]))
-        } else {
-            let response = self
-                .wait_response(Duration::from_millis(Cmd::MAX_TIMEOUT_MS.into()))
-                .await?;
-            let response: &atat::Response<INGRESS_BUF_SIZE> = &response.borrow();
-            cmd.parse(response.into())
-        }
+        self.send_with(cmd, async |writer| writer.write_all(&buf[..len]).await)
+            .await
     }
 }
 
