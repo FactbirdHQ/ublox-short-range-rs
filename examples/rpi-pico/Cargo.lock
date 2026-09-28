@@ -28,14 +28,15 @@ dependencies = [
 
 [[package]]
 name = "atat"
-version = "0.24.1"
-source = "git+https://github.com/FactbirdHQ/atat?rev=edceb1a#edceb1a2188bf21749858c601ac29cc72d1af8e3"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "809b2d16fc94fc3f6486863e671dea95432aef2acf08a942d128c2a102ed2853"
 dependencies = [
  "atat_derive",
  "defmt 1.0.1",
  "embassy-futures",
  "embassy-sync",
- "embassy-time 0.5.1",
+ "embassy-time",
  "embedded-io 0.7.1",
  "embedded-io-async 0.7.0",
  "futures",
@@ -49,8 +50,9 @@ dependencies = [
 
 [[package]]
 name = "atat_derive"
-version = "0.24.1"
-source = "git+https://github.com/FactbirdHQ/atat?rev=edceb1a#edceb1a2188bf21749858c601ac29cc72d1af8e3"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c577174073c200e3870c1707fa6d1af8aadcc94dadbdd6c088d551a3d2863fb"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -457,7 +459,7 @@ dependencies = [
  "document-features",
  "embassy-net-driver",
  "embassy-sync",
- "embassy-time 0.5.1",
+ "embassy-time",
  "embedded-io-async 0.7.0",
  "embedded-nal-async",
  "heapless 0.9.2",
@@ -516,7 +518,7 @@ dependencies = [
  "embassy-futures",
  "embassy-hal-internal 0.5.0",
  "embassy-sync",
- "embassy-time 0.5.1",
+ "embassy-time",
  "embassy-time-driver",
  "embassy-time-queue-utils",
  "embassy-usb-driver",
@@ -551,23 +553,6 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "heapless 0.9.2",
-]
-
-[[package]]
-name = "embassy-time"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f820157f198ada183ad62e0a66f554c610cdcd1a9f27d4b316358103ced7a1f8"
-dependencies = [
- "cfg-if",
- "critical-section",
- "defmt 0.3.100",
- "document-features",
- "embassy-time-driver",
- "embedded-hal 0.2.7",
- "embedded-hal 1.0.0",
- "embedded-hal-async",
- "futures-util",
 ]
 
 [[package]]
@@ -881,9 +866,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bfb9eb618601c89945a70e254898da93b13be0388091d42117462b265bb3fad"
 dependencies = [
- "defmt 0.3.100",
  "hash32",
- "serde",
  "stable_deref_trait",
 ]
 
@@ -1452,9 +1435,11 @@ dependencies = [
 
 [[package]]
 name = "serde_at"
-version = "0.24.1"
-source = "git+https://github.com/FactbirdHQ/atat?rev=edceb1a#edceb1a2188bf21749858c601ac29cc72d1af8e3"
+version = "0.25.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff57a3da7f9e8f1888b94d761999c97487c2192999d3b410db2c201c2aebc8cd"
 dependencies = [
+ "defmt 1.0.1",
  "num-traits",
  "serde",
 ]
@@ -1736,7 +1721,7 @@ dependencies = [
  "embassy-net-ppp",
  "embassy-rp",
  "embassy-sync",
- "embassy-time 0.5.1",
+ "embassy-time",
  "embedded-io-async 0.7.0",
  "heapless 0.9.2",
  "panic-probe",
@@ -1755,7 +1740,7 @@ dependencies = [
  "embassy-net",
  "embassy-net-ppp",
  "embassy-sync",
- "embassy-time 0.5.1",
+ "embassy-time",
  "embedded-hal 1.0.0",
  "embedded-io-async 0.7.0",
  "embedded-nal-async",
@@ -1768,12 +1753,13 @@ dependencies = [
 
 [[package]]
 name = "ublox-sockets"
-version = "0.5.0"
-source = "git+https://github.com/FactbirdHQ/ublox-sockets?rev=0b0d186#0b0d186966784b35dfc166d34f9d5b759b364c70"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55fc85d5f5680024614428409983a5086c6cf2a33c046160d5eb9274db380d0a"
 dependencies = [
- "defmt 0.3.100",
- "embassy-time 0.4.0",
- "heapless 0.8.0",
+ "defmt 1.0.1",
+ "embassy-time",
+ "heapless 0.9.2",
  "serde",
 ]
 

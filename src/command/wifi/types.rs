@@ -127,7 +127,7 @@ pub enum WifiStationConfig<'a> {
     ///  SSID - <param_val1> is the Service Set Identifier. The factory default
     /// value is an empty string ("").
     #[at_arg(value = 2)]
-    SSID(#[at_arg(len = 64)] &'a str),
+    SSID(&'a str),
     /// Authentication - <param_val> is the authentication type.
     /// - 1 (default): Open
     /// - 2: WPA/WPA2 PSK
@@ -146,11 +146,11 @@ pub enum WifiStationConfig<'a> {
     /// Authentication " is supported.
     #[at_arg(value = 6)]
     WEPKeys(
-        #[at_arg(len = 13)] &'a str,
-        #[at_arg(len = 13)] Option<&'a str>,
-        #[at_arg(len = 13)] Option<&'a str>,
-        #[at_arg(len = 13)] Option<&'a str>,
-        #[at_arg(len = 13)] Option<&'a str>,
+        &'a str,
+        Option<&'a str>,
+        Option<&'a str>,
+        Option<&'a str>,
+        Option<&'a str>,
     ),
     ///  Active Key - <param_val1> is the WEP active TX key (factory default 0
     /// means that Open authentication with WEP encryption is disabled). Range
@@ -160,38 +160,38 @@ pub enum WifiStationConfig<'a> {
     /// PSK/Passphrase - <param_val1> is the PSK (32 HEX values) or Passphrase
     /// (8-63 ASCII characters as a string) for WPA/WPA2 PSK.
     #[at_arg(value = 8)]
-    WpaPskOrPassphrase(#[at_arg(len = 64)] &'a str),
+    WpaPskOrPassphrase(&'a str),
     /// Password - <param_val1> is the password for LEAP and PEAP; string with a
     /// maximum length of 31.
     #[at_arg(value = 9)]
-    EAPPassword(#[at_arg(len = 31)] &'a str),
+    EAPPassword(&'a str),
     /// User name - <param_val1> is the public user name for LEAP and PEAP;
     /// string with a maximum length of 31.
     #[at_arg(value = 10)]
-    UserName(#[at_arg(len = 31)] &'a str),
+    UserName(&'a str),
     /// Domain name - <param_val1> is the public domain name for LEAP and PEAP;
     /// string with a maximum length of 63. The domain name is an optional
     /// parameter.
     #[at_arg(value = 11)]
-    DomainName(#[at_arg(len = 63)] &'a str),
+    DomainName(&'a str),
     /// Client certificate name - <param_val1> is the internal client
     /// certificate name for EAP-TLS as defined in the SSL/TLS certificates and
     /// private keys manager +USECMNG command; string with a maximum length of
     /// 32. Supported software versions 4.0.0 onwards
     #[at_arg(value = 12)]
-    ClientCertificateName(#[at_arg(len = 32)] &'a str),
+    ClientCertificateName(&'a str),
     /// Client private key - <param_val1> is the internal client private key
     /// name for EAP- TLS as defined in the SSL/TLS certificates and private
     /// keys manager +USECMNG command; string with a maximum length of 32.
     /// Supported software versions 4.0.0 onwards
     #[at_arg(value = 13)]
-    ClientPrivateKey(#[at_arg(len = 32)] &'a str),
+    ClientPrivateKey(&'a str),
     /// CA certificate name - <param_val1> is the internal CA certificate name
     /// for EAP- TLS as defined in the SSL/TLS certificates and private keys
     /// manager +USECMNG command; string with a maximum length of 32. Supported
     /// software versions 5.0.0 onwards
     #[at_arg(value = 14)]
-    CACertificateName(#[at_arg(len = 32)] &'a str),
+    CACertificateName(&'a str),
     /// Validate CA certificate. The default value is On; Setting this value to
     /// Off means no CA Certificate validation has been done. For example
     /// at+uwsc=0,15,0 would mean that the server CA Certificate is not
@@ -207,25 +207,25 @@ pub enum WifiStationConfig<'a> {
     /// IPv4 address - <param_val> is the IPv4 address. The factory default
     /// value is 0.0.0.0. Valid only if param_tag 100 is set to Static.
     #[at_arg(value = 101)]
-    IPv4Address(#[at_arg(len = 16)] Ipv4Addr),
+    IPv4Address(Ipv4Addr),
     /// Subnet mask - <param_val> is the subnet mask. The factory default value
     /// is 0.0.0.0. Valid only if param_tag 100 is set to Static.
     #[at_arg(value = 102)]
-    SubnetMask(#[at_arg(len = 16)] Ipv4Addr),
+    SubnetMask(Ipv4Addr),
     /// Default gateway - <param_val> is the default gateway. The factory
     /// default value is 0.0.0.0. Valid only if param_tag 100 is set to Static.
     #[at_arg(value = 103)]
-    DefaultGateway(#[at_arg(len = 16)] Ipv4Addr),
+    DefaultGateway(Ipv4Addr),
     /// DNS server 1 - <param_val> is the primary DNS server IP address. The
     /// factory default value is 0.0.0.0. Valid only if param_tag 100 is set to
     /// Static.
     #[at_arg(value = 104)]
-    DNSServer1(#[at_arg(len = 16)] Ipv4Addr),
+    DNSServer1(Ipv4Addr),
     /// DNS server 2 - <param_val> is the primary DNS server IP address. The
     /// factory default value is 0.0.0.0. Valid only if param_tag 100 is set to
     /// Static.
     #[at_arg(value = 105)]
-    DNSServer2(#[at_arg(len = 16)] Ipv4Addr),
+    DNSServer2(Ipv4Addr),
     /// Address conflict detection. The factory default value is 0 (disabled).
     /// - Off: Disabled
     /// - On: Enabled
@@ -239,7 +239,7 @@ pub enum WifiStationConfig<'a> {
     /// link local address is automatically generated from the interface IEEE 48
     /// bit MAC identifier.
     #[at_arg(value = 201)]
-    IPv6LinkLocalAddress(#[at_arg(len = 40)] Ipv6Addr),
+    IPv6LinkLocalAddress(Ipv6Addr),
     /// <param_val> is the Wi-Fi beacon listen interval in units of beacon
     /// interval. The factory default value is 0, listen on all beacons.
     /// - Valid values 0-16
@@ -347,25 +347,25 @@ pub enum WifiStationConfigR {
     /// IPv4 address - <param_val> is the IPv4 address. The factory default
     /// value is 0.0.0.0. Valid only if param_tag 100 is set to Static.
     #[at_arg(value = 101)]
-    IPv4Address(#[at_arg(len = 16)] Ipv4Addr),
+    IPv4Address(Ipv4Addr),
     /// Subnet mask - <param_val> is the subnet mask. The factory default value
     /// is 0.0.0.0. Valid only if param_tag 100 is set to Static.
     #[at_arg(value = 102)]
-    SubnetMask(#[at_arg(len = 16)] Ipv4Addr),
+    SubnetMask(Ipv4Addr),
     /// Default gateway - <param_val> is the default gateway. The factory
     /// default value is 0.0.0.0. Valid only if param_tag 100 is set to Static.
     #[at_arg(value = 103)]
-    DefaultGateway(#[at_arg(len = 16)] Ipv4Addr),
+    DefaultGateway(Ipv4Addr),
     /// DNS server 1 - <param_val> is the primary DNS server IP address. The
     /// factory default value is 0.0.0.0. Valid only if param_tag 100 is set to
     /// Static.
     #[at_arg(value = 104)]
-    DNSServer1(#[at_arg(len = 16)] Ipv4Addr),
+    DNSServer1(Ipv4Addr),
     /// DNS server 2 - <param_val> is the primary DNS server IP address. The
     /// factory default value is 0.0.0.0. Valid only if param_tag 100 is set to
     /// Static.
     #[at_arg(value = 105)]
-    DNSServer2(#[at_arg(len = 16)] Ipv4Addr),
+    DNSServer2(Ipv4Addr),
     /// Address conflict detection. The factory default value is 0 (disabled).
     /// - Off: Disabled
     /// - On: Enabled
@@ -379,7 +379,7 @@ pub enum WifiStationConfigR {
     /// link local address is automatically generated from the interface IEEE 48
     /// bit MAC identifier.
     #[at_arg(value = 201)]
-    IPv6LinkLocalAddress(#[at_arg(len = 40)] Ipv6Addr),
+    IPv6LinkLocalAddress(Ipv6Addr),
     /// <param_val> is the Wi-Fi beacon listen interval in units of beacon
     /// interval. The factory default value is 0, listen on all beacons.
     /// - Valid values 0-16
@@ -898,7 +898,7 @@ pub enum AccessPointConfig<'a> {
     /// SSID - <param_val1> is the Service Set identification of the access
     /// point. The factory-programmed value is ("UBXWifi").
     #[at_arg(value = 2)]
-    SSID(#[at_arg(len = 64)] &'a str),
+    SSID(&'a str),
     /// <param_val1> is the channel. Factory programmed value is 6.
     #[at_arg(value = 4)]
     Channel(u8),
@@ -982,20 +982,12 @@ pub enum AccessPointConfig<'a> {
     /// stations that is allowed to connect or 0 to allow all. The factory
     /// default is 0.
     #[at_arg(value = 19)]
-    WhiteList(
-        #[at_arg(len = 20)] &'a str,
-        #[at_arg(len = 20)] &'a str,
-        #[at_arg(len = 20)] &'a str,
-    ),
+    WhiteList(&'a str, &'a str, &'a str),
     /// Black List - <param_val1>...<param_val10> List of MAC addresses of
     /// stations that will be rejected or 0 to not reject any. The factory
     /// default is 0.
     #[at_arg(value = 20)]
-    BlackList(
-        #[at_arg(len = 20)] &'a str,
-        #[at_arg(len = 20)] &'a str,
-        #[at_arg(len = 20)] &'a str,
-    ),
+    BlackList(&'a str, &'a str, &'a str),
     /// IPv4 Mode - <param_val1> to set the way to retrieve an IP address
     /// - 1:(default) Static
     #[at_arg(value = 100)]
@@ -1003,23 +995,23 @@ pub enum AccessPointConfig<'a> {
     /// <param_val> is the IPv4 address. The factory default value is
     /// 192.168.2.1
     #[at_arg(value = 101)]
-    IPv4Address(#[at_arg(len = 16)] Ipv4Addr),
+    IPv4Address(Ipv4Addr),
     /// <param_val> is the subnet mask. The factory default value is
     /// 255.255.255.0
     #[at_arg(value = 102)]
-    SubnetMask(#[at_arg(len = 16)] Ipv4Addr),
+    SubnetMask(Ipv4Addr),
     /// <param_val> is the default gateway. The factory default value is
     /// 192.168.2.1
     #[at_arg(value = 103)]
-    DefaultGateway(#[at_arg(len = 16)] Ipv4Addr),
+    DefaultGateway(Ipv4Addr),
     /// <param_val> is the primary DNS server IP address. The factory default
     /// value is 0.0.0.0
     #[at_arg(value = 104)]
-    PrimaryDNS(#[at_arg(len = 16)] Ipv4Addr),
+    PrimaryDNS(Ipv4Addr),
     /// <param_val> is the secondary DNS server IP address. The factory default
     /// value is 0.0.0.0
     #[at_arg(value = 105)]
-    SecondaryDNS(#[at_arg(len = 16)] Ipv4Addr),
+    SecondaryDNS(Ipv4Addr),
     /// <param_val> is the DHCP server configuration.
     /// - 0 (default): Disable DHCP server
     /// - 1 Enable DHCP server. The DHCP Server will provide addresses according
@@ -1039,7 +1031,7 @@ pub enum AccessPointConfig<'a> {
     /// link local address is automatically generated from the interface IEEE 48
     /// bit MAC identifier. The factory default value is:
     #[at_arg(value = 201)]
-    IPv6LinkLocalAddress(#[at_arg(len = 40)] Ipv6Addr),
+    IPv6LinkLocalAddress(Ipv6Addr),
     /// <param_val> is the DTIM interval. The factory default value is 1. Valid
     /// values are 1 to 100.
     #[at_arg(value = 300)]
@@ -1278,23 +1270,23 @@ pub enum AccessPointConfigResponse {
     /// <param_val> is the IPv4 address. The factory default value is
     /// 192.168.2.1
     #[at_arg(value = 101)]
-    IPv4Address(#[at_arg(len = 16)] Ipv4Addr),
+    IPv4Address(Ipv4Addr),
     /// <param_val> is the subnet mask. The factory default value is
     /// 255.255.255.0
     #[at_arg(value = 102)]
-    SubnetMask(#[at_arg(len = 16)] Ipv4Addr),
+    SubnetMask(Ipv4Addr),
     /// <param_val> is the default gateway. The factory default value is
     /// 192.168.2.1
     #[at_arg(value = 103)]
-    DefaultGateway(#[at_arg(len = 16)] Ipv4Addr),
+    DefaultGateway(Ipv4Addr),
     /// <param_val> is the primary DNS server IP address. The factory default
     /// value is 0.0.0.0
     #[at_arg(value = 104)]
-    PrimaryDNS(#[at_arg(len = 16)] Ipv4Addr),
+    PrimaryDNS(Ipv4Addr),
     /// <param_val> is the secondary DNS server IP address. The factory default
     /// value is 0.0.0.0
     #[at_arg(value = 105)]
-    SecondaryDNS(#[at_arg(len = 16)] Ipv4Addr),
+    SecondaryDNS(Ipv4Addr),
     /// <param_val> is the DHCP server configuration.
     /// - 0 (default): Disable DHCP server
     /// - 1 Enable DHCP server. The DHCP Server will provide addresses according
@@ -1314,7 +1306,7 @@ pub enum AccessPointConfigResponse {
     /// link local address is automatically generated from the interface IEEE 48
     /// bit MAC identifier. The factory default value is:
     #[at_arg(value = 201)]
-    IPv6LinkLocalAddress(#[at_arg(len = 40)] Ipv6Addr),
+    IPv6LinkLocalAddress(Ipv6Addr),
     /// <param_val> is the DTIM interval. The factory default value is 1. Valid
     /// values are 1 to 100.
     #[at_arg(value = 301)]
@@ -1339,8 +1331,8 @@ pub enum SecurityModePSK {
 
 #[derive(Clone, PartialEq, AtatEnum)]
 pub enum Passkey<'a> {
-    Passphrase(#[at_arg(len = 64)] &'a str),
-    PSK(#[at_arg(len = 64)] &'a [u8]),
+    Passphrase(&'a str),
+    PSK(&'a [u8]),
 }
 
 #[derive(Clone, PartialEq, AtatEnum)]

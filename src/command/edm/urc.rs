@@ -31,11 +31,7 @@ impl EdmEvent {
 }
 
 impl AtatUrc for EdmEvent {
-    /// The type of the response. Usually the enum this trait is implemented on.
-    type Response = Self;
-
-    /// Parse the response into a `Self::Response` instance.
-    fn parse(resp: &[u8]) -> Option<Self::Response> {
+    fn parse(resp: &[u8]) -> Option<Self> {
         trace!("[Parse URC] {:?}", LossyStr(resp));
         // Startup message?
         // TODO: simplify mayby no packet check.
@@ -193,9 +189,9 @@ mod test {
             handle: PeerHandle(2),
             connection_type: crate::command::data_mode::types::ConnectionType::IPv4,
             protocol: crate::command::data_mode::types::IPProtocol::UDP,
-            local_address: Bytes::from_slice("0.0.0.0".as_bytes()).unwrap(),
+            local_address: Bytes::try_from("0.0.0.0".as_bytes()).unwrap(),
             local_port: 0,
-            remote_address: Bytes::from_slice("162.159.200.1".as_bytes()).unwrap(),
+            remote_address: Bytes::try_from("162.159.200.1".as_bytes()).unwrap(),
             remote_port: 123,
         }));
         let parsed_urc = EdmEvent::parse(resp);

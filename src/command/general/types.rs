@@ -12,7 +12,7 @@ pub enum GreetingTextMode<'a> {
     Off,
     /// Turn on the greeting text
     #[at_arg(value = 1)]
-    On(#[at_arg(len = 48)] Option<&'a str>),
+    On(Option<&'a str>),
 }
 
 /// Identification information command value

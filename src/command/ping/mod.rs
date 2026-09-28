@@ -29,7 +29,7 @@ use atat::atat_derive::AtatCmd;
 pub struct Ping<'a> {
     /// IP address (dotted decimal representation) or domain name of the remote host
     /// - Maximum length: 64 characters
-    #[at_arg(position = 0, len = 64)]
+    #[at_arg(position = 0)]
     pub hostname: &'a str,
     /// Indicates the number of iterations for the ping command.
     /// - Range: 1-2147483647(i32 max)

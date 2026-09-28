@@ -92,6 +92,6 @@ pub struct IdentificationInformationMCUID;
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+CSGT", NoResponse, timeout_ms = 1000)]
 pub struct SetGreetingText<'a> {
-    #[at_arg(position = 0, len = 48)]
+    #[at_arg(position = 0)]
     pub mode: GreetingTextMode<'a>,
 }

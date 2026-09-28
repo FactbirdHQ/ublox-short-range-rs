@@ -14,7 +14,7 @@ pub enum APStatus {
     SSID(String<64>),
     // 1: The <status_val> is the currently used BSSID.
     #[at_arg(value = 1)]
-    BSSID(#[at_arg(len = 20)] Bytes<20>),
+    BSSID(Bytes<20>),
     // 2: The <status_val> is the currently used channel.
     #[at_arg(value = 2)]
     Channel(u8),
@@ -64,24 +64,24 @@ pub enum NetworkStatus {
     /// 101: The <status_val> is the currently used IPv4_Addr (omitted if no IP address has
     /// been acquired).
     #[at_arg(value = 101)]
-    IPv4Address(#[at_arg(len = 16)] Bytes<16>),
+    IPv4Address(Bytes<16>),
     /// 102: The <status_val> is the currently used subnet mask (omitted if no IP address
     /// has been acquired).
     #[at_arg(value = 102)]
-    SubnetMask(#[at_arg(len = 16)] Bytes<16>),
+    SubnetMask(Bytes<16>),
     /// 103: The <status_val> is the currently used gateway (omitted if no IP address has
     /// been acquired).
     #[at_arg(value = 103)]
-    Gateway(#[at_arg(len = 16)] Bytes<16>),
+    Gateway(Bytes<16>),
     /// 104: The <status_val> is the current primary DNS server.
     #[at_arg(value = 104)]
-    PrimaryDNS(#[at_arg(len = 16)] Bytes<16>),
+    PrimaryDNS(Bytes<16>),
     /// 105: The <status_val> is the current secondary DNS server.
     #[at_arg(value = 105)]
-    SecondaryDNS(#[at_arg(len = 16)] Bytes<16>),
+    SecondaryDNS(Bytes<16>),
     /// 201: The <status_val> is the current IPv6 link local address.
     #[at_arg(value = 201)]
-    IPv6LinkLocalAddress(#[at_arg(len = 40)] Bytes<40>),
+    IPv6LinkLocalAddress(Bytes<40>),
     /// 210-212: The <status_val> is an IPv6 address. For ODIN-W2, the IPv6 addresses are
     /// only sent from software version 7.0.0 onwards.
     #[at_arg(value = 210)]
@@ -216,21 +216,21 @@ pub enum BridgeConfig {
     IPv4Mode(IPv4Mode),
     /// <param_val> is the IPv4 address. The factory default value is 0.0.0.0
     #[at_arg(value = 101)]
-    IPv4Address(#[at_arg(len = 16)] Bytes<16>),
+    IPv4Address(Bytes<16>),
     /// <param_val> is the subnet mask. The factory default value is 0.0.0.0
     #[at_arg(value = 102)]
-    SubnetMask(#[at_arg(len = 16)] Bytes<16>),
+    SubnetMask(Bytes<16>),
     /// <param_val> is the default gateway. The factory default value is 0.0.0.0
     #[at_arg(value = 103)]
-    DefaultGateway(#[at_arg(len = 16)] Bytes<16>),
+    DefaultGateway(Bytes<16>),
     /// <param_val> is the primary DNS server IP address. The factory default value is 0
     /// .0.0.0
     #[at_arg(value = 104)]
-    PrimaryDNS(#[at_arg(len = 16)] Bytes<16>),
+    PrimaryDNS(Bytes<16>),
     /// <param_val> is the secondary DNS server IP address. The factory default value is
     /// 0.0.0.0
     #[at_arg(value = 105)]
-    SecondaryDNS(#[at_arg(len = 16)] Bytes<16>),
+    SecondaryDNS(Bytes<16>),
     /// <param_val> is the DHCP server configuration.
     /// - 0 (default): Disable DHCP server
     /// - 1: Enable DHCP server. The DHCP Server will provide addresses according to the

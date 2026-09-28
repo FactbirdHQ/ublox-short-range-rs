@@ -25,7 +25,7 @@ pub struct GetAPStatus {
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UNHN", NoResponse, timeout_ms = 1000)]
 pub struct SetNetworkHostName<'a> {
-    #[at_arg(position = 0, len = 64)]
+    #[at_arg(position = 0)]
     pub host_name: &'a str,
 }
 
@@ -67,7 +67,7 @@ pub struct Layer2Routing {
 pub struct SetBridgeConfiguration {
     #[at_arg(position = 0)]
     pub config_id: BridgeConfigId,
-    #[at_arg(position = 1, len = 40)]
+    #[at_arg(position = 1)]
     pub config_tag: BridgeConfig,
 }
 

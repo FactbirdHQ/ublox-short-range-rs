@@ -100,21 +100,21 @@ pub enum EthernetConfig {
     IPv4Mode(IPv4Mode),
     /// <param_val> is the IPv4 address. The factory default value is 0.0.0.0
     #[at_arg(value = 101)]
-    IPv4Address(#[at_arg(len = 16)] Ipv4Addr),
+    IPv4Address(Ipv4Addr),
     /// <param_val> is the subnet mask. The factory default value is 0.0.0.0
     #[at_arg(value = 102)]
-    SubnetMask(#[at_arg(len = 16)] Ipv4Addr),
+    SubnetMask(Ipv4Addr),
     /// <param_val> is the default gateway. The factory default value is 0.0.0.0
     #[at_arg(value = 103)]
-    DefaultGateway(#[at_arg(len = 16)] Ipv4Addr),
+    DefaultGateway(Ipv4Addr),
     /// <param_val> is the primary DNS server IP address. The factory default value is 0
     /// .0.0.0
     #[at_arg(value = 104)]
-    PrimaryDNS(#[at_arg(len = 16)] Ipv4Addr),
+    PrimaryDNS(Ipv4Addr),
     /// <param_val> is the secondary DNS server IP address. The factory default value is
     /// 0.0.0.0
     #[at_arg(value = 105)]
-    SecondaryDNS(#[at_arg(len = 16)] Ipv4Addr),
+    SecondaryDNS(Ipv4Addr),
     /// Address conflict detection. The factory default value is 0 (disabled). This tag is
     /// supported by ODIN-W2 from software version 6.0.0 onwards only.
     /// - 0: Disabled
@@ -165,21 +165,21 @@ pub enum EthernetConfigR {
     IPv4Mode(IPv4Mode),
     /// <param_val> is the IPv4 address. The factory default value is 0.0.0.0
     #[at_arg(value = 101)]
-    IPv4Address(#[at_arg(len = 16)] Ipv4Addr),
+    IPv4Address(Ipv4Addr),
     /// <param_val> is the subnet mask. The factory default value is 0.0.0.0
     #[at_arg(value = 102)]
-    SubnetMask(#[at_arg(len = 16)] Ipv4Addr),
+    SubnetMask(Ipv4Addr),
     /// <param_val> is the default gateway. The factory default value is 0.0.0.0
     #[at_arg(value = 103)]
-    DefaultGateway(#[at_arg(len = 16)] Ipv4Addr),
+    DefaultGateway(Ipv4Addr),
     /// <param_val> is the primary DNS server IP address. The factory default value is 0
     /// .0.0.0
     #[at_arg(value = 104)]
-    PrimaryDNS(#[at_arg(len = 16)] Ipv4Addr),
+    PrimaryDNS(Ipv4Addr),
     /// <param_val> is the secondary DNS server IP address. The factory default value is
     /// 0.0.0.0
     #[at_arg(value = 105)]
-    SecondaryDNS(#[at_arg(len = 16)] Ipv4Addr),
+    SecondaryDNS(Ipv4Addr),
     /// Address conflict detection. The factory default value is 0 (disabled). This tag is
     /// supported by ODIN-W2 from software version 6.0.0 onwards only.
     /// - 0: Disabled

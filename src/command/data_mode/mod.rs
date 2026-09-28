@@ -31,7 +31,7 @@ pub struct ChangeMode {
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCP", ConnectPeerResponse, timeout_ms = 5000)]
 pub struct ConnectPeer<'a> {
-    #[at_arg(position = 0, len = 128)]
+    #[at_arg(position = 0)]
     pub url: &'a str,
 }
 
@@ -42,7 +42,7 @@ pub struct ConnectPeer<'a> {
 #[derive(Clone, AtatCmd)]
 #[at_cmd("+UDCPC", NoResponse, timeout_ms = 1000)]
 pub struct ClosePeerConnection {
-    #[at_arg(position = 0, len = 1)]
+    #[at_arg(position = 0)]
     pub peer_handle: ublox_sockets::PeerHandle,
 }
 
@@ -57,7 +57,7 @@ pub struct SetDefaultRemotePeer<'a> {
     /// For ODIN-W2, the peer ID can be 0-6.
     #[at_arg(position = 0)]
     pub peer_id: u8,
-    #[at_arg(position = 1, len = 128)]
+    #[at_arg(position = 1)]
     pub url: &'a str,
     #[at_arg(position = 2)]
     pub connect_scheme: ConnectScheme,
