@@ -693,7 +693,10 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
               // }
         }
 
-        if options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some() {
+        let static_ipv4 =
+            options.ip.is_some() || options.subnet.is_some() || options.gateway.is_some();
+
+        if static_ipv4 {
             (&self.at_client)
                 .send_retry(&SetWifiStationConfig {
                     config_id: CONFIG_ID,
@@ -728,6 +731,28 @@ impl<'a, const INGRESS_BUF_SIZE: usize, const URC_CAPACITY: usize>
                     config_param: WifiStationConfig::DefaultGateway(gateway),
                 })
                 .await?;
+        }
+        // Network Primary + Secondary DNS. Tags 104/105 are only valid in
+        // static mode; with DHCP the module uses the DNS servers it is handed.
+        // Without them a static station has no resolver (factory default
+        // 0.0.0.0), and the PPP peer gets no DNS servers either.
+        if static_ipv4 {
+            if let Some(&primary) = options.dns.first() {
+                (&self.at_client)
+                    .send_retry(&SetWifiStationConfig {
+                        config_id: CONFIG_ID,
+                        config_param: WifiStationConfig::DNSServer1(primary),
+                    })
+                    .await?;
+            }
+            if let Some(&secondary) = options.dns.get(1) {
+                (&self.at_client)
+                    .send_retry(&SetWifiStationConfig {
+                        config_id: CONFIG_ID,
+                        config_param: WifiStationConfig::DNSServer2(secondary),
+                    })
+                    .await?;
+            }
         }
 
         (&self.at_client)

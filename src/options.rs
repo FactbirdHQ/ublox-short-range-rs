@@ -89,6 +89,9 @@ pub struct ConnectionOptions<'a> {
     pub subnet: Option<Ipv4Addr>,
     #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
     pub gateway: Option<Ipv4Addr>,
+    /// Primary and secondary DNS servers. For a station only applied together
+    /// with a static `ip`, `subnet` or `gateway`; with DHCP the DHCP-provided
+    /// servers are used.
     #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
     pub dns: Vec<Ipv4Addr, 2>,
 }
