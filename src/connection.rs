@@ -25,10 +25,22 @@ pub struct StaticConfigV4 {
     pub dns_servers: DnsServers,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "defmt", derive(defmt::Format))]
 pub struct DnsServers {
+    #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
     pub primary: Option<Ipv4Addr>,
+    #[cfg_attr(feature = "defmt", defmt(Debug2Format))]
     pub secondary: Option<Ipv4Addr>,
+}
+
+impl DnsServers {
+    pub(crate) const fn new() -> Self {
+        Self {
+            primary: None,
+            secondary: None,
+        }
+    }
 }
 
 pub struct WifiConnection {
@@ -38,6 +50,8 @@ pub struct WifiConnection {
     /// Last observed IPv4 address. `None` when no address is assigned
     /// (link down, or DHCP has not yet handed out an address).
     pub ipv4_addr: Option<Ipv4Addr>,
+    /// DNS servers of the WiFi interface (from DHCP, or the static config).
+    pub dns_servers: DnsServers,
     #[cfg(feature = "ipv6")]
     pub ipv6_up: bool,
     pub network: Option<WifiNetwork>,
@@ -51,6 +65,7 @@ impl WifiConnection {
             network: None,
             ipv4_up: false,
             ipv4_addr: None,
+            dns_servers: DnsServers::new(),
             #[cfg(feature = "ipv6")]
             ipv6_up: false,
         }
@@ -96,6 +111,7 @@ impl WifiConnection {
         self.network = None;
         self.ipv4_up = false;
         self.ipv4_addr = None;
+        self.dns_servers = DnsServers::new();
         #[cfg(feature = "ipv6")]
         {
             self.ipv6_up = false;
