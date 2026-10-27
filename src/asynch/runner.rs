@@ -570,9 +570,20 @@ where
                                 warn!("PPP did not provide an IP address.");
                                 return;
                             };
+                            // IPCP only hands out the module's own DNS proxy
+                            // (its PPP-side address), which on some networks
+                            // never answers while the DHCP servers behind it
+                            // do. Try those first, the proxy last.
+                            let dhcp = self.ch.dns_servers();
                             let mut dns_servers = heapless::Vec::new();
-                            for s in ipv4.dns_servers.iter().flatten() {
-                                let _ = dns_servers.push(s.clone());
+                            for s in [dhcp.primary, dhcp.secondary]
+                                .into_iter()
+                                .chain(ipv4.dns_servers)
+                                .flatten()
+                            {
+                                if !dns_servers.contains(&s) {
+                                    let _ = dns_servers.push(s);
+                                }
                             }
                             let config =
                                 embassy_net::ConfigV4::Static(embassy_net::StaticConfigV4 {

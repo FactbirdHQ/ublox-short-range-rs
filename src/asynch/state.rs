@@ -8,7 +8,7 @@ use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_sync::blocking_mutex::Mutex;
 use embassy_sync::waitqueue::WakerRegistration;
 
-use crate::connection::{WiFiState, WifiConnection};
+use crate::connection::{DnsServers, WiFiState, WifiConnection};
 
 /// The link state of a network device.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -189,6 +189,10 @@ impl<'d> Runner<'d> {
             Poll::Pending
         })
         .await
+    }
+
+    pub(crate) fn dns_servers(&self) -> DnsServers {
+        self.shared.lock(|s| s.borrow().wifi_connection.dns_servers)
     }
 
     pub(crate) fn wifi_state(&self, cx: Option<&mut Context>) -> WiFiState {

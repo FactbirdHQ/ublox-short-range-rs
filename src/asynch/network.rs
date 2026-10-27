@@ -19,7 +19,7 @@ use crate::{
         },
         Urc,
     },
-    connection::WiFiState,
+    connection::{DnsServers, WiFiState},
     error::Error,
     network::WifiNetwork,
     WifiConfig,
@@ -102,6 +102,7 @@ where
                         DisconnectReason::NetworkDisabled => {
                             con.network.take();
                             con.ipv4_up = false;
+                            con.dns_servers = DnsServers::default();
                             con.ipv6_link_local_up = false;
                             warn!("Wifi network disabled!");
                             WiFiState::Inactive
@@ -246,10 +247,25 @@ where
 
         debug!("Network status callback ipv6: {:?}", ipv6_link_local_up);
 
+        let dns_servers = if ipv4_up {
+            DnsServers {
+                primary: self
+                    .dns_server(interface_id, NetworkStatusParameter::PrimaryDNS)
+                    .await,
+                secondary: self
+                    .dns_server(interface_id, NetworkStatusParameter::SecondaryDNS)
+                    .await,
+            }
+        } else {
+            DnsServers::default()
+        };
+        debug!("Network status callback dns: {:?}", dns_servers);
+
         // Use `ipv4_addr` & `ipv6_addr` to determine link state
         self.ch.update_connection_with(|con| {
             con.ipv6_link_local_up = ipv6_link_local_up;
             con.ipv4_up = ipv4_up;
+            con.dns_servers = dns_servers;
 
             #[cfg(feature = "ipv6")]
             {
@@ -258,6 +274,31 @@ where
         });
 
         Ok(())
+    }
+
+    /// Read one DNS server of `interface_id`. Not fatal when it fails: the
+    /// PPP peer still hands out the module's own DNS proxy.
+    async fn dns_server(
+        &mut self,
+        interface_id: u8,
+        status: NetworkStatusParameter,
+    ) -> Option<Ipv4Addr> {
+        let response = self
+            .at_client
+            .send_retry(&GetNetworkStatus {
+                interface_id,
+                status,
+            })
+            .await
+            .ok()?;
+        let (NetworkStatus::PrimaryDNS(dns) | NetworkStatus::SecondaryDNS(dns)) = response.status
+        else {
+            return None;
+        };
+        core::str::from_utf8(dns.as_slice())
+            .ok()
+            .and_then(|s| Ipv4Addr::from_str(s).ok())
+            .filter(|ip| !ip.is_unspecified())
     }
 
     async fn ap_status_callback(&mut self) -> Result<(), Error> {
